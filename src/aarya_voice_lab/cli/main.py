@@ -33,12 +33,16 @@ from pathlib import Path
 from aarya_voice_lab import __version__
 from aarya_voice_lab.core.config import ConfigError, load_config
 from aarya_voice_lab.core.paths import PROJECT_ROOT
+from aarya_voice_lab.environment.audit import format_audit, run_audit
+from aarya_voice_lab.environment.specs import EnvironmentId
+from aarya_voice_lab.environment.verify import format_verification, verify_environment
+from aarya_voice_lab.pipeline.inventory import PrivateSourceAccessError, build_inventory
+from aarya_voice_lab.registry.tts_candidates import TTS_CANDIDATES, private_voice_candidates
 from aarya_voice_lab.schemas.base import SchemaName, ValidationError, validate
 from aarya_voice_lab.security.source_protection import scan_git_repo
 from aarya_voice_lab.system_info import collect_system_report, format_report
 
 PLANNED_COMMANDS = [
-    "inventory",
     "diarize",
     "transcribe",
     "review",
@@ -153,6 +157,88 @@ def _cmd_validate_config(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_env_audit(args: argparse.Namespace) -> int:
+    audit = run_audit()
+    if args.json:
+        print(json.dumps(audit.to_dict(), indent=2))
+    else:
+        print(format_audit(audit))
+    return 0 if audit.ok else 1
+
+
+def _cmd_env_check(env_id: EnvironmentId):
+    def handler(args: argparse.Namespace) -> int:
+        result = verify_environment(env_id)
+        if getattr(args, "json", False):
+            print(json.dumps(result.to_dict(), indent=2))
+        else:
+            print(format_verification(result))
+        # Blockers (approval/credentials) are reported, not treated as crashes:
+        # exit 3 distinguishes "stop condition" from "broken environment" (1).
+        if result.blockers:
+            return 3
+        return 0 if result.usable else 1
+
+    return handler
+
+
+def _cmd_tts_candidates(args: argparse.Namespace) -> int:
+    if args.json:
+        print(json.dumps([c.to_dict() for c in TTS_CANDIDATES], indent=2))
+        return 0
+
+    print("AARYA Voice Lab — TTS Candidate Matrix")
+    print("=" * 78)
+    print("NO MODEL HAS BEEN SELECTED. Licensing is a hard filter; verdicts below")
+    print("reflect license/language screening only — no audio has been evaluated.")
+    print()
+    header = f"{'Model':<32} {'Marathi':<8} {'Clone':<6} {'Commercial':<12} Verdict"
+    print(header)
+    print("-" * 78)
+    for candidate in TTS_CANDIDATES:
+        print(
+            f"{candidate.name:<32} "
+            f"{'yes' if candidate.marathi_support else 'no':<8} "
+            f"{'yes' if candidate.reference_voice_cloning else 'no':<6} "
+            f"{candidate.commercial_use.value:<12} "
+            f"{candidate.verdict.value}"
+        )
+    print()
+    print("Weights licenses:")
+    for candidate in TTS_CANDIDATES:
+        print(f"  {candidate.name:<32} {candidate.weights_license}")
+    print()
+    viable = private_voice_candidates()
+    print(f"Private Voice candidates passing all hard filters: {len(viable)}")
+    for candidate in viable:
+        print(f"  - {candidate.name}: {candidate.rationale}")
+        for limitation in candidate.known_limitations:
+            print(f"      caveat: {limitation}")
+    return 0
+
+
+def _cmd_inventory(args: argparse.Namespace) -> int:
+    directory = Path(args.directory)
+    try:
+        inventory = build_inventory(directory, approved=False)
+    except PrivateSourceAccessError as exc:
+        print(f"[BLOCKED] {exc}", file=sys.stderr)
+        return 3
+    except (NotADirectoryError, OSError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+    if args.json:
+        print(json.dumps(inventory.to_dict(), indent=2))
+    else:
+        print(f"Inventoried {len(inventory.files)} audio file(s) in {directory}")
+        print(f"Total duration: {inventory.total_duration_seconds:.2f}s")
+        for record in inventory.files:
+            duration = f"{record.duration_seconds:.2f}s" if record.duration_seconds else "unknown"
+            print(f"  {record.source_file_id}  {record.path}  {duration}  sha256={record.sha256[:12]}...")
+    return 0
+
+
 def _cmd_planned(name: str):
     def handler(args: argparse.Namespace) -> int:
         print(
@@ -203,6 +289,34 @@ def build_parser() -> argparse.ArgumentParser:
     experiment_sub = p.add_subparsers(dest="experiment_command")
     experiment_sub.add_parser("list", help="List recorded experiments.").set_defaults(func=_cmd_experiment_list)
     p.set_defaults(func=lambda args: p.print_help() or 0)
+
+    p = subparsers.add_parser("env-audit", help="Classify every toolchain capability on this machine.")
+    p.add_argument("--json", action="store_true", help="Emit JSON instead of text.")
+    p.set_defaults(func=_cmd_env_audit)
+
+    p = subparsers.add_parser("nemo-check", help="Verify the env-nemo environment against its spec.")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=_cmd_env_check(EnvironmentId.NEMO))
+
+    p = subparsers.add_parser("whisperx-check", help="Verify the env-whisperx environment against its spec.")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=_cmd_env_check(EnvironmentId.WHISPERX))
+
+    p = subparsers.add_parser("tts-check", help="Verify the env-tts environment against its spec.")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=_cmd_env_check(EnvironmentId.TTS))
+
+    p = subparsers.add_parser("tts-candidates", help="Show the TTS candidate matrix and license audit.")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=_cmd_tts_candidates)
+
+    p = subparsers.add_parser(
+        "inventory",
+        help="Catalogue audio files in a directory (refuses the private source tree).",
+    )
+    p.add_argument("directory", help="Directory to inventory. Synthetic/test audio only in Phase 1.")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=_cmd_inventory)
 
     for name in PLANNED_COMMANDS:
         sp = subparsers.add_parser(name, help=f"PLANNED: {name} is not implemented in Phase 0.")

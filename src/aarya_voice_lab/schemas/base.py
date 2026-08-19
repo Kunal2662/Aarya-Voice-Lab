@@ -36,6 +36,7 @@ class SchemaName(StrEnum):
     MODEL_REGISTRY = "model_registry"
     BENCHMARK = "benchmark"
     MANUAL_REVIEW = "manual_review"
+    STAGE_RESULT = "stage_result"
 
 
 class ValidationError(ValueError):

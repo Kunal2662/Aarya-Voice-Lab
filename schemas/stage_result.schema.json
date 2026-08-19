@@ -1,0 +1,112 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://aarya-voice-lab/schemas/stage_result.schema.json",
+  "title": "AARYA Voice Lab Stage Result",
+  "description": "Execution metadata emitted by every pipeline stage. This is the filesystem contract between stages that run in mutually incompatible Python environments (see docs/COMPATIBILITY.md). It records what ran, where, on what input, and with what outcome, so a stage can be resumed, audited, or reproduced without re-running its predecessors.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "stage",
+    "status",
+    "environment_id",
+    "processing_version",
+    "started_at",
+    "inputs",
+    "outputs"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "type": "string" },
+    "stage": {
+      "type": "string",
+      "description": "PipelineStage value this result belongs to."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["pending", "running", "completed", "failed", "skipped", "blocked"],
+      "description": "'blocked' means a stop condition (credential/gated model/external service) prevented execution — distinct from 'failed'."
+    },
+    "environment_id": {
+      "type": "string",
+      "description": "Which isolated environment executed this stage (e.g. 'env-nemo'). Critical for reproducibility because stages run under different PyTorch versions."
+    },
+    "tool": {
+      "type": ["string", "null"],
+      "description": "Primary tool used, e.g. 'nemo-toolkit'."
+    },
+    "tool_version": { "type": ["string", "null"] },
+    "model": { "type": ["string", "null"] },
+    "model_version": { "type": ["string", "null"] },
+    "processing_version": {
+      "type": "string",
+      "description": "Version of the AARYA Voice Lab code that produced this result."
+    },
+    "started_at": { "type": "string", "format": "date-time" },
+    "completed_at": { "type": ["string", "null"], "format": "date-time" },
+    "duration_seconds": { "type": ["number", "null"], "minimum": 0 },
+    "hardware": {
+      "type": "object",
+      "description": "Hardware the stage ran on; results are only comparable across matching hardware.",
+      "additionalProperties": true
+    },
+    "software_versions": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    },
+    "inputs": {
+      "type": "array",
+      "description": "Input artifacts with content hashes, enabling change detection and resumability.",
+      "items": { "$ref": "#/definitions/artifact" }
+    },
+    "outputs": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/artifact" }
+    },
+    "error": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "missing_dependency",
+            "missing_model",
+            "incompatible_environment",
+            "credential_required",
+            "gated_model",
+            "external_service_required",
+            "invalid_input",
+            "execution_error"
+          ]
+        },
+        "message": { "type": "string" },
+        "remediation": { "type": ["string", "null"] }
+      },
+      "required": ["kind", "message"]
+    },
+    "notes": { "type": ["string", "null"] }
+  },
+  "definitions": {
+    "artifact": {
+      "type": "object",
+      "required": ["path", "sha256"],
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Path relative to the run directory. Never an absolute path into private source material."
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "description": "Content hash. Lets a stage detect that its input is unchanged and skip re-work."
+        },
+        "size_bytes": { "type": ["integer", "null"], "minimum": 0 },
+        "kind": {
+          "type": ["string", "null"],
+          "description": "e.g. 'manifest', 'audio', 'rttm'."
+        }
+      }
+    }
+  }
+}

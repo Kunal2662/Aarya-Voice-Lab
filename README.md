@@ -3,11 +3,12 @@
 Standalone, **local-first** research and engineering project for AARYA's
 voice system.
 
-> **Status: Phase 0 — Foundation.** This repository currently contains
-> architecture, schemas, safety policy, tooling, and documentation only.
-> **No voice model has been built. No recordings have been processed. No
-> cloud voice API is used.** Capabilities marked *PLANNED* are not
-> implemented.
+> **Status: Phase 1 — ML Toolchain & Environment Engineering.**
+> This repository contains architecture, schemas, safety policy, the
+> environment/toolchain specification, pipeline contracts, and tooling.
+> **No ML package is installed. No model weights are downloaded. No voice
+> model has been built. No recordings have been processed. No cloud voice
+> API is used.** Capabilities marked *PLANNED* are not implemented.
 
 This project is **separate from AARYA Core and AARYA Frontend**. It does
 not modify, import from, or integrate with either.
@@ -38,13 +39,21 @@ these rules are not optional.
 | Repository structure & source protection | Implemented |
 | `.gitignore` rules for audio / models / embeddings / secrets | Implemented |
 | Hardware & environment detection | Implemented |
-| Dataset manifest / experiment / model / benchmark schemas | Implemented |
+| Capability audit (AVAILABLE/OPTIONAL/INCOMPATIBLE/UNKNOWN/…) | Implemented |
+| Environment specs + install/verify scripts | Implemented (**environments not built**) |
+| Pipeline filesystem contracts (hashes, resumability) | Implemented |
+| Cross-environment stage runner | Implemented (verified with synthetic stages) |
+| Synthetic audio fixtures & inventory stage | Implemented |
+| TTS candidate matrix & license audit | Implemented (**no model selected**) |
+| Dataset manifest / experiment / model / benchmark / stage schemas | Implemented |
 | Speaker-safety decision policy | Implemented (policy logic only) |
 | Experiment & model registries | Implemented |
 | Manual-review data model | Implemented |
-| CLI foundation | Implemented |
-| Test suite (synthetic fixtures only) | Implemented |
+| CLI | Implemented |
+| Test suite (synthetic fixtures only) | Implemented — 219 tests |
 | `VoiceService` interface contract | Defined, **no provider implemented** |
+| NeMo / WhisperX / TTS environments | **Specified, NOT installed** |
+| Model weights | **None downloaded** |
 | Diarization / transcription / alignment | **PLANNED** |
 | Dataset construction | **PLANNED** |
 | Voice model training | **PLANNED** |
@@ -73,13 +82,26 @@ phase. See [`requirements/`](requirements/) for the layered strategy.
 ## Usage
 
 ```bash
-aarya-voice system-info              # report OS/CPU/RAM/GPU/CUDA/FFmpeg/disk
-aarya-voice system-info --json       # machine-readable
+aarya-voice env-audit                # capability states for every prerequisite
+aarya-voice system-info              # raw OS/CPU/RAM/GPU/CUDA/FFmpeg/disk facts
 aarya-voice validate-environment     # readiness + Git safety scan
 aarya-voice validate-config          # validate configs/default.yaml
 aarya-voice validate-manifest <path> # validate a record against its schema
+
+aarya-voice nemo-check               # verify env-nemo against its spec
+aarya-voice whisperx-check           # verify env-whisperx (reports stop conditions)
+aarya-voice tts-check
+aarya-voice tts-candidates           # TTS candidate matrix + license audit
+aarya-voice inventory <dir>          # catalogue audio (refuses the private source tree)
+
 aarya-voice experiment --help
 aarya-voice benchmark --help
+```
+
+Full verification sweep:
+
+```bash
+scripts/verify_all.sh
 ```
 
 Environment detection works on machines with **no GPU, no CUDA, and no
@@ -106,7 +128,13 @@ No test uses, references, or requires the real recordings.
 | Document | Contents |
 |---|---|
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | System design, module layout, phases |
-| [ENVIRONMENT.md](docs/ENVIRONMENT.md) | Python/dependency strategy & version research |
+| [COMPATIBILITY.md](docs/COMPATIBILITY.md) | **Measured** dependency evidence, isolation decision, telemetry finding |
+| [ENVIRONMENT.md](docs/ENVIRONMENT.md) | Python/dependency strategy, FFmpeg install |
+| [NEMO.md](docs/NEMO.md) | `env-nemo` spec, build, verification |
+| [WHISPERX.md](docs/WHISPERX.md) | `env-whisperx` spec — **requires approval** |
+| [TTS_MODELS.md](docs/TTS_MODELS.md) | Candidate matrix and license audit |
+| [GPU_STRATEGY.md](docs/GPU_STRATEGY.md) | CPU / GPU / high-VRAM machine classes |
+| [REPRODUCIBILITY.md](docs/REPRODUCIBILITY.md) | What is and isn't reproducible |
 | [SECURITY.md](docs/SECURITY.md) | Speaker safety, verification, private-voice security model |
 | [PRIVACY.md](docs/PRIVACY.md) | Data handling rules for the private recordings |
 | [DATASET_PIPELINE.md](docs/DATASET_PIPELINE.md) | The full future processing pipeline |

@@ -33,22 +33,23 @@ WhisperX explicitly caps below it.
 
 ---
 
-## The critical finding: one environment is not possible
+## The critical finding: environments must be isolated
 
-**NVIDIA NeMo and WhisperX cannot be installed together.** This is not a
-soft warning; it is an unsatisfiable constraint:
+> **Corrected in Phase 1.** This section originally claimed NeMo and
+> WhisperX "cannot be installed together — unsatisfiable". Real
+> dependency resolutions run in Phase 1 show that they **do** resolve
+> together, and that the actual hazard is worse: pip reaches a solution
+> by **silently downgrading** the stack (torch 2.13 → 2.8; with CUDA
+> extras, NeMo 3.0.0 → 2.7.3). A successful install of the wrong
+> versions is more dangerous than a failed one.
+>
+> Full measured evidence: **[COMPATIBILITY.md](COMPATIBILITY.md)**.
 
-| Package | PyTorch pin |
-|---|---|
-| WhisperX 3.8.6 | `torch~=2.8.0` (i.e. `>=2.8,<2.9`) |
-| `nemo-toolkit[cu12]` / `[cu13]` 3.0.0 | `torch==2.12.0+cuXXX` (exact) |
-| `nemo_curator[video_cuda12]` | `torch<=2.10.0` |
-
-Three mutually exclusive ranges. **The architecture therefore assumes
-separate virtual environments per toolchain role**, and the provider
-abstraction in [TOOLCHAIN.md](TOOLCHAIN.md) exists partly to make that
-separation survivable — stages communicate through manifest files on
-disk, not through a shared Python process.
+The conclusion is unchanged — **separate virtual environments per
+toolchain role** — but the reason is silent degradation rather than
+impossibility. Stages therefore communicate through manifest files on
+disk, not a shared Python process (see
+[`pipeline/contracts.py`](../src/aarya_voice_lab/pipeline/contracts.py)).
 
 ### Planned environment split
 
@@ -134,7 +135,7 @@ because it exists** — install only what an approved phase needs.
 
 ## System-level tools
 
-| Tool | Needed for | Phase 0 |
+| Tool | Needed for | Phase 0/1 |
 |---|---|---|
 | **FFmpeg** | All audio decode/segment operations | Not required |
 | **NVIDIA driver + CUDA** | GPU acceleration (optional) | Not required |
@@ -143,11 +144,36 @@ because it exists** — install only what an approved phase needs.
 Check what the current machine has:
 
 ```bash
-aarya-voice system-info
+aarya-voice env-audit          # capability states (Phase 1)
+aarya-voice system-info        # raw hardware facts
 aarya-voice validate-environment
 ```
 
-Both work on machines with no GPU, no CUDA, and no FFmpeg.
+All work on machines with no GPU, no CUDA, and no FFmpeg.
+
+### Installing FFmpeg
+
+FFmpeg is a **system package**. This project never installs system
+software silently — install it deliberately, then re-run
+`aarya-voice env-audit` to confirm it is detected.
+
+| Platform | Command |
+|---|---|
+| Debian / Ubuntu | `sudo apt update && sudo apt install ffmpeg` |
+| Fedora / RHEL | `sudo dnf install ffmpeg` |
+| Arch | `sudo pacman -S ffmpeg` |
+| macOS (Homebrew) | `brew install ffmpeg` |
+| Windows (winget) | `winget install Gyan.FFmpeg` |
+| Windows (Chocolatey) | `choco install ffmpeg` |
+| Windows (manual) | Download a build from ffmpeg.org, extract, add its `bin\` to `PATH` |
+
+On Windows, confirm `ffmpeg -version` works in a **new** terminal — `PATH`
+changes do not apply to already-open shells.
+
+FFmpeg reports as:
+
+- `OPTIONAL` in the base environment (Phase 0/1 need no audio decoding)
+- `NOT_AVAILABLE` in `env-whisperx`, where it is genuinely required
 
 ## CPU-only and GPU execution
 

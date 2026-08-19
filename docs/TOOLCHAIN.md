@@ -1,8 +1,12 @@
 # Toolchain
 
-> **PLANNED — nothing below is installed.** Candidate tools with verified
-> constraints as of 2026-08-19. See [ENVIRONMENT.md](ENVIRONMENT.md) for
-> version pins and the environment split.
+> **Nothing below is installed.** Specifications and scripts exist
+> (`scripts/install_env.sh`, `aarya-voice nemo-check`), but no ML package
+> or model weight has been installed or downloaded.
+>
+> Constraints verified 2026-08-19 by **executed dependency resolutions** —
+> see [COMPATIBILITY.md](COMPATIBILITY.md) for the measurements, including
+> a correction to the original NeMo/WhisperX claim and a telemetry finding.
 
 ## Selection criteria
 
@@ -55,8 +59,14 @@ account, no contact-sharing agreement. For a project defined by privacy,
 a credential-free path is worth real effort to prefer. The 4-speaker
 capacity comfortably covers 2-speaker material.
 
-Package: `nemo-toolkit[asr]` (not the `nemo-toolkit-asr` pre-release).
-Apache-2.0. Environment A.
+Package: `nemo-toolkit[asr]` 3.0.0 (not the `nemo-toolkit-asr`
+pre-release). Apache-2.0. Environment `env-nemo`, torch 2.13.0.
+
+**⚠ Telemetry:** the NeMo dependency tree includes `wandb`, `sentry-sdk`,
+`nv-one-logger-training-telemetry`, OpenTelemetry OTLP exporters, and
+`aistore`. None is needed for diarization; all are potential egress paths.
+Disabled automatically for every stage subprocess and via
+`scripts/disable_telemetry.sh` — details in [NEMO.md](NEMO.md).
 
 ## Transcription & alignment
 
@@ -65,11 +75,14 @@ BSD-2-Clause; Python 3.10–3.13.
 
 Two things to weigh before adopting:
 
-1. **It cannot share an environment with NeMo** (`torch~=2.8.0` vs
-   `torch==2.12.x`). Environment B.
-2. **Its diarization path requires credentials** — `pyannote.audio>=4.0`
-   with a gated model and a contact-sharing agreement, plus
-   `pyannoteai-sdk` (a commercial API client) as a mandatory dependency.
+1. **It must not share an environment with NeMo.** Co-installing resolves
+   but silently downgrades torch to 2.8.0 (below NeMo's tested matrix) —
+   and with CUDA extras downgrades NeMo itself. Environment
+   `env-whisperx`. See [COMPATIBILITY.md](COMPATIBILITY.md).
+2. **Its diarization path requires credentials** — installing whisperx
+   *always* pulls `pyannote-audio` 4.0.7 (gated model, contact-sharing
+   agreement) and `pyannoteai-sdk` (a commercial API client). Confirmed
+   by dependency resolution, not just documentation.
 
 WhisperX for **transcription/alignment only** avoids most of concern (2).
 Using pyannote as the independent verification system needs sign-off.

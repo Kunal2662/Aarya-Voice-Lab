@@ -27,6 +27,29 @@ protected_directories:
   - logs
   - manifests
 
+# Isolated ML environments. Kept separate because co-installing NeMo and
+# WhisperX silently downgrades the stack — see docs/COMPATIBILITY.md.
+# None of these is built in Phase 1.
+environments:
+  base:
+    python: "3.11-3.13"
+  env-nemo:
+    python: "3.12"
+    torch: "2.13.0"
+  env-whisperx:
+    python: "3.12"
+    torch: "2.8.0"
+    requires_approval: true
+  env-tts:
+    python: "3.12"
+    requires_approval: true
+
+# Disabled for every stage subprocess; see pipeline/runner.py.
+telemetry:
+  disabled: true
+# Stage subprocesses fail rather than silently download model weights.
+offline_by_default: true
+
 speaker_policy:
   high_confidence_threshold: 0.90
   medium_confidence_threshold: 0.70
