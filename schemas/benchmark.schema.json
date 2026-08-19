@@ -1,0 +1,47 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://aarya-voice-lab/schemas/benchmark.schema.json",
+  "title": "AARYA Voice Lab Benchmark Record",
+  "description": "One benchmark run result for a voice model (docs/BENCHMARKING.md). Framework/schema only in Phase 0 -- no real benchmark data is shipped with this schema.",
+  "type": "object",
+  "required": ["schema_version", "benchmark_id", "model_name", "model_version", "created_at", "status", "metrics"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "type": "string" },
+    "benchmark_id": { "type": "string", "minLength": 1 },
+    "model_name": { "type": "string", "minLength": 1 },
+    "model_version": { "type": "string", "minLength": 1 },
+    "created_at": { "type": "string", "format": "date-time" },
+    "status": {
+      "type": "string",
+      "enum": ["planned", "running", "completed", "failed"]
+    },
+    "hardware": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "metrics": {
+      "type": "object",
+      "description": "All fields optional individually; present only what was actually measured.",
+      "additionalProperties": false,
+      "properties": {
+        "speaker_similarity": { "type": "number", "minimum": 0, "maximum": 1 },
+        "naturalness": { "type": "number", "minimum": 0, "maximum": 5 },
+        "intelligibility": { "type": "number", "minimum": 0, "maximum": 1 },
+        "pronunciation": { "type": "number", "minimum": 0, "maximum": 1 },
+        "prosody": { "type": "number", "minimum": 0, "maximum": 5 },
+        "marathi_quality": { "type": "number", "minimum": 0, "maximum": 5 },
+        "hindi_quality": { "type": "number", "minimum": 0, "maximum": 5 },
+        "english_quality": { "type": "number", "minimum": 0, "maximum": 5 },
+        "code_switching_quality": { "type": "number", "minimum": 0, "maximum": 5 },
+        "latency_ms": { "type": "number", "minimum": 0 },
+        "real_time_factor": { "type": "number", "minimum": 0 },
+        "cpu_memory_mb": { "type": "number", "minimum": 0 },
+        "gpu_memory_mb": { "type": "number", "minimum": 0 },
+        "generation_speed_chars_per_sec": { "type": "number", "minimum": 0 },
+        "artifact_rate": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "notes": { "type": ["string", "null"] }
+  }
+}

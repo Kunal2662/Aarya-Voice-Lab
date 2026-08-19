@@ -1,0 +1,24 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://aarya-voice-lab/schemas/dataset_manifest.schema.json",
+  "title": "AARYA Voice Lab Dataset Manifest",
+  "description": "A versioned collection of segment records describing (a version of) a dataset. Manifests never embed audio; they only reference source_file_id values defined elsewhere.",
+  "type": "object",
+  "required": ["schema_version", "dataset_id", "dataset_version", "created_at", "segments"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "type": "string" },
+    "dataset_id": { "type": "string", "minLength": 1 },
+    "dataset_version": { "type": "string", "minLength": 1 },
+    "created_at": { "type": "string", "format": "date-time" },
+    "description": { "type": "string" },
+    "is_synthetic": {
+      "type": "boolean",
+      "description": "True for example/test manifests built from synthetic data (e.g. everything under manifests/templates/). Must be true for any manifest tracked in Git."
+    },
+    "segments": {
+      "type": "array",
+      "items": { "$ref": "segment.schema.json" }
+    }
+  }
+}

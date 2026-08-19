@@ -1,0 +1,41 @@
+[
+  {
+    "schema_version": "0.1.0",
+    "model_name": "aarya-default-voice",
+    "version": "0.0.0-planned",
+    "provider": "local",
+    "model_type": "default_voice",
+    "language_capability": ["mr", "hi", "en"],
+    "hardware_requirements": { "min_vram_gb": 0, "cpu_only_supported": true },
+    "model_hash": null,
+    "source": null,
+    "license": null,
+    "training_dataset_version": null,
+    "benchmark_results": null,
+    "status": "planned",
+    "security_metadata": null
+  },
+  {
+    "schema_version": "0.1.0",
+    "model_name": "aarya-private-voice",
+    "version": "0.0.0-planned",
+    "provider": "local",
+    "model_type": "private_voice",
+    "language_capability": ["mr"],
+    "hardware_requirements": { "min_vram_gb": 0, "cpu_only_supported": true },
+    "model_hash": null,
+    "source": null,
+    "license": null,
+    "training_dataset_version": null,
+    "benchmark_results": null,
+    "status": "planned",
+    "security_metadata": {
+      "required_permission": "voice.private.use",
+      "admin_only": true,
+      "audit_logged": true,
+      "storage_protection": "PLANNED: encrypted-at-rest, restricted ACL, not yet implemented",
+      "distribution_restricted": true,
+      "frontend_direct_access": false
+    }
+  }
+]

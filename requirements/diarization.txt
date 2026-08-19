@@ -1,0 +1,36 @@
+# Speaker diarization — NVIDIA path (Environment A).
+# PLANNED, NOT INSTALLED IN PHASE 0.
+#
+# ############################################################
+# DO NOT install this alongside requirements/transcription.txt.
+# NeMo pins torch==2.12.x; WhisperX pins torch~=2.8.0. The two
+# cannot coexist. Use a separate virtualenv per environment —
+# see docs/ENVIRONMENT.md.
+# ############################################################
+#
+# Preferred over the WhisperX/pyannote path for PRIMARY diarization
+# because the Sortformer models are NOT gated and require no
+# HuggingFace token or account (see docs/ENVIRONMENT.md).
+#
+# Target: Python 3.12.
+# Install torch FIRST from the wheel index matching your driver, e.g.
+#   pip install torch==2.12.0 --index-url https://download.pytorch.org/whl/cu130
+#   pip install torch==2.12.0 --index-url https://download.pytorch.org/whl/cpu
+# then install this file.
+#
+# Models (downloaded separately, not via pip):
+#   nvidia/diar_sortformer_4spk-v1              (offline)
+#   nvidia/diar_streaming_sortformer_4spk-v2.1  (streaming, newest)
+# Both cap at 4 speakers, which comfortably covers 2-speaker material.
+# Note: the v2.1 model card recommends NeMo from `main` rather than a
+# release tag — verify the release ships the needed inference code.
+
+-r base.txt
+
+nemo-toolkit[asr]>=3.0.0
+# Prefer the extra above over the `nemo-toolkit-asr` package, which is a
+# pre-release carrying much harsher exact pins.
+
+# Pin explicitly at install time rather than accepting "newest":
+# NeMo leaves `transformers` unpinned, which risks silent API breakage.
+# lightning must resolve to exactly 2.4.0 if pyannote is ever co-installed.

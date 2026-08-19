@@ -1,0 +1,34 @@
+# AARYA Voice Lab — default configuration.
+#
+# No secrets, credentials, API keys, or paths to private recordings
+# belong in this file (or any tracked config). See docs/SECURITY.md.
+
+project_name: "AARYA Voice Lab"
+schema_version: "0.1.0"
+pipeline_version: "0.1.0"
+
+# Local-first: no cloud voice provider is configured or permitted in
+# Phase 0. Future cloud adapters, if ever added, must be optional and
+# disabled by default.
+providers:
+  tts: null
+  diarization: null
+  transcription: null
+
+# Directories treated as privacy-sensitive. Kept in sync with
+# aarya_voice_lab.core.paths.PROTECTED_DIRECTORIES and .gitignore.
+protected_directories:
+  - source
+  - datasets
+  - models
+  - experiments
+  - benchmarks
+  - reports
+  - logs
+  - manifests
+
+speaker_policy:
+  high_confidence_threshold: 0.90
+  medium_confidence_threshold: 0.70
+  reject_overlap_by_default: true
+  require_independent_verification: true

@@ -1,0 +1,146 @@
+##############################################################################
+# AARYA Voice Lab — .gitignore
+#
+# CRITICAL: This file protects private voice source material from ever
+# being committed to Git. See source/README.md and docs/PRIVACY.md for the
+# full data-handling policy. Do NOT remove the rules below to "make a file
+# committable" — if something legitimate is being ignored, move it or add a
+# narrowly-scoped, explicitly reviewed exception instead of loosening these
+# patterns.
+##############################################################################
+
+# ---------------------------------------------------------------------------
+# Original & derived audio (recordings, extracted/processed audio, samples)
+# ---------------------------------------------------------------------------
+*.wav
+*.mp3
+*.flac
+*.m4a
+*.aac
+*.ogg
+*.opus
+*.wma
+*.aiff
+*.aif
+*.au
+*.amr
+*.3gp
+*.webm
+*.mp4
+*.mov
+*.mkv
+
+# Any directory literally named for raw/processed/private audio content,
+# wherever it appears in the tree.
+**/recordings/**
+**/raw_audio/**
+**/processed_audio/**
+**/private_audio/**
+**/private_dataset/**
+**/private_datasets/**
+**/voice_samples/**
+**/generated_samples/**
+
+# Project-specific source & dataset directories: subject matter is private
+# by default. Only the README in each tree is tracked.
+/source/**
+!/source/README.md
+/datasets/**
+!/datasets/README.md
+
+# ---------------------------------------------------------------------------
+# Speaker embeddings / voice fingerprints / diarization artifacts
+# ---------------------------------------------------------------------------
+*.embedding
+*.embeddings
+*.fingerprint
+*.npy
+*.npz
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.onnx
+*.pb
+*.h5
+*.bin
+rttm/
+*.rttm
+
+# ---------------------------------------------------------------------------
+# Model checkpoints & private voice models
+# ---------------------------------------------------------------------------
+/models/**
+!/models/README.md
+!/models/**/README.md
+*.model
+*.tar.gz
+*.zip
+*.7z
+
+# ---------------------------------------------------------------------------
+# Secrets, credentials, API keys
+# ---------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+*.p12
+*secret*
+*credential*
+*.token
+config.local.yaml
+config.local.yml
+**/secrets/**
+
+# ---------------------------------------------------------------------------
+# Experiments / benchmarks / reports / logs (runtime outputs, not source)
+# ---------------------------------------------------------------------------
+/experiments/**
+!/experiments/README.md
+!/experiments/**/README.md
+/benchmarks/**
+!/benchmarks/README.md
+/reports/**
+!/reports/README.md
+/logs/**
+!/logs/README.md
+!/logs/.gitkeep
+
+# ---------------------------------------------------------------------------
+# Manifests generated from real (non-synthetic) processing runs.
+# Only hand-authored templates under manifests/templates/ are tracked.
+# ---------------------------------------------------------------------------
+/manifests/**
+!/manifests/templates/
+!/manifests/templates/**
+!/manifests/README.md
+
+# ---------------------------------------------------------------------------
+# Standard Python / tooling ignores
+# ---------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.tox/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp

@@ -1,0 +1,123 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://aarya-voice-lab/schemas/segment.schema.json",
+  "title": "AARYA Voice Lab Segment Record",
+  "description": "A single traceable audio segment record within a dataset manifest. Describes provenance and processing status for one candidate slice of a source recording. This schema stores no audio data itself.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "segment_id",
+    "source_file_id",
+    "source_start",
+    "source_end",
+    "duration",
+    "speaker_id",
+    "target_speaker_status",
+    "diarization_source",
+    "diarization_confidence",
+    "independent_verification_status",
+    "overlap_status",
+    "language",
+    "alignment_status",
+    "acceptance_status",
+    "processing_version"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "description": "Version of this schema the record conforms to (semver)."
+    },
+    "segment_id": {
+      "type": "string",
+      "description": "Stable unique identifier for this segment.",
+      "minLength": 1
+    },
+    "source_file_id": {
+      "type": "string",
+      "description": "Identifier of the original source recording this segment was derived from. Never a filesystem path to the private audio.",
+      "minLength": 1
+    },
+    "source_start": {
+      "type": "number",
+      "description": "Start offset in seconds within the source recording.",
+      "minimum": 0
+    },
+    "source_end": {
+      "type": "number",
+      "description": "End offset in seconds within the source recording.",
+      "minimum": 0
+    },
+    "duration": {
+      "type": "number",
+      "description": "source_end - source_start, in seconds.",
+      "exclusiveMinimum": 0
+    },
+    "speaker_id": {
+      "type": "string",
+      "description": "Recording-local speaker label assigned by diarization (e.g. 'spk_0'). NOT assumed globally consistent across source files.",
+      "minLength": 1
+    },
+    "target_speaker_status": {
+      "type": "string",
+      "enum": ["eligible", "reject", "manual_review", "unknown"],
+      "description": "Conservative speaker-safety classification per docs/SECURITY.md."
+    },
+    "diarization_source": {
+      "type": "string",
+      "description": "Name/version of the primary diarization system used (e.g. 'nemo-sortformer-4.x')."
+    },
+    "diarization_confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Confidence score reported by the primary diarization system."
+    },
+    "independent_verification_status": {
+      "type": "string",
+      "enum": ["verified", "unverified", "conflicting", "not_run"],
+      "description": "Result of the secondary/independent verification system."
+    },
+    "confidence_classification": {
+      "type": "string",
+      "enum": ["high", "medium", "low"],
+      "description": "Combined confidence classification from the two-system verification (see docs/SECURITY.md)."
+    },
+    "overlap_status": {
+      "type": "string",
+      "enum": ["none", "overlap", "unknown"],
+      "description": "Whether overlapping speech was detected in this segment."
+    },
+    "language": {
+      "type": "string",
+      "description": "BCP-47-style language tag (e.g. 'mr', 'hi', 'en', 'mr-en')."
+    },
+    "transcript": {
+      "type": ["string", "null"],
+      "description": "Transcript text for this segment, once transcription has run. Null before that stage."
+    },
+    "alignment_status": {
+      "type": "string",
+      "enum": ["aligned", "unaligned", "failed", "not_run"],
+      "description": "Word/phoneme alignment status."
+    },
+    "audio_quality": {
+      "type": ["object", "null"],
+      "description": "Free-form quality metrics (e.g. snr_db, clipping_ratio) produced by quality filtering. Structure may evolve; validated loosely on purpose.",
+      "additionalProperties": true
+    },
+    "acceptance_status": {
+      "type": "string",
+      "enum": ["pending", "accepted", "rejected", "ambiguous"],
+      "description": "Final manual-review/acceptance status for dataset inclusion."
+    },
+    "rejection_reason": {
+      "type": ["string", "null"],
+      "description": "Human-readable reason when acceptance_status is 'rejected' or target_speaker_status is 'reject'."
+    },
+    "processing_version": {
+      "type": "string",
+      "description": "Version tag of the pipeline/code that produced this record, for reproducibility."
+    }
+  }
+}
