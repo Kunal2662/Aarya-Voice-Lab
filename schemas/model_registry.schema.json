@@ -1,0 +1,81 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://aarya-voice-lab/schemas/model_registry.schema.json",
+  "title": "AARYA Voice Lab Model Registry Record",
+  "description": "One entry in the model registry (docs/MODEL_STRATEGY.md, docs/SECURITY.md). model_type distinguishes the Default Voice model line from the Private Voice model line; private_voice entries require the security_metadata block.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "model_name",
+    "version",
+    "provider",
+    "model_type",
+    "status"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "type": "string" },
+    "model_name": { "type": "string", "minLength": 1 },
+    "version": { "type": "string", "minLength": 1 },
+    "provider": {
+      "type": "string",
+      "description": "e.g. 'local', or a specific open-source project name. Never a paid cloud TTS API in this project (see docs/PRIVACY.md)."
+    },
+    "model_type": {
+      "type": "string",
+      "enum": ["default_voice", "private_voice", "other"]
+    },
+    "language_capability": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "hardware_requirements": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "model_hash": { "type": ["string", "null"] },
+    "source": { "type": ["string", "null"] },
+    "license": { "type": ["string", "null"] },
+    "training_dataset_version": { "type": ["string", "null"] },
+    "benchmark_results": {
+      "type": ["array", "null"],
+      "items": { "type": "string" }
+    },
+    "status": {
+      "type": "string",
+      "enum": ["planned", "experimental", "candidate", "approved", "deprecated", "rejected"]
+    },
+    "security_metadata": {
+      "type": ["object", "null"],
+      "description": "Required (non-null) when model_type == 'private_voice'.",
+      "additionalProperties": false,
+      "properties": {
+        "required_permission": {
+          "type": "string",
+          "description": "Permission string enforced by AARYA Core, e.g. 'voice.private.use'."
+        },
+        "admin_only": { "type": "boolean" },
+        "audit_logged": { "type": "boolean" },
+        "storage_protection": {
+          "type": "string",
+          "description": "Description of where/how the model is stored (e.g. 'encrypted-at-rest, restricted ACL')."
+        },
+        "distribution_restricted": { "type": "boolean" },
+        "frontend_direct_access": {
+          "type": "boolean",
+          "description": "Must be false — no frontend-only authorization path to this model."
+        }
+      },
+      "required": ["required_permission", "admin_only", "audit_logged", "distribution_restricted", "frontend_direct_access"]
+    }
+  },
+  "if": {
+    "properties": { "model_type": { "const": "private_voice" } }
+  },
+  "then": {
+    "required": ["security_metadata"],
+    "properties": {
+      "security_metadata": { "type": "object" }
+    }
+  }
+}

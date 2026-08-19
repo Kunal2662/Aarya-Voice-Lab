@@ -1,0 +1,59 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://aarya-voice-lab/schemas/experiment.schema.json",
+  "title": "AARYA Voice Lab Experiment Record",
+  "description": "One entry in the experiment registry (docs/MODEL_STRATEGY.md). Tracks everything needed to reproduce a voice-model experiment run.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "experiment_id",
+    "created_at",
+    "dataset_version",
+    "model",
+    "model_version",
+    "status"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "type": "string" },
+    "experiment_id": { "type": "string", "minLength": 1 },
+    "created_at": { "type": "string", "format": "date-time" },
+    "dataset_version": { "type": "string", "minLength": 1 },
+    "model": { "type": "string", "minLength": 1 },
+    "model_version": { "type": "string", "minLength": 1 },
+    "configuration": {
+      "type": "object",
+      "description": "Arbitrary experiment configuration (hyperparameters, etc.).",
+      "additionalProperties": true
+    },
+    "preprocessing_version": { "type": ["string", "null"] },
+    "training_configuration": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "hardware": {
+      "type": "object",
+      "description": "Hardware environment the experiment ran on (see system_info.SystemReport).",
+      "additionalProperties": true
+    },
+    "software_versions": {
+      "type": "object",
+      "description": "Key package/tool versions (python, torch, cuda, etc.).",
+      "additionalProperties": { "type": "string" }
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": { "type": "number" }
+    },
+    "benchmark_results": {
+      "type": ["array", "null"],
+      "items": { "type": "string" },
+      "description": "References to benchmark_id values in the benchmark registry, if any."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["planned", "running", "completed", "failed", "aborted"]
+    },
+    "notes": { "type": ["string", "null"] }
+  }
+}

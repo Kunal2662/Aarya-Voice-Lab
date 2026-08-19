@@ -1,0 +1,38 @@
+# Transcription, alignment & independent verification — Whisper path
+# (Environment B). PLANNED, NOT INSTALLED IN PHASE 0.
+#
+# ############################################################
+# DO NOT install this alongside requirements/diarization.txt.
+# WhisperX pins torch~=2.8.0; NeMo pins torch==2.12.x.
+# Mutually exclusive — use a separate virtualenv.
+# ############################################################
+#
+# ############################################################
+# ⚠ CREDENTIALS REQUIRED — NEEDS EXPLICIT APPROVAL FIRST.
+# pyannote.audio's recommended pipeline
+# (pyannote/speaker-diarization-community-1) is a GATED HuggingFace
+# model. It requires an access token AND accepting an agreement that
+# shares your contact information and consents to marketing email.
+# pyannote also carries `pyannoteai-sdk` (a commercial API client) as a
+# MANDATORY dependency.
+#
+# This conflicts with the project's privacy-first posture. Do not adopt
+# this path without sign-off. The NVIDIA path (diarization.txt) needs no
+# credentials and is preferred for primary diarization.
+#
+# If approved: weights are CC-BY-4.0 and CAN be used fully offline after
+# a one-time authenticated download (git-lfs clone). Audio is processed
+# LOCALLY -- the token gates the download, not inference. Never send
+# private audio to a hosted pyannoteAI endpoint.
+# ############################################################
+#
+# Target: Python 3.12, torch 2.8.x.
+# Requires FFmpeg on PATH. cuDNN 9 required (ctranslate2>=4.5.0);
+# mixing a system cuDNN 8 with torch's bundled cuDNN 9 causes segfaults.
+
+-r base.txt
+
+whisperx>=3.8.6
+# whisperx transitively pins: torch~=2.8.0, torchaudio~=2.8.0,
+# ctranslate2>=4.5.0, faster-whisper>=1.2.0, numpy>=2.1.0,
+# pyannote-audio>=4.0.0, transformers>=4.48.0, huggingface-hub<1.0.0

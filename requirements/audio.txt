@@ -1,0 +1,13 @@
+# Audio I/O and analysis — PLANNED, NOT INSTALLED IN PHASE 0.
+#
+# Required only once an approved phase begins processing audio.
+# Also requires the FFmpeg binary on PATH (a system package, not pip).
+#
+# numpy 2.x is compatible with the rest of the planned stack; do not add
+# anything that caps numpy at 1.x (see docs/ENVIRONMENT.md).
+
+-r base.txt
+
+numpy>=2.1
+soundfile>=0.12
+librosa>=0.10

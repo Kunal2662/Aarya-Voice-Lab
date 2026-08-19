@@ -1,0 +1,46 @@
+# Voice generation / TTS — Environment D.
+# PLANNED, NOT INSTALLED IN PHASE 0. NO MODEL HAS BEEN SELECTED.
+#
+# ############################################################
+# Nothing is uncommented here on purpose. The TTS model is an OPEN
+# ARCHITECTURAL DECISION -- see docs/MODEL_STRATEGY.md for the candidate
+# evaluation. Do not install a model merely because it is listed.
+#
+# LICENSING IS A HARD FILTER. Several popular voice-cloning models are
+# non-commercial or research-only, and at least one (XTTS-v2) has no
+# remaining licensor who could grant different terms.
+# ############################################################
+#
+# Keep this environment separate from A and B: TTS stacks drag their own
+# torch and transformers versions.
+#
+# --- Leading candidate -------------------------------------------------
+# AI4Bharat IndicF5 — MIT weights, supports Marathi, supports reference-
+# audio voice cloning. Loaded from HuggingFace.
+#   Caveats: the HF repo is gated (contact-info agreement), and loading
+#   uses trust_remote_code=True, which EXECUTES ARBITRARY CODE from the
+#   repo. Review that code before running it against private material.
+# transformers
+# torch
+# soundfile
+#
+# --- No-cloning alternative -------------------------------------------
+# AI4Bharat Indic Parler-TTS — Apache-2.0 code AND weights (cleanest
+# license), 21 Indic languages. Cannot clone a voice; steered by a text
+# description. Viable for the DEFAULT voice, not the Private Voice.
+# Not on PyPI: pip install git+https://github.com/huggingface/parler-tts.git
+#
+# --- CPU-friendly baseline --------------------------------------------
+# Piper — ONNX, CPU-only, no torch at inference, near-zero dependency
+# conflict risk, mr_IN voices exist. Cannot clone; needs finetuning.
+# NOTE: the current piper1-gpl package is GPL-3.0-or-later.
+# piper-tts>=1.7.0
+#
+# --- Rejected ----------------------------------------------------------
+# Coqui XTTS-v2  : weights are CPML NON-COMMERCIAL, and Coqui Inc. is
+#                  defunct so no other terms can be obtained. Also does
+#                  NOT support Marathi (Hindi only). Disqualified.
+# F5-TTS (base)  : MIT code but CC-BY-NC-4.0 base weights; English/Chinese
+#                  only. IndicF5 is the MIT-licensed Indic finetune.
+# Fish Speech    : research-only license covering code AND weights; no
+#                  Marathi. Disqualified.

@@ -1,0 +1,12 @@
+# Core runtime dependencies — the ONLY requirements installed in Phase 0.
+#
+# Deliberately tiny: config loading, schema validation, and hardware
+# detection. Nothing here pulls in an ML framework, a GPU runtime, or a
+# network client.
+#
+# Install:  pip install -r requirements/base.txt
+#      or:  pip install -e ".[dev]"
+
+pyyaml>=6.0
+jsonschema>=4.20
+psutil>=5.9
