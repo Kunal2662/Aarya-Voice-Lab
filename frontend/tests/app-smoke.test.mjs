@@ -76,6 +76,20 @@ test("app navigates through all 11 VL-D1 workspaces with no console errors", { t
       });
       page.on("pageerror", (err) => consoleErrors.push(String(err)));
 
+      // The Import workspace fetches frontend/contracts/live/dataset_gate_status.json,
+      // which is deliberately gitignored (a live, host-specific snapshot —
+      // see scripts/export_dataset_gate_status.py) and legitimately absent
+      // in a fresh clone. workspace-import.js already handles that fetch
+      // failure and falls back to an honest "not evaluated" state, but
+      // Chromium still logs the failed resource load as a console error
+      // regardless of the JS-level try/catch. Track the actual failing
+      // URL so this test can allow exactly that one, known case rather
+      // than loosening the assertion for console errors in general.
+      const badResponseUrls = [];
+      page.on("response", (response) => {
+        if (response.status() >= 400) badResponseUrls.push(response.url());
+      });
+
       await page.goto(`${baseUrl}/app/index.html`, { waitUntil: "networkidle" });
 
       for (const destination of DESTINATIONS) {
@@ -96,7 +110,15 @@ test("app navigates through all 11 VL-D1 workspaces with no console errors", { t
         assert.equal(activeSidebarDestination, destination, "sidebar active state did not follow navigation");
       }
 
-      assert.deepEqual(consoleErrors, [], `console errors: ${consoleErrors.join("; ")}`);
+      const unexpectedBadResponses = badResponseUrls.filter((url) => !url.endsWith("/contracts/live/dataset_gate_status.json"));
+      assert.deepEqual(unexpectedBadResponses, [], `unexpected failed requests: ${unexpectedBadResponses.join("; ")}`);
+
+      const expected404Count = badResponseUrls.length - unexpectedBadResponses.length;
+      assert.equal(
+        consoleErrors.length,
+        expected404Count,
+        `console errors beyond the expected dataset-gate-snapshot 404: ${JSON.stringify(consoleErrors)}`,
+      );
       await page.close();
     });
   } finally {
