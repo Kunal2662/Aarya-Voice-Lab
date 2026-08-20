@@ -43,6 +43,8 @@ class SchemaName(StrEnum):
     IDENTITY_REVIEW = "identity_review"
     CALIBRATION = "calibration"
     IMPORT_MANIFEST = "import_manifest"
+    CANDIDATE_REVIEW = "candidate_review"
+    FEEDBACK = "feedback"
 
 
 class ValidationError(ValueError):

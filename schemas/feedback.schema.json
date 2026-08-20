@@ -1,0 +1,31 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://aarya-voice-lab/schemas/feedback.schema.json",
+  "title": "AARYA Voice Lab Feedback Record (VL-D3 §26)",
+  "description": "Free-text human feedback attached to a technical object (recording, segment, or candidate) or a voice preview. NOT a training label -- nothing in this project converts a feedback record into model training data. Stored so a future AI Calibration Engine (VL-D15) can read review disagreement and feedback volume as inputs; it never computes a score itself.",
+  "type": "object",
+  "required": ["schema_version", "feedback_id", "feedback_type", "target_id", "reviewer", "created_at"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "type": "string" },
+    "feedback_id": { "type": "string", "minLength": 1 },
+    "feedback_type": {
+      "type": "string",
+      "enum": ["QUALITY_FEEDBACK", "SEGMENT_FEEDBACK", "CANDIDATE_FEEDBACK", "PLAYBACK_FEEDBACK"]
+    },
+    "target_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The recording/segment/candidate/preview id this feedback is about."
+    },
+    "reviewer": { "type": "string", "minLength": 1 },
+    "comment": { "type": ["string", "null"] },
+    "attributes": {
+      "type": "object",
+      "description": "Structured hints, e.g. {\"issue\": \"too_noisy\"}. Free-form but never a speaker or identity field.",
+      "additionalProperties": { "type": "string" }
+    },
+    "created_at": { "type": "string" },
+    "processing_version": { "type": "string" }
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "$generated_by": "scripts/export_frontend_contracts.py",
+  "$source": "aarya_voice_lab.pipeline.overlap.OverlapStatus",
+  "description": "A heuristic acoustic indicator, not a speaker count or a probability. POSSIBLE_OVERLAP/OVERLAP_DETECTED are candidates for Phase 3 to resolve, never a confirmed multi-speaker claim.",
+  "values": [
+    "NO_OVERLAP_DETECTED",
+    "POSSIBLE_OVERLAP",
+    "OVERLAP_DETECTED",
+    "UNKNOWN"
+  ]
+}

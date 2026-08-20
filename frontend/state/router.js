@@ -9,6 +9,7 @@ export const DESTINATIONS = Object.freeze([
   "import",
   "batches",
   "recordings",
+  "review",
   "pipeline",
   "voices",
   "models",

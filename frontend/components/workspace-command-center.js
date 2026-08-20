@@ -6,6 +6,7 @@
 // "not available" — nothing is invented. This is an overview only — the
 // Dataset Workspace (Import/Batches/Recordings) owns the detailed view.
 import { AvlElement, defineComponent } from "./base-element.js";
+import { summarizeReviewState } from "../state/review-summary.js";
 import "./workspace-state.js";
 import "./panel.js";
 import "./status-badge.js";
@@ -23,6 +24,11 @@ export class AvlWorkspaceCommandCenter extends AvlElement {
     this._services = this._services || {};
     if (this._services.importQueue) {
       this._services.importQueue.addEventListener("change", () => {
+        if (this.isConnected) this._render();
+      });
+    }
+    if (this._services.reviewStore) {
+      this._services.reviewStore.addEventListener("change", () => {
         if (this.isConnected) this._render();
       });
     }
@@ -145,7 +151,34 @@ export class AvlWorkspaceCommandCenter extends AvlElement {
       importsPanel.appendChild(empty);
     }
 
-    grid.append(systemPanel, pipelinePanel, jobsPanel, activityPanel, importsPanel);
+    // REVIEW — overview only (VL-D3 §24); the Dataset Review workspace
+    // owns the detailed queue/filters/sorting.
+    const reviewPanel = document.createElement("avl-panel");
+    reviewPanel.setAttribute("title", "Review");
+    const reviewSummary = summarizeReviewState(this._services.reviewStore);
+    for (const [label, value] of [
+      ["Review queue", reviewSummary.reviewQueueCount],
+      ["Pending candidates", reviewSummary.pendingCandidates],
+      ["Quality warnings", reviewSummary.qualityWarnings],
+      ["Recent analyses", reviewSummary.recentAnalysisCount],
+      ["Failed analyses", reviewSummary.failedAnalyses],
+    ]) {
+      const metric = document.createElement("avl-metric-placeholder");
+      metric.setAttribute("label", label);
+      metric.setAttribute("value", String(value));
+      reviewPanel.appendChild(metric);
+    }
+    const currentBatch = document.createElement("avl-metric-placeholder");
+    currentBatch.setAttribute("label", "Current batch review");
+    if (reviewSummary.currentBatchReview) {
+      currentBatch.setAttribute(
+        "value",
+        `${reviewSummary.currentBatchReview.batchId} (${reviewSummary.currentBatchReview.decided}/${reviewSummary.currentBatchReview.total})`,
+      );
+    }
+    reviewPanel.appendChild(currentBatch);
+
+    grid.append(systemPanel, pipelinePanel, jobsPanel, activityPanel, importsPanel, reviewPanel);
     wrapper.appendChild(grid);
     this.shadowRoot.appendChild(wrapper);
   }

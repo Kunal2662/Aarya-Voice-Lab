@@ -1,0 +1,11 @@
+{
+  "$generated_by": "scripts/export_frontend_contracts.py",
+  "$source": "aarya_voice_lab.pipeline.quality.QualityDecision",
+  "description": "PASS/WARNING/REVIEW/FAIL \u2014 the quality DECISION, produced by config-driven thresholds over audio.analysis's raw measurements. The UI must never compute this itself, and must add its own NOT_ANALYZED only for a recording no assessment has run on yet.",
+  "values": [
+    "PASS",
+    "WARNING",
+    "REVIEW",
+    "FAIL"
+  ]
+}

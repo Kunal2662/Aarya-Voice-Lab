@@ -17,6 +17,7 @@ and a test asserts that it does.
 from __future__ import annotations
 
 import math
+import random
 import struct
 import wave
 from dataclasses import dataclass
@@ -264,6 +265,33 @@ def generate_narrowband(
     return write_wav(
         path, _speech_like_samples(200.0, duration_seconds, 8_000, 0.25), 8_000
     )
+
+
+def _noise_samples(duration: float, sample_rate: int, amplitude: float, *, seed: int = 42) -> list[int]:
+    """Deterministic pseudo-noise: a fixed-seed PRNG, not real acoustic
+    noise. Reproducible across runs and machines, which is what makes it
+    a usable fixture rather than one-off randomness."""
+    rng = random.Random(seed)
+    count = int(duration * sample_rate)
+    return [int(amplitude * rng.uniform(-1.0, 1.0) * _INT16_MAX) for _ in range(count)]
+
+
+def generate_noisy_speech(
+    path: Path,
+    *,
+    frequency_hz: float = 180.0,
+    duration_seconds: float = 2.0,
+    sample_rate: int = DEFAULT_SAMPLE_RATE,
+    speech_amplitude: float = 0.35,
+    noise_amplitude: float = 0.15,
+) -> Path:
+    """Speech-like signal with a deterministic pseudo-noise floor mixed
+    in — for exercising low-SNR classification (VL-D3 §33's "noisy
+    speech" fixture). Not real acoustic noise, and not real speech."""
+    speech = _speech_like_samples(frequency_hz, duration_seconds, sample_rate, speech_amplitude)
+    noise = _noise_samples(duration_seconds, sample_rate, noise_amplitude)
+    mixed = [_clamp(s + n) for s, n in zip(speech, noise, strict=True)]
+    return write_wav(path, mixed, sample_rate)
 
 
 def generate_zero_byte(path: Path) -> Path:

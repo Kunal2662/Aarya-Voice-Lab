@@ -74,6 +74,37 @@
         "warning": "state.warning",
         "danger": "state.danger"
       }
+    },
+    "quality_decision": {
+      "description": "Mirrors aarya_voice_lab.pipeline.quality.QualityDecision exactly (PASS/WARNING/REVIEW/FAIL), plus one UI-only addition (NOT_ANALYZED) for a recording no assessment has run on yet — the same 'superset for the not-yet-run case' pattern the pipeline_stage domain already uses for not_started. Do not add, rename, or remove PASS/WARNING/REVIEW/FAIL without updating the backend enum and regenerating frontend/contracts/generated/quality_decision.json.",
+      "states": ["NOT_ANALYZED", "PASS", "WARNING", "REVIEW", "FAIL"],
+      "color_token": {
+        "NOT_ANALYZED": "text.disabled",
+        "PASS": "state.success",
+        "WARNING": "state.warning",
+        "REVIEW": "voice.review-required",
+        "FAIL": "state.danger"
+      }
+    },
+    "overlap_status": {
+      "description": "Mirrors aarya_voice_lab.pipeline.overlap.OverlapStatus exactly. A heuristic acoustic indicator, never a speaker count or a probability — POSSIBLE_OVERLAP/OVERLAP_DETECTED are candidates for Phase 3 to resolve, never rendered as a confirmed multi-speaker claim.",
+      "states": ["NO_OVERLAP_DETECTED", "POSSIBLE_OVERLAP", "OVERLAP_DETECTED", "UNKNOWN"],
+      "color_token": {
+        "NO_OVERLAP_DETECTED": "state.success",
+        "POSSIBLE_OVERLAP": "state.warning",
+        "OVERLAP_DETECTED": "voice.review-required",
+        "UNKNOWN": "text.muted"
+      }
+    },
+    "candidate_review": {
+      "description": "Mirrors aarya_voice_lab.pipeline.candidate_review.CandidateReviewDecision exactly. Technical review only (review_type='technical') — never a speaker-identity decision. See schemas/candidate_review.schema.json.",
+      "states": ["PENDING", "ACCEPTED", "REJECTED", "NEEDS_REVIEW"],
+      "color_token": {
+        "PENDING": "text.muted",
+        "ACCEPTED": "state.success",
+        "REJECTED": "state.danger",
+        "NEEDS_REVIEW": "voice.review-required"
+      }
     }
   }
 }

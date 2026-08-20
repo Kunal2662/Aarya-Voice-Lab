@@ -30,6 +30,13 @@ from aarya_voice_lab.identity.calibration import CalibrationState  # noqa: E402
 from aarya_voice_lab.identity.command_center import CommandRisk  # noqa: E402
 from aarya_voice_lab.identity.preview import PreviewFeedbackOutcome, PreviewKind  # noqa: E402
 from aarya_voice_lab.identity.runtime import ComputeBackend  # noqa: E402
+from aarya_voice_lab.pipeline.candidate_review import (  # noqa: E402
+    CandidateReviewDecision,
+    CandidateReviewReason,
+)
+from aarya_voice_lab.pipeline.feedback import FeedbackType  # noqa: E402
+from aarya_voice_lab.pipeline.overlap import OverlapStatus  # noqa: E402
+from aarya_voice_lab.pipeline.quality import QualityDecision  # noqa: E402
 from aarya_voice_lab.pipeline.stages import (  # noqa: E402
     PHASE_2_STAGES,
     PIPELINE_ORDER,
@@ -114,6 +121,40 @@ def build_payloads() -> dict[str, dict]:
             "Reviewer feedback outcomes for a voice preview.",
         ),
         "pipeline_stage.json": _pipeline_stage_payload(),
+        "quality_decision.json": _enum_payload(
+            "aarya_voice_lab.pipeline.quality.QualityDecision",
+            QualityDecision,
+            "PASS/WARNING/REVIEW/FAIL — the quality DECISION, produced by "
+            "config-driven thresholds over audio.analysis's raw measurements. "
+            "The UI must never compute this itself, and must add its own "
+            "NOT_ANALYZED only for a recording no assessment has run on yet.",
+        ),
+        "overlap_status.json": _enum_payload(
+            "aarya_voice_lab.pipeline.overlap.OverlapStatus",
+            OverlapStatus,
+            "A heuristic acoustic indicator, not a speaker count or a "
+            "probability. POSSIBLE_OVERLAP/OVERLAP_DETECTED are candidates for "
+            "Phase 3 to resolve, never a confirmed multi-speaker claim.",
+        ),
+        "candidate_review_decision.json": _enum_payload(
+            "aarya_voice_lab.pipeline.candidate_review.CandidateReviewDecision",
+            CandidateReviewDecision,
+            "Technical candidate review only (review_type='technical'). "
+            "Never a speaker-identity decision — see "
+            "schemas/candidate_review.schema.json.",
+        ),
+        "candidate_review_reason.json": _enum_payload(
+            "aarya_voice_lab.pipeline.candidate_review.CandidateReviewReason",
+            CandidateReviewReason,
+            "Closed, technical-only reason codes for a candidate review "
+            "decision. No value here can express a speaker judgement.",
+        ),
+        "feedback_type.json": _enum_payload(
+            "aarya_voice_lab.pipeline.feedback.FeedbackType",
+            FeedbackType,
+            "Feedback categories a human can attach to a recording, segment, "
+            "candidate, or preview. Never converted into a training label.",
+        ),
     }
 
 

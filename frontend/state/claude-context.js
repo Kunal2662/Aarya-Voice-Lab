@@ -73,4 +73,40 @@ export function buildClaudeContext(input) {
   return redactDeep(context);
 }
 
+/**
+ * Bounded context for an "Ask Claude" affordance scoped to one technical
+ * review question (VL-D3 §25) — deliberately a narrower shape than
+ * buildClaudeContext()'s general app-state snapshot. Only the fields the
+ * spec names: recording/batch identity, pipeline stage, the specific
+ * metric and warning/error being asked about, a relevant config
+ * fragment, and provenance limited to hashes and relative-safe IDs.
+ * Never a filesystem path, never a credential, never a speaker-identity
+ * field — this surface stays inside the technical-review boundary (§3)
+ * exactly like everything else Dataset Review renders.
+ *
+ * @param {object} input
+ * @param {string|null} [input.recordingId]
+ * @param {string|null} [input.batchId]
+ * @param {string} [input.stage] - e.g. "quality_analysis", "segmentation", "overlap"
+ * @param {{name:string,value:*}|null} [input.metric]
+ * @param {string|null} [input.warning]
+ * @param {string|null} [input.error]
+ * @param {object|null} [input.config]
+ * @param {{sourceSha256:string|null,configHash:string|null}|null} [input.provenance]
+ */
+export function buildReviewClaudeContext(input) {
+  const context = {
+    recording_id: input.recordingId || null,
+    batch_id: input.batchId || null,
+    stage: input.stage || null,
+    metric: input.metric || null,
+    warning: input.warning || null,
+    error: input.error || null,
+    config: input.config || null,
+    provenance: input.provenance || null,
+    permissions: { max_risk_tier: "read_only" },
+  };
+  return redactDeep(context);
+}
+
 export { redactDeep, redactValue };

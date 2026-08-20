@@ -1,0 +1,13 @@
+{
+  "$generated_by": "scripts/export_frontend_contracts.py",
+  "$source": "aarya_voice_lab.pipeline.candidate_review.CandidateReviewReason",
+  "description": "Closed, technical-only reason codes for a candidate review decision. No value here can express a speaker judgement.",
+  "values": [
+    "quality_issue",
+    "segmentation_issue",
+    "overlap_issue",
+    "duration_issue",
+    "technical_usability",
+    "other"
+  ]
+}

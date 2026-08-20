@@ -1,0 +1,11 @@
+{
+  "$generated_by": "scripts/export_frontend_contracts.py",
+  "$source": "aarya_voice_lab.pipeline.candidate_review.CandidateReviewDecision",
+  "description": "Technical candidate review only (review_type='technical'). Never a speaker-identity decision \u2014 see schemas/candidate_review.schema.json.",
+  "values": [
+    "PENDING",
+    "ACCEPTED",
+    "REJECTED",
+    "NEEDS_REVIEW"
+  ]
+}

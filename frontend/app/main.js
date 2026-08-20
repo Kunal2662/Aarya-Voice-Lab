@@ -14,6 +14,7 @@ import "../components/workspace-command-center.js";
 import "../components/workspace-import.js";
 import "../components/workspace-batches.js";
 import "../components/workspace-recordings.js";
+import "../components/workspace-dataset-review.js";
 import "../components/workspace-pipeline.js";
 import "../components/workspace-voices.js";
 import "../components/workspace-models.js";
@@ -29,12 +30,15 @@ import { ActivityStore } from "../state/activity-model.js";
 import { NullCommandExecutor } from "../state/command-executor.js";
 import { syntheticJobs, syntheticActivity } from "../state/synthetic-fixtures.js";
 import { ImportQueue } from "../state/import-engine.js";
+import { CandidateReviewStore, FeedbackStore } from "../state/review-model.js";
+import { createActivityEvent, ActivitySource, ActivitySeverity } from "../state/activity-model.js";
 
 const DESTINATION_META = {
   "command-center": { icon: "◆", label: "Command Center", tag: "avl-workspace-command-center" },
   import: { icon: "⇩", label: "Import", tag: "avl-workspace-import" },
   batches: { icon: "▤", label: "Batches", tag: "avl-workspace-batches" },
   recordings: { icon: "♫", label: "Recordings", tag: "avl-workspace-recordings" },
+  review: { icon: "◎", label: "Dataset Review", tag: "avl-workspace-dataset-review" },
   pipeline: { icon: "≋", label: "Pipeline", tag: "avl-workspace-pipeline" },
   voices: { icon: "♪", label: "Voices", tag: "avl-workspace-voices" },
   models: { icon: "▣", label: "Models", tag: "avl-workspace-models" },
@@ -89,8 +93,38 @@ async function main() {
   // in-flight hashing/validation state — survives navigating to another
   // workspace and back, matching VL-D2 §5's "queue" semantics.
   const importQueue = new ImportQueue({ batchId: "batch-001", source: "local_files" });
+  // Session-only, like importQueue above — owned here so review/feedback
+  // state survives navigating away from Dataset Review and back (VL-D3
+  // §14's "persistent entries"). No execution transport exists to
+  // persist these beyond the session (see state/command-executor.js).
+  const reviewStore = new CandidateReviewStore();
+  const feedbackStore = new FeedbackStore();
 
-  const services = { jobStore, activityStore, executor, pipelineStageContract, importQueue, router };
+  const services = { jobStore, activityStore, executor, pipelineStageContract, importQueue, reviewStore, feedbackStore, router };
+
+  // VL-D3 §23 — a technical review decision is itself an activity event
+  // (recording reviewed / candidate accepted / rejected / marked for
+  // review). Decision -> severity mirrors the "candidate_review" status
+  // vocabulary's own color intent (rejected reads as attention-worthy,
+  // needs-review as a warning, accepted/pending as routine).
+  const REVIEW_DECISION_SEVERITY = {
+    ACCEPTED: ActivitySeverity.SUCCESS,
+    REJECTED: ActivitySeverity.DANGER,
+    NEEDS_REVIEW: ActivitySeverity.WARNING,
+    PENDING: ActivitySeverity.INFO,
+  };
+  reviewStore.addEventListener("change", (event) => {
+    const record = event.detail.record;
+    activityStore.append(
+      createActivityEvent({
+        id: `review-activity-${record.reviewId}`,
+        severity: REVIEW_DECISION_SEVERITY[record.decision] || ActivitySeverity.INFO,
+        source: ActivitySource.REVIEW,
+        status: record.decision.toLowerCase(),
+        summary: `Candidate ${record.decision.toLowerCase().replace("_", " ")}: ${record.segmentId} (${record.reasonCode})`,
+      }),
+    );
+  });
 
   const shell = document.createElement("avl-app-shell");
   shell.id = "shell";
@@ -107,6 +141,7 @@ async function main() {
   inspector.setAttribute("title", "Inspector");
   inspector.setAttribute("collapsible", "");
   const inspectorRouter = document.createElement("avl-inspector-router");
+  inspectorRouter.services = services;
   inspector.appendChild(inspectorRouter);
   shell.appendChild(inspector);
 

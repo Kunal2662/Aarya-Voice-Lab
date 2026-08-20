@@ -1,0 +1,46 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://aarya-voice-lab/schemas/candidate_review.schema.json",
+  "title": "AARYA Voice Lab Candidate Review Record (Phase 2 / VL-D3)",
+  "description": "A human decision about the TECHNICAL fitness of a candidate segment -- quality, duration, segmentation, overlap. Distinct from schemas/identity_review.schema.json, which asks WHO is speaking; review_type is pinned to 'technical' so the two can never be confused, exactly mirroring how identity_review.schema.json pins 'identity'. Records are immutable; a correction supersedes rather than edits, so review history is never silently overwritten.",
+  "type": "object",
+  "required": [
+    "schema_version", "review_id", "segment_id", "source_file_id", "batch_id",
+    "reviewer", "decision", "reason_code", "reviewed_at", "review_type",
+    "stage", "source_sha256", "config_hash", "tool_version", "stage_version"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "type": "string" },
+    "review_id": { "type": "string", "minLength": 1 },
+    "segment_id": { "type": "string", "minLength": 1 },
+    "source_file_id": { "type": "string", "minLength": 1 },
+    "batch_id": { "type": "string", "minLength": 1 },
+    "reviewer": { "type": "string", "minLength": 1 },
+    "decision": {
+      "type": "string",
+      "enum": ["PENDING", "ACCEPTED", "REJECTED", "NEEDS_REVIEW"]
+    },
+    "reason_code": {
+      "type": "string",
+      "enum": [
+        "quality_issue", "segmentation_issue", "overlap_issue",
+        "duration_issue", "technical_usability", "other"
+      ],
+      "description": "Closed, technical-only vocabulary. There is deliberately no reason code here that could express a speaker judgement."
+    },
+    "notes": { "type": ["string", "null"] },
+    "reviewed_at": { "type": "string" },
+    "supersedes": {
+      "type": ["string", "null"],
+      "description": "review_id of the decision this one corrects, if any. Never null out and edit a prior record -- append a new one referencing it."
+    },
+    "review_type": { "type": "string", "const": "technical" },
+    "stage": { "type": "string", "const": "candidate_review" },
+    "processing_version": { "type": "string" },
+    "source_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "config_hash": { "type": "string" },
+    "tool_version": { "type": "string" },
+    "stage_version": { "type": "string" }
+  }
+}
