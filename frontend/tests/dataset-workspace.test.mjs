@@ -23,12 +23,33 @@ async function withPage(fn) {
   try {
     const page = await browser.newPage();
     const consoleErrors = [];
+    // The Import workspace fetches frontend/contracts/live/dataset_gate_status.json,
+    // a deliberately gitignored, host-specific snapshot (see
+    // scripts/export_dataset_gate_status.py) that is legitimately absent
+    // in a fresh clone — workspace-import.js already handles that fetch
+    // failure and falls back to an honest "not evaluated" state, but
+    // Chromium still logs the failed resource load as a console error
+    // regardless of the JS-level try/catch. Track the actual failing URL
+    // so tests can allow exactly that one, known case (same pattern as
+    // tests/app-smoke.test.mjs) rather than loosening the assertion.
+    const badResponseUrls = [];
+    page.on("response", (response) => {
+      if (response.status() >= 400) badResponseUrls.push(response.url());
+    });
     page.on("console", (msg) => {
       if (msg.type() === "error") consoleErrors.push(msg.text());
     });
     page.on("pageerror", (err) => consoleErrors.push(String(err)));
     await page.goto(`http://127.0.0.1:${port}/app/index.html`, { waitUntil: "networkidle" });
     await fn(page, consoleErrors);
+    const unexpectedBadResponses = badResponseUrls.filter((url) => !url.endsWith("/contracts/live/dataset_gate_status.json"));
+    assert.deepEqual(unexpectedBadResponses, [], `unexpected failed requests: ${unexpectedBadResponses.join("; ")}`);
+    const expectedErrorCount = badResponseUrls.length - unexpectedBadResponses.length;
+    assert.equal(
+      consoleErrors.length,
+      expectedErrorCount,
+      `console errors beyond the expected dataset-gate-snapshot 404: ${JSON.stringify(consoleErrors)}`,
+    );
   } finally {
     await browser.close();
     await new Promise((resolve) => server.close(resolve));
@@ -86,7 +107,6 @@ test("drop a real synthetic WAV in Import: it hashes, classifies, and accepts", 
     assert.equal(result.status, "accepted");
     assert.equal(result.sha256.length, 64);
     assert.equal(result.hasStoredPath, false, "client-side queue must never claim a stored path");
-    assert.deepEqual(errors, []);
   });
 });
 
@@ -123,7 +143,6 @@ test("an import failure offers Ask Claude with a bounded, redacted context", { t
     assert.match(text, /"stage": "import"/);
     assert.match(text, /"filename": "empty\.wav"/);
     assert.doesNotMatch(text, /"permissions":\s*\{\s*"max_risk_tier":\s*"destructive"/i);
-    assert.deepEqual(errors, []);
   });
 });
 
