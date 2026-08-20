@@ -1,11 +1,12 @@
-"""Calibration preparation — VL-D3 §27.
+"""Calibration preparation — VL-D3 §27, extended by VL-D5 §23.
 
 Structured, real counts the future AI Calibration Engine (VL-D15) will
 eventually read: how much quality feedback exists, how many segments
 have conflicting review decisions, how many recordings are narrowband,
-how many carry an overlap candidate. **No score is computed here.** The
-state is always `identity.calibration.CalibrationState.UNCALIBRATED` —
-the same honesty rule `identity.calibration` already enforces for
+how many carry an overlap candidate, and — new in VL-D5 — how many
+generation ratings and regenerations exist. **No score is computed
+here.** The state is always `identity.calibration.CalibrationState.UNCALIBRATED`
+— the same honesty rule `identity.calibration` already enforces for
 target-speaker verification applies here for exactly the same reason:
 there is no engine yet to have calibrated anything.
 """
@@ -16,9 +17,12 @@ from dataclasses import dataclass
 from typing import Any
 
 from aarya_voice_lab.identity.calibration import CalibrationState
+from aarya_voice_lab.identity.preview import PreviewFeedbackOutcome
 from aarya_voice_lab.pipeline.candidate_review import CandidateReviewLog, review_disagreement_count
 from aarya_voice_lab.pipeline.feedback import FeedbackLog, FeedbackType, counts_by_type
 from aarya_voice_lab.pipeline.inventory import Inventory
+from aarya_voice_lab.pipeline.preview_feedback import PreviewFeedbackLog, counts_by_category, counts_by_outcome
+from aarya_voice_lab.pipeline.preview_history import PreviewHistoryLog, regeneration_count
 
 
 @dataclass(frozen=True)
@@ -71,6 +75,66 @@ def summarize_calibration_inputs(
         narrowband_count=narrowband_count,
         total_recordings=total_recordings,
         feedback_counts_by_type=feedback_counts,
+        note=(
+            "No AI Calibration Engine exists yet (VL-D15). These are raw counts "
+            "for a future engine to read, never a computed score."
+        ),
+    )
+
+
+@dataclass(frozen=True)
+class PreviewCalibrationInputSummary:
+    calibration_state: CalibrationState
+    total_generations: int
+    voice_profile_count: int
+    total_regenerations: int
+    feedback_counts_by_outcome: dict[str, int]
+    feedback_counts_by_category: dict[str, int]
+    accepted_count: int
+    rejected_count: int
+    note: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "calibration_state": self.calibration_state.value,
+            "total_generations": self.total_generations,
+            "voice_profile_count": self.voice_profile_count,
+            "total_regenerations": self.total_regenerations,
+            "feedback_counts_by_outcome": self.feedback_counts_by_outcome,
+            "feedback_counts_by_category": self.feedback_counts_by_category,
+            "accepted_count": self.accepted_count,
+            "rejected_count": self.rejected_count,
+            "note": self.note,
+        }
+
+
+def summarize_preview_calibration_inputs(
+    *,
+    history_log: PreviewHistoryLog | None = None,
+    feedback_log: PreviewFeedbackLog | None = None,
+) -> PreviewCalibrationInputSummary:
+    """VL-D5 §23 — structured generation/feedback signals for the future
+    AI Calibration Engine. Always `UNCALIBRATED`; only real counts."""
+    all_records = history_log.list() if history_log is not None else []
+    voice_profile_ids = sorted({r["voice_profile_id"] for r in all_records})
+    total_regenerations = (
+        sum(regeneration_count(history_log, vid) for vid in voice_profile_ids) if history_log is not None else 0
+    )
+
+    outcome_counts = (
+        counts_by_outcome(feedback_log) if feedback_log is not None else {o.value: 0 for o in PreviewFeedbackOutcome}
+    )
+    category_counts = counts_by_category(feedback_log) if feedback_log is not None else {}
+
+    return PreviewCalibrationInputSummary(
+        calibration_state=CalibrationState.UNCALIBRATED,
+        total_generations=len(all_records),
+        voice_profile_count=len(voice_profile_ids),
+        total_regenerations=total_regenerations,
+        feedback_counts_by_outcome=outcome_counts,
+        feedback_counts_by_category=category_counts,
+        accepted_count=outcome_counts.get(PreviewFeedbackOutcome.ACCEPTED.value, 0),
+        rejected_count=outcome_counts.get(PreviewFeedbackOutcome.REJECTED.value, 0),
         note=(
             "No AI Calibration Engine exists yet (VL-D15). These are raw counts "
             "for a future engine to read, never a computed score."

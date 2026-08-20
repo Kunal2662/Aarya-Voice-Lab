@@ -1,0 +1,17 @@
+{
+  "$generated_by": "scripts/export_frontend_contracts.py",
+  "$source": "aarya_voice_lab.pipeline.preview_feedback.PreviewFeedbackCategory",
+  "description": "Closed vocabulary for feedback on a generated preview, stored in a PreviewFeedback record's attributes.category.",
+  "values": [
+    "VOICE_QUALITY",
+    "NATURALNESS",
+    "CLARITY",
+    "PRONUNCIATION",
+    "PACE",
+    "PITCH",
+    "PROSODY",
+    "STYLE",
+    "ARTIFACTS",
+    "OVERALL"
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "$generated_by": "scripts/export_frontend_contracts.py",
+  "$source": "aarya_voice_lab.pipeline.generation.GenerationStatus",
+  "description": "Preview generation queue item states (VL-D5). BLOCKED means the request could not be generated at all (validation failed or the backend is unavailable); WARNING means it completed with a caveat. Neither is ever silently upgraded to READY.",
+  "values": [
+    "QUEUED",
+    "PREPARING",
+    "GENERATING",
+    "POST_PROCESSING",
+    "READY",
+    "WARNING",
+    "FAILED",
+    "CANCELLED",
+    "BLOCKED"
+  ]
+}

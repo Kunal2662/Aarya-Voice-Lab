@@ -46,6 +46,8 @@ class SchemaName(StrEnum):
     CANDIDATE_REVIEW = "candidate_review"
     FEEDBACK = "feedback"
     PROCESSING_HISTORY = "processing_history"
+    PREVIEW_HISTORY = "preview_history"
+    PREVIEW_FEEDBACK = "preview_feedback"
 
 
 class ValidationError(ValueError):

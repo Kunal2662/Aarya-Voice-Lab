@@ -1,10 +1,14 @@
 // <avl-voice-player> — set `.artifact` to a PreviewArtifact-shaped object
-// (aarya_voice_lab.identity.preview.PreviewArtifact.to_dict()). Composes
-// avl-waveform-container + avl-playback-controls; still no audio engine —
-// this is the visual contract, not a player implementation.
+// (aarya_voice_lab.identity.preview.PreviewArtifact.to_dict()). Real
+// playback (VL-D5 §14): composes avl-audio-player (Play/Pause/Stop/Seek/
+// Volume/Speed) and avl-waveform-visualization, superseding the VL-D0
+// placeholder pair (avl-playback-controls / avl-waveform-container,
+// removed — "no audio engine yet" is no longer true once VL-D5 exists).
+// Every caller of this component (avl-voice-preview-card, and therefore
+// workspace-voices.js) gets real playback for free.
 import { AvlElement, defineComponent } from "./base-element.js";
-import "./waveform-container.js";
-import "./playback-controls.js";
+import "./audio-player.js";
+import "./waveform-visualization.js";
 
 export class AvlVoicePlayer extends AvlElement {
   set artifact(value) {
@@ -45,11 +49,16 @@ export class AvlVoicePlayer extends AvlElement {
     const player = document.createElement("div");
     player.className = "player";
 
-    const waveform = document.createElement("avl-waveform-container");
-    waveform.setAttribute("label", artifact.kind || "preview");
+    const waveform = document.createElement("avl-waveform-visualization");
+    waveform.durationSeconds = artifact.duration_seconds || 0;
+    // No real peaks exist for a not-yet-decoded artifact -- an empty
+    // array renders the honest "No waveform data" state rather than a
+    // fabricated shape.
+    waveform.peaks = artifact.peaks || [];
 
-    const controls = document.createElement("avl-playback-controls");
-    controls.setAttribute("duration-seconds", String(artifact.duration_seconds ?? 0));
+    const audioPlayer = document.createElement("avl-audio-player");
+    audioPlayer.setAttribute("recording-id", artifact.preview_id || "preview");
+    audioPlayer.setAttribute("duration-seconds", String(artifact.duration_seconds ?? 3));
 
     const meta = document.createElement("div");
     meta.className = "meta";
@@ -60,7 +69,7 @@ export class AvlVoicePlayer extends AvlElement {
     flagEl.textContent = artifact.is_synthetic ? "synthetic" : "real audio";
     meta.append(kindEl, flagEl);
 
-    player.append(waveform, controls, meta);
+    player.append(waveform, audioPlayer, meta);
     this.shadowRoot.appendChild(player);
   }
 }

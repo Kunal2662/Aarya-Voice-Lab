@@ -88,7 +88,7 @@ test("SelectionModel.select/clear fire change events with the right detail", () 
   assert.equal(events[1], null);
 });
 
-test("router DESTINATIONS matches the VL-D1 11 workspaces plus VL-D3's Dataset Review and VL-D4's Processing additions exactly", () => {
+test("router DESTINATIONS matches the VL-D1 11 workspaces plus VL-D3's Dataset Review, VL-D4's Processing, and VL-D5's Preview additions exactly", () => {
   assert.deepEqual(DESTINATIONS, [
     "command-center",
     "import",
@@ -96,6 +96,7 @@ test("router DESTINATIONS matches the VL-D1 11 workspaces plus VL-D3's Dataset R
     "recordings",
     "review",
     "processing",
+    "preview",
     "pipeline",
     "voices",
     "models",

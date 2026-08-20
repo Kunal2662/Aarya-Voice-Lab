@@ -25,6 +25,9 @@ import "./audio-player.js";
 import "./processing-history-panel.js";
 import "./processing-feedback-form.js";
 import "./claude-processing-context.js";
+import "./generation-history-panel.js";
+import "./preview-feedback-form.js";
+import "./claude-generation-context.js";
 
 const RENDERERS = {
   batch: (data) => [
@@ -95,6 +98,18 @@ const RENDERERS = {
     ["Hardware compatibility", data.hardwareCompatible],
     ["Status", { badge: ["hardware", (data.status || "unknown").toUpperCase()] }],
     ["Calibration state", { badge: ["calibration", data.calibrationState] }],
+  ],
+  "voice-profile": (data) => [
+    ["Profile", data.name],
+    ["Version", data.version],
+    ["State", { badge: ["voice_profile_state", data.state] }],
+    ["Style controls", Object.keys(data.style_controls || {}).length ? JSON.stringify(data.style_controls) : "—"],
+    [
+      "Generation preferences",
+      Object.keys(data.generation_preferences || {}).length ? JSON.stringify(data.generation_preferences) : "—",
+    ],
+    ["Notes", data.notes],
+    ["Created", data.created_at],
   ],
 };
 
@@ -168,6 +183,9 @@ export class AvlInspectorRouter extends AvlElement {
 
     if (selection.kind === "recording") {
       this._appendRecordingSections(selection.data || {});
+    }
+    if (selection.kind === "voice-profile") {
+      this._appendPreviewSection(selection.data || {});
     }
   }
 
@@ -403,6 +421,85 @@ export class AvlInspectorRouter extends AvlElement {
     processingDetails.appendChild(claudeContext);
 
     this.shadowRoot.appendChild(processingDetails);
+  }
+
+  // VL-D5 §20 — Latest generation / History / Feedback / Ask Claude for
+  // whichever voice profile is selected. Generated outputs are tied to a
+  // voice profile id, not a recording, so this is keyed differently from
+  // _appendProcessingSection above — mirrors its shape otherwise. No
+  // speaker identity is ever expressed here (VL-D5 §8, §9).
+  _appendPreviewSection(data) {
+    const queueStore = this._services ? this._services.generationQueueStore : null;
+    const historyStore = this._services ? this._services.previewHistoryStore : null;
+    const items = queueStore
+      ? queueStore.list().filter((i) => i.request.voice_profile_id === data.profile_id && i.artifact)
+      : [];
+    const item = items.length ? items[items.length - 1] : null;
+
+    const previewDetails = document.createElement("details");
+    previewDetails.open = true;
+    previewDetails.innerHTML = "<summary>Preview</summary>";
+
+    if (!item) {
+      const empty = document.createElement("p");
+      empty.className = "empty";
+      empty.textContent = "No generations for this voice profile yet.";
+      previewDetails.appendChild(empty);
+      this.shadowRoot.appendChild(previewDetails);
+      return;
+    }
+
+    const summaryRows = document.createElement("div");
+    summaryRows.className = "rows";
+    const statusRow = document.createElement("div");
+    statusRow.className = "row";
+    statusRow.innerHTML = '<span class="label">Status</span>';
+    const statusBadge = document.createElement("avl-status-badge");
+    statusBadge.setAttribute("domain", "generation_status");
+    statusBadge.setAttribute("state", item.status);
+    statusRow.appendChild(statusBadge);
+    summaryRows.appendChild(statusRow);
+    for (const [label, value] of [
+      ["Model", item.request.model_id],
+      ["Output ID", item.artifact.preview_id],
+      ["Output SHA-256", item.artifact.sha256],
+      ["Config hash", item.request.config_hash],
+      ["Warnings", item.warnings.length ? item.warnings.join("; ") : null],
+      ["Errors", item.errors.length ? item.errors.join("; ") : null],
+    ]) {
+      const row = document.createElement("div");
+      row.className = "row";
+      row.innerHTML = `<span class="label">${label}</span><span class="value">${value == null || value === "" ? "—" : value}</span>`;
+      summaryRows.appendChild(row);
+    }
+    previewDetails.appendChild(summaryRows);
+
+    const historyHeading = document.createElement("h4");
+    historyHeading.textContent = "History";
+    previewDetails.appendChild(historyHeading);
+    const historyPanel = document.createElement("avl-generation-history-panel");
+    historyPanel.historyStore = historyStore;
+    historyPanel.voiceProfileId = data.profile_id;
+    previewDetails.appendChild(historyPanel);
+
+    const feedbackHeading = document.createElement("h4");
+    feedbackHeading.textContent = "Feedback";
+    previewDetails.appendChild(feedbackHeading);
+    const previewFeedbackForm = document.createElement("avl-preview-feedback-form");
+    previewFeedbackForm.feedbackStore = this._services ? this._services.previewFeedbackStore : null;
+    previewFeedbackForm.artifact = item.artifact;
+    previewDetails.appendChild(previewFeedbackForm);
+
+    const claudeHeading = document.createElement("h4");
+    claudeHeading.textContent = "Ask Claude";
+    previewDetails.appendChild(claudeHeading);
+    const claudeContext = document.createElement("avl-claude-generation-context");
+    claudeContext.item = item;
+    claudeContext.voiceProfileId = data.profile_id;
+    if (this._services && this._services.executor) claudeContext.executor = this._services.executor;
+    previewDetails.appendChild(claudeContext);
+
+    this.shadowRoot.appendChild(previewDetails);
   }
 }
 

@@ -11,6 +11,7 @@ export const DESTINATIONS = Object.freeze([
   "recordings",
   "review",
   "processing",
+  "preview",
   "pipeline",
   "voices",
   "models",

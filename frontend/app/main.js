@@ -16,6 +16,7 @@ import "../components/workspace-batches.js";
 import "../components/workspace-recordings.js";
 import "../components/workspace-dataset-review.js";
 import "../components/workspace-processing.js";
+import "../components/workspace-preview.js";
 import "../components/workspace-pipeline.js";
 import "../components/workspace-voices.js";
 import "../components/workspace-models.js";
@@ -34,6 +35,15 @@ import { ImportQueue } from "../state/import-engine.js";
 import { CandidateReviewStore, FeedbackStore } from "../state/review-model.js";
 import { createActivityEvent, ActivitySource, ActivitySeverity } from "../state/activity-model.js";
 import { ProcessingQueueStore, ProcessingProfileStore, ProcessingHistoryStore, ProcessingStatus } from "../state/processing-model.js";
+import {
+  GenerationQueueStore,
+  VoiceProfileStore,
+  GenerationModelStore,
+  PreviewHistoryStore,
+  PreviewFeedbackStore,
+  GenerationStatus,
+} from "../state/generation-model.js";
+import { syntheticGenerationModels } from "../state/synthetic-fixtures.js";
 
 const DESTINATION_META = {
   "command-center": { icon: "◆", label: "Command Center", tag: "avl-workspace-command-center" },
@@ -42,6 +52,7 @@ const DESTINATION_META = {
   recordings: { icon: "♫", label: "Recordings", tag: "avl-workspace-recordings" },
   review: { icon: "◎", label: "Dataset Review", tag: "avl-workspace-dataset-review" },
   processing: { icon: "▶", label: "Processing", tag: "avl-workspace-processing" },
+  preview: { icon: "♬", label: "Preview", tag: "avl-workspace-preview" },
   pipeline: { icon: "≋", label: "Pipeline", tag: "avl-workspace-pipeline" },
   voices: { icon: "♪", label: "Voices", tag: "avl-workspace-voices" },
   models: { icon: "▣", label: "Models", tag: "avl-workspace-models" },
@@ -109,6 +120,18 @@ async function main() {
   const processingProfileStore = new ProcessingProfileStore();
   const processingHistoryStore = new ProcessingHistoryStore();
 
+  // Same session-only ownership as the processing stores above — VL-D5
+  // §13's queue and §17-§20's history must survive navigating away from
+  // Preview and back. The generation model store is seeded once here
+  // with the synthetic-only backends VL-D5 ships (§26, §27) — never a
+  // real TTS engine, never RTX/CUDA-specific.
+  const generationModelStore = new GenerationModelStore();
+  for (const model of syntheticGenerationModels()) generationModelStore.register(model);
+  const voiceProfileStore = new VoiceProfileStore();
+  const generationQueueStore = new GenerationQueueStore({ modelStore: generationModelStore });
+  const previewHistoryStore = new PreviewHistoryStore();
+  const previewFeedbackStore = new PreviewFeedbackStore();
+
   const services = {
     jobStore,
     activityStore,
@@ -120,6 +143,11 @@ async function main() {
     processingQueueStore,
     processingProfileStore,
     processingHistoryStore,
+    generationModelStore,
+    voiceProfileStore,
+    generationQueueStore,
+    previewHistoryStore,
+    previewFeedbackStore,
     router,
   };
 
@@ -181,6 +209,80 @@ async function main() {
         source: ActivitySource.PROCESSING,
         status: profile.version === 1 ? "profile_created" : "profile_updated",
         summary: `Processing profile ${profile.version === 1 ? "created" : "updated"}: ${profile.name} v${profile.version}`,
+      }),
+    );
+  });
+
+  // VL-D5 §30 — one activity event per real generation item status
+  // transition (queued/preparing/generating/post_processing/ready/
+  // warning/failed/cancelled/blocked). Bounded metadata only: request id,
+  // voice profile id, model id — never the raw preview text (§30's
+  // "avoid logging raw text unnecessarily").
+  const GENERATION_STATUS_SEVERITY = {
+    [GenerationStatus.READY]: ActivitySeverity.SUCCESS,
+    [GenerationStatus.WARNING]: ActivitySeverity.WARNING,
+    [GenerationStatus.FAILED]: ActivitySeverity.DANGER,
+    [GenerationStatus.BLOCKED]: ActivitySeverity.DANGER,
+    [GenerationStatus.CANCELLED]: ActivitySeverity.INFO,
+  };
+  const lastAnnouncedGenerationStatus = new Map();
+  generationQueueStore.addEventListener("change", (event) => {
+    const item = event.detail.item;
+    if (lastAnnouncedGenerationStatus.get(item.item_id) === item.status) return;
+    lastAnnouncedGenerationStatus.set(item.item_id, item.status);
+    activityStore.append(
+      createActivityEvent({
+        id: `generation-activity-${item.item_id}-${item.status}`,
+        severity: GENERATION_STATUS_SEVERITY[item.status] || ActivitySeverity.INFO,
+        source: ActivitySource.PREVIEW,
+        status: item.status.toLowerCase(),
+        summary: `Generation ${item.status.toLowerCase()}: ${item.request.voice_profile_id} (${item.request.model_id})`,
+      }),
+    );
+  });
+
+  // VL-D5 §21, §22, §30 — one activity event per feedback submission,
+  // plus a distinct event for accept/reject/regenerate outcomes. Never
+  // logs the comment text itself, only the outcome and category.
+  const FEEDBACK_OUTCOME_SEVERITY = {
+    accepted: ActivitySeverity.SUCCESS,
+    rejected: ActivitySeverity.DANGER,
+    regenerate: ActivitySeverity.WARNING,
+    uncertain: ActivitySeverity.INFO,
+  };
+  const FEEDBACK_OUTCOME_STATUS = {
+    accepted: "output_accepted",
+    rejected: "output_rejected",
+    regenerate: "regeneration_requested",
+    uncertain: "feedback_submitted",
+  };
+  previewFeedbackStore.addEventListener("change", (event) => {
+    const record = event.detail.record;
+    activityStore.append(
+      createActivityEvent({
+        id: `preview-feedback-activity-${record.feedback_id}`,
+        severity: FEEDBACK_OUTCOME_SEVERITY[record.outcome] || ActivitySeverity.INFO,
+        source: ActivitySource.PREVIEW,
+        status: FEEDBACK_OUTCOME_STATUS[record.outcome] || "feedback_submitted",
+        summary: `Preview feedback recorded: ${record.outcome} (${record.preview_id})`,
+      }),
+    );
+  });
+
+  // VL-D5 §14, §30 — a real Play press on any preview player logs
+  // "preview played" (never autoplay-triggered, since avl-audio-player
+  // never autoplays — see components/audio-player.js). Composed, so this
+  // single listener catches it from any nested shadow root under the
+  // shell (preview cards, the feedback form's embedded player, A/B
+  // comparison columns, the Inspector's Preview section).
+  document.addEventListener("avl-playback-started", (event) => {
+    activityStore.append(
+      createActivityEvent({
+        id: `preview-played-activity-${event.detail.recordingId}-${Date.now()}`,
+        severity: ActivitySeverity.INFO,
+        source: ActivitySource.PREVIEW,
+        status: "preview_played",
+        summary: `Preview played: ${event.detail.recordingId}`,
       }),
     );
   });

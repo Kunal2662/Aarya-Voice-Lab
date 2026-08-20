@@ -37,6 +37,11 @@ export class AvlWorkspaceCommandCenter extends AvlElement {
         if (this.isConnected) this._render();
       });
     }
+    if (this._services.generationQueueStore) {
+      this._services.generationQueueStore.addEventListener("change", () => {
+        if (this.isConnected) this._render();
+      });
+    }
     this._load();
   }
 
@@ -216,7 +221,47 @@ export class AvlWorkspaceCommandCenter extends AvlElement {
     }
     processingPanel.appendChild(avgDurationMetric);
 
-    grid.append(systemPanel, pipelinePanel, jobsPanel, activityPanel, importsPanel, reviewPanel, processingPanel);
+    // PREVIEW — overview only (VL-D5 §29: "Command Center should show an
+    // overview-only Preview panel"); the Preview workspace owns the
+    // detailed queue/settings/A-B/feedback/history view.
+    const previewPanel = document.createElement("avl-panel");
+    previewPanel.setAttribute("title", "Preview");
+    const previewItems = this._services.generationQueueStore ? this._services.generationQueueStore.list() : [];
+    const previewCounts = this._services.generationQueueStore ? this._services.generationQueueStore.counts() : {};
+    const previewDurations = previewItems.map((i) => i.generation_duration_seconds).filter((d) => d != null);
+    const avgPreviewDuration = previewDurations.length
+      ? previewDurations.reduce((a, b) => a + b, 0) / previewDurations.length
+      : null;
+    for (const [label, value] of [
+      ["Total generated", previewItems.length],
+      ["Ready", previewCounts.READY || 0],
+      ["Warning", previewCounts.WARNING || 0],
+      ["Failed", previewCounts.FAILED || 0],
+      ["Blocked", previewCounts.BLOCKED || 0],
+    ]) {
+      const metric = document.createElement("avl-metric-placeholder");
+      metric.setAttribute("label", label);
+      metric.setAttribute("value", String(value));
+      previewPanel.appendChild(metric);
+    }
+    const avgPreviewDurationMetric = document.createElement("avl-metric-placeholder");
+    avgPreviewDurationMetric.setAttribute("label", "Avg duration");
+    if (avgPreviewDuration != null) {
+      avgPreviewDurationMetric.setAttribute("value", avgPreviewDuration.toFixed(2));
+      avgPreviewDurationMetric.setAttribute("unit", "s");
+    }
+    previewPanel.appendChild(avgPreviewDurationMetric);
+
+    grid.append(
+      systemPanel,
+      pipelinePanel,
+      jobsPanel,
+      activityPanel,
+      importsPanel,
+      reviewPanel,
+      processingPanel,
+      previewPanel,
+    );
     wrapper.appendChild(grid);
     this.shadowRoot.appendChild(wrapper);
   }

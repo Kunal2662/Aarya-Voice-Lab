@@ -1,0 +1,13 @@
+{
+  "$generated_by": "scripts/export_frontend_contracts.py",
+  "$source": "aarya_voice_lab.pipeline.generation.GenerationBackendState",
+  "description": "Voice generation backend capability state (VL-D5). Never represent an unavailable/unconfigured backend as successful \u2014 the UI must render exactly this state, never infer readiness.",
+  "values": [
+    "AVAILABLE",
+    "UNAVAILABLE",
+    "NOT_CONFIGURED",
+    "NOT_SUPPORTED",
+    "BLOCKED",
+    "ERROR"
+  ]
+}

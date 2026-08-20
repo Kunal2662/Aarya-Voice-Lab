@@ -1,0 +1,31 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://aarya-voice-lab/schemas/preview_feedback.schema.json",
+  "title": "AARYA Voice Lab Preview Feedback Record (VL-D5 §21-§22)",
+  "description": "A listener's response to one generated preview iteration -- persists identity.preview.PreviewFeedback.to_dict() exactly (VL-V0 contracts, Phase 3), not a second feedback shape. NOT a training label -- nothing in this project converts a feedback record into model training data.",
+  "type": "object",
+  "required": ["feedback_id", "preview_id", "listener", "outcome", "listened", "attributes", "requests_regeneration", "created_at"],
+  "additionalProperties": false,
+  "properties": {
+    "feedback_id": { "type": "string", "minLength": 1 },
+    "preview_id": { "type": "string", "minLength": 1 },
+    "listener": { "type": "string", "minLength": 1 },
+    "outcome": {
+      "type": "string",
+      "enum": ["accepted", "rejected", "regenerate", "uncertain"]
+    },
+    "listened": {
+      "type": "boolean",
+      "description": "Whether the listener actually played the preview before responding. accepted/rejected must never be recorded with listened=false."
+    },
+    "listen_duration_seconds": { "type": ["number", "null"] },
+    "comment": { "type": ["string", "null"] },
+    "attributes": {
+      "type": "object",
+      "description": "Structured hints, e.g. {\"category\": \"NATURALNESS\", \"rating\": \"4\"}. Free-form but never a speaker or identity field.",
+      "additionalProperties": { "type": "string" }
+    },
+    "requests_regeneration": { "type": "boolean" },
+    "created_at": { "type": "string" }
+  }
+}

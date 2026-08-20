@@ -2,9 +2,11 @@
 // foundation, synthetic placeholders only (no real training, embeddings,
 // or recordings). Shows the full future voice-producing lifecycle
 // contract — GENERATE -> PREVIEW -> LISTEN -> FEEDBACK -> REGENERATE ->
-// COMPARE -> ACCEPT — with the honest note that only PREVIEW/LISTEN/
-// FEEDBACK/COMPARE exist today (VL-V0); GENERATE and REGENERATE are
-// contract-only, never faked as working.
+// COMPARE -> ACCEPT. GENERATE/PREVIEW/LISTEN/FEEDBACK/REGENERATE/COMPARE
+// now have a real (synthetic-only) implementation as of VL-D5 — see the
+// dedicated #/preview workspace for the actual generation UI; this
+// overview only reflects that the lifecycle step exists. ACCEPT remains
+// contract-only (no final voice lifecycle promotion exists yet).
 import { AvlElement, defineComponent } from "./base-element.js";
 import { syntheticVoices } from "../state/synthetic-fixtures.js";
 import "./workspace-state.js";
@@ -14,7 +16,7 @@ import "./status-badge.js";
 import "./notice-banner.js";
 
 const LIFECYCLE = ["Generate", "Preview", "Listen", "Feedback", "Regenerate", "Compare", "Accept"];
-const IMPLEMENTED = new Set(["Preview", "Listen", "Feedback", "Compare"]);
+const IMPLEMENTED = new Set(["Generate", "Preview", "Listen", "Feedback", "Regenerate", "Compare"]);
 
 export class AvlWorkspaceVoices extends AvlElement {
   set selectionModel(value) {

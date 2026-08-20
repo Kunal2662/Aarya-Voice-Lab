@@ -517,6 +517,142 @@ export function syntheticProcessingHistory(recordingId) {
   return byRecording[recordingId] || [];
 }
 
+// VL-D5 — voice profile / generation model / preview generation
+// fixtures. Shapes mirror pipeline.voice_profile.VoiceProfile.to_dict() /
+// pipeline.generation_models.GenerationModel.to_dict() /
+// pipeline.generation.PreviewRequest.to_dict() /
+// pipeline.generation.GenerationItem.to_dict() /
+// identity.preview.PreviewArtifact.to_dict() /
+// pipeline.preview_history.PreviewHistoryRecord.to_dict() /
+// identity.preview.PreviewFeedback.to_dict() closely enough that a real
+// backend response could be dropped in without changing any component --
+// nothing here is computed, it's fixed example data, same as every other
+// synthetic-fixtures.js export.
+export function syntheticVoiceProfiles() {
+  return [
+    {
+      profile_id: "demo-voice-v1",
+      name: "demo-voice",
+      version: 1,
+      state: "SYNTHETIC_PROFILE",
+      style_controls: { pace: "moderate" },
+      generation_preferences: { output_format: "wav" },
+      notes: "Example profile for the VL-D5 demo -- carries no speaker characteristics.",
+      created_at: "2026-08-10T09:00:00Z",
+      is_synthetic: true,
+    },
+  ];
+}
+
+export function syntheticGenerationModels() {
+  return [
+    {
+      model_id: "synthetic-tone-v1",
+      name: "Synthetic Tone (demo backend)",
+      version: "0.1.0",
+      backend: "cpu",
+      capabilities: ["speed", "seed", "output_format"],
+      requirements: null,
+      status: "AVAILABLE",
+      is_synthetic: true,
+    },
+    {
+      model_id: "unavailable-model-v1",
+      name: "Example Unavailable Backend",
+      version: "0.0.0",
+      backend: "cpu",
+      capabilities: [],
+      requirements: null,
+      status: "UNAVAILABLE",
+      is_synthetic: true,
+    },
+  ];
+}
+
+export function syntheticPreviewRequests() {
+  return [
+    {
+      request_id: "preview-req-example-001",
+      text: "This is an example line of preview text for the Voice Preview workspace.",
+      voice_profile_id: "demo-voice-v1",
+      generation_profile_id: null,
+      model_id: "synthetic-tone-v1",
+      sample_rate: 16000,
+      output_format: "wav",
+      seed: 42,
+      controls: { speed: "1.0" },
+      config_hash: "e1".repeat(32),
+    },
+  ];
+}
+
+export function syntheticPreviewItems() {
+  return [
+    {
+      item_id: "gen-0000-preview-req-example-001",
+      request: syntheticPreviewRequests()[0],
+      status: "READY",
+      progress: 1,
+      current_operation: null,
+      warnings: [],
+      errors: [],
+      artifact: {
+        preview_id: "preview-req-example-001-preview",
+        kind: "synthetic_fixture",
+        relative_path: "previews/preview-req-example-001.wav",
+        sha256: "f1".repeat(32),
+        duration_seconds: 4.4,
+        sample_rate: 16000,
+        iteration: 1,
+        origin_id: "preview-req-example-001",
+        model_name: "synthetic-tone",
+        model_version: "0.1.0",
+        is_synthetic: true,
+        created_at: "2026-08-19T09:00:00Z",
+        artifact_id: "aa1".repeat(22).slice(0, 64),
+      },
+      generation_duration_seconds: 0.42,
+    },
+  ];
+}
+
+export function syntheticPreviewHistory() {
+  return {
+    "demo-voice-v1": [
+      {
+        record_id: "preview-hist-00001",
+        voice_profile_id: "demo-voice-v1",
+        request_id: "preview-req-example-001",
+        output_id: "preview-req-example-001-preview",
+        model_id: "synthetic-tone-v1",
+        config_hash: "e1".repeat(32),
+        status: "READY",
+        output_sha256: "f1".repeat(32),
+        tool_version: "0.1.0",
+        supersedes: null,
+        recorded_at: "2026-08-19T09:00:05Z",
+      },
+    ],
+  };
+}
+
+export function syntheticPreviewFeedback() {
+  return [
+    {
+      feedback_id: "preview-feedback-00001",
+      preview_id: "preview-req-example-001-preview",
+      listener: "operator",
+      outcome: "accepted",
+      listened: true,
+      listen_duration_seconds: 4.4,
+      comment: "Sounds clear.",
+      attributes: { category: "VOICE_QUALITY", rating: "4" },
+      requests_regeneration: false,
+      created_at: "2026-08-19T09:01:00Z",
+    },
+  ];
+}
+
 export function syntheticModels() {
   return [
     {

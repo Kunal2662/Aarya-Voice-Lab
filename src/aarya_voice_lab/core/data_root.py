@@ -13,6 +13,7 @@ Layout:
       embeddings/  Phase 3 biometric vectors. Never committed, never exported.
       enrollment/  Phase 3 speaker profiles.
       audit/       Phase 3 append-only identity audit log.
+      previews/    VL-D5 generated preview audio (synthetic only today).
 
 Everything under `data/` is git-ignored except the README. `source/` is
 additionally protected in code: `assert_source_writable` refuses any
@@ -50,6 +51,7 @@ CACHE_DIR = "cache"
 EMBEDDINGS_DIR = "embeddings"
 ENROLLMENT_DIR = "enrollment"
 AUDIT_DIR = "audit"
+PREVIEWS_DIR = "previews"
 
 DATA_SUBDIRECTORIES: tuple[str, ...] = (
     SOURCE_DIR,
@@ -62,6 +64,7 @@ DATA_SUBDIRECTORIES: tuple[str, ...] = (
     EMBEDDINGS_DIR,
     ENROLLMENT_DIR,
     AUDIT_DIR,
+    PREVIEWS_DIR,
 )
 
 #: The one directory the pipeline must never write to.
@@ -128,6 +131,12 @@ class DataRoot:
     @property
     def audit(self) -> Path:
         return self.root / AUDIT_DIR
+
+    @property
+    def previews(self) -> Path:
+        """Generated preview audio (VL-D5). Synthetic only until a real
+        generation backend and the dataset access gate both exist."""
+        return self.root / PREVIEWS_DIR
 
     def create(self) -> DataRoot:
         """Create the writable directories. Does NOT create `source/` —

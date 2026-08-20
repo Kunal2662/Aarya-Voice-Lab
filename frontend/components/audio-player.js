@@ -1,8 +1,9 @@
-// <avl-audio-player> — VL-D3 §9. Real HTML5 <audio> playback of a
-// synthetic tone (state/synthetic-tone.js) standing in for the selected
-// recording — this project has no real recording to play, and never
-// will until the dataset access gate is satisfied. Controls: play,
-// pause, stop, seek, position, duration, volume. Never autoplays. Never
+// <avl-audio-player> — VL-D3 §9, playback-rate control added for VL-D5
+// §14. Real HTML5 <audio> playback of a synthetic tone
+// (state/synthetic-tone.js) standing in for the selected recording —
+// this project has no real recording to play, and never will until the
+// dataset access gate is satisfied. Controls: play, pause, stop, seek,
+// position, duration, volume, playback speed. Never autoplays. Never
 // loops into an automatic queue — one recording, one manual play.
 import { AvlElement, defineComponent } from "./base-element.js";
 import { buildSyntheticToneWavUrl } from "../state/synthetic-tone.js";
@@ -31,7 +32,17 @@ export class AvlAudioPlayer extends AvlElement {
   }
 
   disconnectedCallback() {
-    if (this._objectUrl) URL.revokeObjectURL(this._objectUrl);
+    // Defer revocation by a tick: a caller that tears down and rebuilds
+    // this element in the same synchronous pass (e.g. avl-voice-comparison
+    // re-rendering both columns when `.left`/`.right` are set back to
+    // back) can otherwise revoke the blob URL while the browser's audio
+    // resource loader still has the now-disconnected element's fetch of
+    // it in flight, producing a spurious net::ERR_FILE_NOT_FOUND.
+    if (this._objectUrl) {
+      const url = this._objectUrl;
+      this._objectUrl = null;
+      setTimeout(() => URL.revokeObjectURL(url), 0);
+    }
   }
 
   _loadSource() {
@@ -62,6 +73,8 @@ export class AvlAudioPlayer extends AvlElement {
       .time { font: var(--avl-type-caption-weight) var(--avl-type-caption-size) / 1 var(--avl-type-caption-family); color: var(--avl-color-text-secondary); min-width: 5.5em; text-align: right; }
       .volume { display: flex; align-items: center; gap: var(--avl-space-1); }
       .volume input { width: 4rem; }
+      .speed { display: flex; align-items: center; gap: var(--avl-space-1); }
+      .speed select { font: var(--avl-type-caption-weight) var(--avl-type-caption-size) / 1 var(--avl-type-caption-family); border: 1px solid var(--avl-color-border-default); border-radius: var(--avl-radius-sm); background: var(--avl-color-surface-raised); color: var(--avl-color-text-primary); padding: 0.1rem var(--avl-space-1); }
       .note { color: var(--avl-color-text-muted); font: var(--avl-type-caption-weight) var(--avl-type-caption-size) / var(--avl-type-caption-line-height) var(--avl-type-caption-family); }
     `;
     this.shadowRoot.appendChild(style);
@@ -129,9 +142,39 @@ export class AvlAudioPlayer extends AvlElement {
     });
     volumeWrap.append(volumeLabel, volume);
 
+    const speedWrap = document.createElement("div");
+    speedWrap.className = "speed";
+    const speedLabel = document.createElement("span");
+    speedLabel.className = "avl-sr-only";
+    speedLabel.textContent = "Playback speed";
+    const speed = document.createElement("select");
+    speed.setAttribute("aria-label", "Playback speed");
+    for (const rate of [0.5, 0.75, 1, 1.25, 1.5, 2]) {
+      const option = document.createElement("option");
+      option.value = String(rate);
+      option.textContent = `${rate}×`;
+      if (rate === 1) option.selected = true;
+      speed.appendChild(option);
+    }
+    speed.addEventListener("change", () => {
+      audio.playbackRate = Number(speed.value);
+    });
+    speedWrap.append(speedLabel, speed);
+
     audio.addEventListener("play", () => {
       playButton.textContent = "Pause";
       this._announce("Playing");
+      // Bubbles/composed so an ancestor outside this shadow root (e.g.
+      // avl-preview-feedback-form, VL-D5 §15) can gate an accept/reject
+      // decision on "this was actually listened to" without reaching
+      // into this component's internals.
+      this.dispatchEvent(
+        new CustomEvent("avl-playback-started", {
+          detail: { recordingId: this.getAttribute("recording-id") || null },
+          bubbles: true,
+          composed: true,
+        }),
+      );
     });
     audio.addEventListener("pause", () => {
       playButton.textContent = "Play";
@@ -144,7 +187,7 @@ export class AvlAudioPlayer extends AvlElement {
       time.textContent = `${formatTime(audio.currentTime)} / ${formatTime(audio.duration)}`;
     });
 
-    player.append(controls, seek, time, volumeWrap);
+    player.append(controls, seek, time, volumeWrap, speedWrap);
 
     const note = document.createElement("div");
     note.className = "note";

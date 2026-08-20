@@ -35,7 +35,9 @@ from aarya_voice_lab.pipeline.candidate_review import (  # noqa: E402
     CandidateReviewReason,
 )
 from aarya_voice_lab.pipeline.feedback import FeedbackType, ProcessingFeedbackCategory  # noqa: E402
+from aarya_voice_lab.pipeline.generation import GenerationBackendState, GenerationStatus  # noqa: E402
 from aarya_voice_lab.pipeline.overlap import OverlapStatus  # noqa: E402
+from aarya_voice_lab.pipeline.preview_feedback import PreviewFeedbackCategory  # noqa: E402
 from aarya_voice_lab.pipeline.processing import ProcessingDecision, ProcessingStatus  # noqa: E402
 from aarya_voice_lab.pipeline.processing_profile import NoiseConditioningMode  # noqa: E402
 from aarya_voice_lab.pipeline.quality import QualityDecision  # noqa: E402
@@ -45,6 +47,7 @@ from aarya_voice_lab.pipeline.stages import (  # noqa: E402
     SPEAKER_IDENTITY_BOUNDARY,
     SPEAKER_IDENTITY_STAGES,
 )
+from aarya_voice_lab.pipeline.voice_profile import VoiceProfileState  # noqa: E402
 
 OUT_DIR = REPO_ROOT / "frontend" / "contracts" / "generated"
 
@@ -186,6 +189,33 @@ def build_payloads() -> dict[str, dict]:
             ProcessingFeedbackCategory,
             "Closed vocabulary for feedback on a processing result, stored in "
             "a PROCESSING_FEEDBACK record's attributes.category.",
+        ),
+        "generation_backend_state.json": _enum_payload(
+            "aarya_voice_lab.pipeline.generation.GenerationBackendState",
+            GenerationBackendState,
+            "Voice generation backend capability state (VL-D5). Never "
+            "represent an unavailable/unconfigured backend as successful — "
+            "the UI must render exactly this state, never infer readiness.",
+        ),
+        "generation_status.json": _enum_payload(
+            "aarya_voice_lab.pipeline.generation.GenerationStatus",
+            GenerationStatus,
+            "Preview generation queue item states (VL-D5). BLOCKED means "
+            "the request could not be generated at all (validation failed "
+            "or the backend is unavailable); WARNING means it completed "
+            "with a caveat. Neither is ever silently upgraded to READY.",
+        ),
+        "voice_profile_state.json": _enum_payload(
+            "aarya_voice_lab.pipeline.voice_profile.VoiceProfileState",
+            VoiceProfileState,
+            "SYNTHETIC_PROFILE or UNCALIBRATED only in VL-D5 — no real "
+            "speaker profile is ever auto-populated or promoted past these.",
+        ),
+        "preview_feedback_category.json": _enum_payload(
+            "aarya_voice_lab.pipeline.preview_feedback.PreviewFeedbackCategory",
+            PreviewFeedbackCategory,
+            "Closed vocabulary for feedback on a generated preview, stored "
+            "in a PreviewFeedback record's attributes.category.",
         ),
     }
 

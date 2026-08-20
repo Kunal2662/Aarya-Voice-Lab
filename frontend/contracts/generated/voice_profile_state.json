@@ -1,0 +1,9 @@
+{
+  "$generated_by": "scripts/export_frontend_contracts.py",
+  "$source": "aarya_voice_lab.pipeline.voice_profile.VoiceProfileState",
+  "description": "SYNTHETIC_PROFILE or UNCALIBRATED only in VL-D5 \u2014 no real speaker profile is ever auto-populated or promoted past these.",
+  "values": [
+    "SYNTHETIC_PROFILE",
+    "UNCALIBRATED"
+  ]
+}

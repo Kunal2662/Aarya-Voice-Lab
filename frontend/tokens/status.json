@@ -140,6 +140,41 @@
         "LIGHT": "text.disabled",
         "STANDARD": "text.disabled"
       }
+    },
+    "generation_status": {
+      "description": "Mirrors aarya_voice_lab.pipeline.generation.GenerationStatus exactly. BLOCKED means the request could not be generated at all (validation failed or the backend is unavailable); WARNING means it completed with a caveat — neither is ever silently upgraded to READY.",
+      "states": ["QUEUED", "PREPARING", "GENERATING", "POST_PROCESSING", "READY", "WARNING", "FAILED", "CANCELLED", "BLOCKED"],
+      "color_token": {
+        "QUEUED": "text.muted",
+        "PREPARING": "state.info",
+        "GENERATING": "state.info",
+        "POST_PROCESSING": "state.info",
+        "READY": "state.success",
+        "WARNING": "state.warning",
+        "FAILED": "state.danger",
+        "CANCELLED": "text.disabled",
+        "BLOCKED": "voice.review-required"
+      }
+    },
+    "voice_profile_state": {
+      "description": "Mirrors aarya_voice_lab.pipeline.voice_profile.VoiceProfileState exactly. SYNTHETIC_PROFILE or UNCALIBRATED only in VL-D5 -- no real speaker profile is ever auto-populated or promoted past these.",
+      "states": ["SYNTHETIC_PROFILE", "UNCALIBRATED"],
+      "color_token": {
+        "SYNTHETIC_PROFILE": "text.muted",
+        "UNCALIBRATED": "text.muted"
+      }
+    },
+    "generation_backend_state": {
+      "description": "Mirrors aarya_voice_lab.pipeline.generation.GenerationBackendState exactly. Never render an unavailable/unconfigured backend as successful — the UI must show exactly this state, never infer readiness.",
+      "states": ["AVAILABLE", "UNAVAILABLE", "NOT_CONFIGURED", "NOT_SUPPORTED", "BLOCKED", "ERROR"],
+      "color_token": {
+        "AVAILABLE": "state.success",
+        "UNAVAILABLE": "state.danger",
+        "NOT_CONFIGURED": "text.muted",
+        "NOT_SUPPORTED": "text.disabled",
+        "BLOCKED": "voice.review-required",
+        "ERROR": "state.danger"
+      }
     }
   }
 }
