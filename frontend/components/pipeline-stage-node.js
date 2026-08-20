@@ -5,6 +5,11 @@
 // never invents progress that hasn't actually happened). Stages past the
 // speaker-identity boundary are marked distinctly but never hidden: the
 // boundary's existence is itself something the UI must always show.
+//
+// Selecting a node (click or Enter/Space) dispatches `avl-stage-select`
+// with the stage's `.stage` object (VL-D1 §12: "support stage selection,
+// stage inspector"). The node itself holds no selection state — a host
+// wires the event to state/selection-model.js.
 import { AvlElement, defineComponent } from "./base-element.js";
 import "./status-badge.js";
 
@@ -32,8 +37,9 @@ export class AvlPipelineStageNode extends AvlElement {
         display: flex; flex-direction: column; gap: var(--avl-space-1);
         padding: var(--avl-space-2); border: 1px solid var(--avl-color-border-default);
         border-radius: var(--avl-radius-sm); background: var(--avl-color-surface-raised);
-        min-width: 9rem;
+        min-width: 9rem; cursor: pointer; text-align: left; font: inherit; color: inherit;
       }
+      .node:hover { background: var(--avl-color-surface-sunken); }
       .node[data-boundary="true"] { border-left: 3px solid var(--avl-color-brand-accent); }
       .name { font: var(--avl-type-body-small-weight) var(--avl-type-body-small-size) / var(--avl-type-body-small-line-height) var(--avl-type-body-small-family); }
       .phase { font: var(--avl-type-caption-weight) var(--avl-type-caption-size) / 1 var(--avl-type-caption-family); color: var(--avl-color-text-muted); }
@@ -41,9 +47,11 @@ export class AvlPipelineStageNode extends AvlElement {
     this.shadowRoot.appendChild(style);
 
     const stage = this._stage || {};
-    const node = document.createElement("div");
+    const node = document.createElement("button");
+    node.type = "button";
     node.className = "node";
     node.dataset.boundary = String(!!stage.pastIdentityBoundary);
+    node.setAttribute("aria-label", `${(stage.name || "unknown").replace(/_/g, " ")} stage, ${stage.runtimeState || "not_started"}`);
 
     const name = document.createElement("div");
     name.className = "name";
@@ -58,6 +66,9 @@ export class AvlPipelineStageNode extends AvlElement {
     badge.setAttribute("state", stage.runtimeState || "not_started");
 
     node.append(name, phase, badge);
+    node.addEventListener("click", () => {
+      this.dispatchEvent(new CustomEvent("avl-stage-select", { detail: { stage }, bubbles: true, composed: true }));
+    });
     this.shadowRoot.appendChild(node);
   }
 }

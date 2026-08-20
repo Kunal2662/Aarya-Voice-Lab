@@ -163,3 +163,7 @@ Thumbs.db
 .idea/
 .vscode/
 *.swp
+
+# Live, host-specific snapshots — not frozen contracts, never committed.
+# See scripts/export_dataset_gate_status.py.
+frontend/contracts/live/

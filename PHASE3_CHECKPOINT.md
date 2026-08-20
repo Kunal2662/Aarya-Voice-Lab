@@ -23,7 +23,7 @@ re-run `git log` and `pytest` before trusting anything below.
 | 3.5 (implied) | Real-data enrollment decision, credential/licence sign-off | ⏳ Not started — see §7 |
 | 4 | Real dataset processing (requires the dataset access gate) | ⏳ Blocked on Phase 3.5 |
 | 5+ | Voice model training/experiments, benchmarking | ⏳ Not started |
-| Desktop | Aarya Voice Lab desktop UI (VL-D0–D20) | ⏳ Not started — contracts exist |
+| Desktop | Aarya Voice Lab desktop UI (VL-D0–D20) | 🔶 VL-D0 (design system) + VL-D1 (Command Center + operational workspace) complete — see docs/VLD1_COMMAND_CENTER.md. VL-D2+ not started. |
 
 **Current phase: 3, complete (software only).**
 
@@ -198,7 +198,11 @@ Stated plainly, per project convention — never claim more than is true:
    but are not yet wired into `dataset_gate.py`.
 6. **No secondary (independent) verification system is chosen.** The
    engine supports one, but nothing has been selected or installed.
-7. **The desktop (VL-D0–D20) does not exist.** Only backend contracts do.
+7. **The desktop is partially built.** VL-D0 (design system) and VL-D1
+   (Command Center + operational workspace, synthetic data only) exist —
+   see docs/VLD0_DESIGN_SYSTEM.md and docs/VLD1_COMMAND_CENTER.md.
+   VL-D2 onward (real import, real pipeline execution, a real Claude
+   execution transport) does not exist yet.
    `command_center.py` and `contracts.py` are the full extent of desktop
    readiness.
 8. **No FFmpeg on the development machine** — Phase 2's normalization

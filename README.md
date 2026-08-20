@@ -163,6 +163,7 @@ No test uses, references, or requires the real recordings.
 | [DATASET_PIPELINE.md](docs/DATASET_PIPELINE.md) | The Phase 2 dataset pipeline, provenance, and the access gate |
 | [PHASE3_IDENTITY.md](docs/PHASE3_IDENTITY.md) | Phase 3 identity architecture, calibration honesty, embedding security |
 | [VLD0_DESIGN_SYSTEM.md](docs/VLD0_DESIGN_SYSTEM.md) | VL-D0 design-system foundation: tokens, components, shell, status vocabulary, accessibility |
+| [VLD1_COMMAND_CENTER.md](docs/VLD1_COMMAND_CENTER.md) | VL-D1 operational workspace: routing, job/activity model, Command Center, Claude context & fix workflow, security boundary |
 | [TOOLCHAIN.md](docs/TOOLCHAIN.md) | Provider abstraction & candidate tools |
 | [MODEL_STRATEGY.md](docs/MODEL_STRATEGY.md) | Model registry, experiments, TTS candidates |
 | [BENCHMARKING.md](docs/BENCHMARKING.md) | Voice quality benchmark framework |

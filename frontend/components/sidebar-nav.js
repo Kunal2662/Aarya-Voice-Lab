@@ -10,6 +10,13 @@ defineComponent("avl-sidebar-item", AvlSidebarItem);
 
 export class AvlSidebarNav extends AvlElement {
   connectedCallback() {
+    this.refresh();
+  }
+
+  /** Re-read light-DOM <avl-sidebar-item> children and re-render — call
+   * after changing one's `active`/`planned` attribute programmatically
+   * (VL-D1's router does this on every navigation). */
+  refresh() {
     this._items = Array.from(this.querySelectorAll(":scope > avl-sidebar-item"));
     this._render();
   }

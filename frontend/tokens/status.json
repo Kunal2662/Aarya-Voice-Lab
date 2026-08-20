@@ -52,6 +52,28 @@
         "INCOMPATIBLE": "state.danger",
         "UNKNOWN": "text.muted"
       }
+    },
+    "hardware_calibration": {
+      "description": "VL-D1 §19 — the future AI Calibration Engine's (VL-D15) process state for profiling THIS host's hardware/runtime. Distinct from the 'calibration' domain above: that one is CalibrationState, about whether a target-speaker verification threshold has real evidence behind it. This one is about whether the machine itself has been benchmarked. No engine exists yet, so every calibration workspace view defaults to UNCALIBRATED with no fabricated numbers.",
+      "states": ["UNCALIBRATED", "NOT_TESTED", "CALIBRATING", "CALIBRATED", "FAILED", "UNKNOWN"],
+      "color_token": {
+        "UNCALIBRATED": "text.muted",
+        "NOT_TESTED": "text.disabled",
+        "CALIBRATING": "state.info",
+        "CALIBRATED": "state.success",
+        "FAILED": "state.danger",
+        "UNKNOWN": "text.muted"
+      }
+    },
+    "activity_severity": {
+      "description": "Severity of one activity-timeline event (VL-D1 §13). A different axis from any domain-specific status above — every activity event has exactly one of these regardless of its source (import/pipeline/claude/security/...).",
+      "states": ["info", "success", "warning", "danger"],
+      "color_token": {
+        "info": "state.info",
+        "success": "state.success",
+        "warning": "state.warning",
+        "danger": "state.danger"
+      }
     }
   }
 }
