@@ -16,7 +16,7 @@ import tempfile
 from pathlib import Path
 
 from aarya_voice_lab.core.data_root import DataRoot
-from aarya_voice_lab.identity import contracts
+from aarya_voice_lab.identity import command_center, contracts
 from aarya_voice_lab.identity.audit import AuditEventType, AuditLog
 from aarya_voice_lab.identity.embeddings import EmbeddingStore, available_providers
 from aarya_voice_lab.identity.enrollment import available_strategies, describe_strategies
@@ -220,6 +220,32 @@ def cmd_voice_preview_status(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_command_center(args: argparse.Namespace) -> int:
+    """Backend snapshot for the future desktop Claude Code panel."""
+    payload = command_center.command_center_snapshot(DataRoot.default())
+    if args.json:
+        print(json.dumps(payload, indent=2))
+        return 0
+
+    repo = payload["repository"]
+    diag = payload["diagnostics"]
+    print("Claude Code Command Center — backend snapshot")
+    print("=" * 60)
+    print(f"  branch        : {repo['branch']}")
+    print(f"  HEAD          : {repo['head_short']}  {repo['head_subject']}")
+    print(f"  tree clean    : {repo['working_tree_clean']}")
+    print(f"  healthy       : {diag['healthy']}")
+    for problem in diag["problems"]:
+        print(f"    ! {problem}")
+    print(f"  commands      : {payload['commands']['count']}")
+    print(f"  activity      : {payload['activity']['count']} recent entries")
+    print(f"  real recordings present : {diag['real_recordings_present']}")
+    print()
+    print("  Contracts only — this surface executes nothing. The desktop")
+    print("  invokes the ordinary CLI so gates and audit logging still apply.")
+    return 0 if diag["healthy"] else 1
+
+
 def register(subparsers) -> None:
     p = subparsers.add_parser("identity-status", help="Speaker identity architecture status.")
     p.add_argument("--json", action="store_true")
@@ -257,6 +283,10 @@ def register(subparsers) -> None:
     p = subparsers.add_parser("synthetic-e2e", help="Run the Phase 3 chain end-to-end on generated audio.")
     p.add_argument("--json", action="store_true")
     p.set_defaults(func=cmd_synthetic_e2e)
+
+    p = subparsers.add_parser("command-center", help="Backend snapshot for the desktop Claude panel.")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=cmd_command_center)
 
     p = subparsers.add_parser("voice-preview-status", help="VL-V0 preview loop status (contracts only).")
     p.add_argument("--json", action="store_true")

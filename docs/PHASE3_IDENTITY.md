@@ -243,16 +243,57 @@ a real determination without deliberately ignoring data it was handed.
 
 ---
 
+## Claude Code Command Center contracts (VL-D6 / D7 / D8 / D9)
+
+`identity/command_center.py` supplies the future desktop panel that shows
+Claude's activity, pipeline context, diffs, and a curated set of runnable
+commands. It **executes nothing** — a check on the module's own public
+names asserts no `execute`/`run_command`/`shell`/`eval` surface exists.
+The desktop presents `COMMAND_CATALOGUE` and invokes each command through
+the ordinary CLI, so every run still passes the same gates and audit
+logging as a terminal invocation. Duplicating policy into the UI was
+considered and rejected for the same reason `contracts.py` never encodes
+a decision: Core decides, the desktop renders.
+
+Each `CommandDescriptor` carries a `risk` (`read_only`, `writes_local`,
+`destructive`, `gated`). Destructive commands must set
+`requires_confirmation`; gated ones must name `gate_reason` rather than
+simply disappearing — a hidden control invites hunting for a workaround,
+a disabled one with a reason does not.
+
+`changed_files()` returns file names and line counts, never diff content:
+a diff under `data/` could carry private material, so the contract that
+is safe to render everywhere stops at the numbers. `activity_feed()`
+reads the already-sanitised audit log, so nothing it returns needs
+separate redaction.
+
+## Local-first, no cloud (VL guiding constraint)
+
+No pipeline, identity, audio, core, or security module imports a network
+or cloud client — asserted by an AST-based test that walks every import
+in those packages and fails on `requests`, `boto3`, `google`, `azure`,
+`smtplib`, and similar. Every storage path Phase 3 uses resolves under
+the local `DataRoot`, asserted directly. `EmbeddingStore` is checked for
+export-like methods (`export`, `upload`, `sync`, `push`) and has none by
+construction — there is no code path that can send a vector anywhere.
+
 ## Hardware independence (VL-D19 / VL-D20)
 
-Core interfaces name **no accelerator vendor**. A test greps the identity
-modules for `torch.cuda`, `nvidia-smi`, and `cudnn` and fails on a hit.
+Core interfaces name **no vendor, no product, and no specific GPU**. Any
+one development machine — whatever it contains — is a test host, never a
+design target: hard-coding one would quietly make every other machine a
+special case. A test greps the identity modules for `torch.cuda`,
+`nvidia-smi`, `cudnn`, and specific product names (`RTX`, `GTX`, `Radeon`,
+`GeForce` + a model number) and fails on a hit.
 
 Components declare capability as data — `AccelerationRequirement`,
 `ComputeBackend`, `PortabilityClass` — so a future scheduler or packaging
 step can ask "does this need an accelerator?" without branching on vendor
-names. An RTX 3050 is an acceleration target for creation and
-calibration, not a dependency of the finished voice.
+names. `ComputeBackend` enumerates CUDA, ROCm, Metal, OpenCL, Vulkan, and
+XPU alongside CPU, plus an open `OTHER` member so an accelerator nobody
+has anticipated yet is still representable without a schema change. The
+future AI Calibration Engine (VL-D15) detects the actual hardware present
+and optimises for it; this module only supplies the vocabulary it reads.
 
 `describe_portability()` states its own limit: declarations are not
 proof, and a portability claim is unverified until actually run on a

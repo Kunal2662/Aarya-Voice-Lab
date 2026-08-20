@@ -1,19 +1,28 @@
 """Runtime capability metadata — deliberately hardware-agnostic.
 
-Core interfaces must not assume NVIDIA, CUDA, or any particular
-accelerator. An RTX 3050 is an *acceleration target* for creation and
-calibration work, not a permanent dependency of the finished voice: the
-long-term direction is a portable runtime that generates audio on a CPU
-Windows x64 machine with no GPU present (VL-D19 / VL-D20).
+Core interfaces name **no vendor, no product, and no specific GPU**. Any
+particular machine — whatever GPU it happens to contain — is one
+development or test host, never a design target. Hard-coding one would
+quietly make every other machine a special case.
 
-So this module describes capability as **data an implementation declares**
-rather than a branch on vendor names. Code asks "does this component
-require an accelerator, and is one present?" — never "is this CUDA?".
+So capability is expressed as **data an implementation declares**, not a
+branch on vendor names. Code asks "does this component require an
+accelerator, and is one present?" — never "is this CUDA?". Adding a new
+backend must never require editing decision logic elsewhere.
 
-Nothing here detects hardware itself; `environment.audit` already does
-that. This is the vocabulary components use to state their needs, so a
-future scheduler, calibration engine, or packaging step can reason about
-placement without any of them hard-coding a vendor.
+Backends the architecture must be able to accommodate where technically
+supported: NVIDIA, AMD, Intel, integrated GPUs, discrete GPUs, CPU-only
+systems, and future accelerators not yet named here. `ComputeBackend`
+therefore carries an `OTHER` member so an unanticipated accelerator is
+representable without a schema change.
+
+The future AI Calibration Engine (VL-D15) detects the actual hardware and
+optimises for it; this module only supplies the vocabulary it will read.
+The long-term direction remains a portable runtime that generates and
+plays audio on a CPU-only machine (VL-D19 / VL-D20).
+
+Nothing here detects hardware itself — `environment.audit` already does
+that.
 """
 
 from __future__ import annotations
@@ -27,15 +36,36 @@ class ComputeBackend(StrEnum):
     """Where a component can execute.
 
     `CPU` is the baseline every component must support unless it declares
-    otherwise. Accelerator entries are open-ended on purpose — adding a
-    new one must not require changing decision logic elsewhere.
+    otherwise — it is the only backend guaranteed to exist everywhere.
+
+    The accelerator members below are an open set, listed alphabetically
+    rather than by preference: no vendor is privileged, and `OTHER` exists
+    so a backend nobody has anticipated is still representable. Decision
+    logic reads `AccelerationRequirement`, never a specific member here.
     """
 
     CPU = "cpu"
-    CUDA = "cuda"
+    #: AMD ROCm.
     ROCM = "rocm"
+    #: NVIDIA CUDA.
+    CUDA = "cuda"
+    #: Apple Metal.
     METAL = "metal"
+    #: Vendor-neutral compute API.
+    OPENCL = "opencl"
+    #: Cross-vendor graphics/compute.
+    VULKAN = "vulkan"
+    #: Intel XPU (integrated and discrete).
     XPU = "xpu"
+    #: Any accelerator not named above.
+    OTHER = "other"
+
+
+#: Every backend that is not plain CPU. Used to answer "is an accelerator
+#: involved?" without naming a vendor.
+ACCELERATOR_BACKENDS: frozenset[ComputeBackend] = frozenset(
+    b for b in ComputeBackend if b is not ComputeBackend.CPU
+)
 
 
 class AccelerationRequirement(StrEnum):
