@@ -7,12 +7,12 @@ import { fileURLToPath } from "node:url";
 
 const frontendRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
-test("tokens.css is not stale relative to tokens/*.json", () => {
+test("variables.css is not stale relative to tokens/*.json", () => {
   assert.doesNotThrow(() => {
-    execFileSync("node", [path.join(frontendRoot, "tools", "build-tokens.mjs"), "--check"], {
+    execFileSync("node", [path.join(frontendRoot, "tools", "build-css-variables.mjs"), "--check"], {
       stdio: "pipe",
     });
-  }, "run `node frontend/tools/build-tokens.mjs` to regenerate");
+  }, "run `node frontend/tools/build-css-variables.mjs` to regenerate");
 });
 
 test("light and dark themes define the same set of color token names", () => {

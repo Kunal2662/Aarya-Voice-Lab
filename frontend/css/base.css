@@ -55,7 +55,7 @@ h3, .avl-type-heading  { font: var(--avl-type-heading-weight) var(--avl-type-hea
 
 /* Global reduced-motion contract: disable scroll-behavior and any
  * animation/transition not already collapsed via the duration tokens
- * (see frontend/css/tokens.css). Belt-and-suspenders — components should
+ * (see frontend/css/variables.css). Belt-and-suspenders — components should
  * already be using --avl-duration-* everywhere. */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

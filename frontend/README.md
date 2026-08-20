@@ -18,8 +18,8 @@ environment already has installed. See "Why no framework" in
 ```
 frontend/
   tokens/       JSON source of truth: color, typography, spacing, motion, status
-  tools/        build-tokens.mjs (tokens -> css/tokens.css), serve.mjs (test-only static server)
-  css/          generated tokens.css + hand-written reset.css / base.css
+  tools/        build-css-variables.mjs (tokens -> css/variables.css), serve.mjs (test-only static server)
+  css/          generated variables.css + hand-written reset.css / base.css
   components/   vanilla Web Components (Shadow DOM, no framework)
   contracts/    generated/ (exported from backend enums) + claude-context-model.json (interface only)
   shell/        index.html — the VL-D0 layout wireframe
@@ -29,8 +29,8 @@ frontend/
 ## Commands
 
 ```sh
-node tools/build-tokens.mjs          # regenerate css/tokens.css from tokens/*.json
-node tools/build-tokens.mjs --check  # verify it's not stale (used by tests/tokens.test.mjs)
+node tools/build-css-variables.mjs          # regenerate css/variables.css from tokens/*.json
+node tools/build-css-variables.mjs --check  # verify it's not stale (used by tests/css-variables.test.mjs)
 node tools/serve.mjs                 # serve frontend/ at http://127.0.0.1:4310/ (manual viewing)
 node --test tests/*.test.mjs         # run all frontend tests
 ```

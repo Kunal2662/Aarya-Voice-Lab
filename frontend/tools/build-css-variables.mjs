@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 // Reads frontend/tokens/*.json (the single source of truth) and writes
-// frontend/css/tokens.css as CSS custom properties. Zero dependencies —
+// frontend/css/variables.css as CSS custom properties. Zero dependencies —
 // this project stays installable and testable with only `node`, no
 // registry fetch, consistent with the local-first / no-cloud-dependency
 // architecture.
 //
-//   node frontend/tools/build-tokens.mjs [--check]
+//   node frontend/tools/build-css-variables.mjs [--check]
 //
 // --check exits nonzero if regenerating would change the committed file,
-// without writing anything (used by frontend/tests/tokens.test.mjs).
+// without writing anything (used by frontend/tests/css-variables.test.mjs).
 
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -17,7 +17,7 @@ import path from "node:path";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const frontendRoot = path.resolve(here, "..");
 const tokensDir = path.join(frontendRoot, "tokens");
-const outFile = path.join(frontendRoot, "css", "tokens.css");
+const outFile = path.join(frontendRoot, "css", "variables.css");
 
 function loadJson(name) {
   return JSON.parse(readFileSync(path.join(tokensDir, name), "utf8"));
@@ -55,7 +55,7 @@ function buildCss() {
   parts.push(
     "/* GENERATED FILE — do not edit by hand.",
     " * Source of truth: frontend/tokens/*.json",
-    " * Regenerate: node frontend/tools/build-tokens.mjs",
+    " * Regenerate: node frontend/tools/build-css-variables.mjs",
     " */",
     "",
   );
@@ -128,8 +128,8 @@ function main() {
 
   if (checkOnly) {
     if (changed) {
-      console.error(`frontend/css/tokens.css is stale relative to frontend/tokens/*.json.`);
-      console.error("Run: node frontend/tools/build-tokens.mjs");
+      console.error(`frontend/css/variables.css is stale relative to frontend/tokens/*.json.`);
+      console.error("Run: node frontend/tools/build-css-variables.mjs");
       process.exit(1);
     }
     process.exit(0);

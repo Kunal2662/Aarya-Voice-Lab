@@ -9,7 +9,7 @@ test("labelFor humanises snake_case and SCREAMING_CASE alike", () => {
   assert.equal(labelFor(""), "");
 });
 
-test("tokenPathToCssVar builds the exact custom-property name build-tokens.mjs emits", () => {
+test("tokenPathToCssVar builds the exact custom-property name build-css-variables.mjs emits", () => {
   assert.equal(tokenPathToCssVar("state.success"), "--avl-color-state-success");
   assert.equal(tokenPathToCssVar("voice.review-required"), "--avl-color-voice-review-required");
 });

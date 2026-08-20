@@ -1,6 +1,6 @@
 /* GENERATED FILE — do not edit by hand.
  * Source of truth: frontend/tokens/*.json
- * Regenerate: node frontend/tools/build-tokens.mjs
+ * Regenerate: node frontend/tools/build-css-variables.mjs
  */
 
 :root, [data-theme='light'] {

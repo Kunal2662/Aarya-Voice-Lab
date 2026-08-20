@@ -6,12 +6,12 @@
 //   * renders into a Shadow DOM root so its styles can never leak into,
 //     or be overridden by, the host page — token values are the only
 //     styling contract
-//   * links the shared tokens.css + base.css into that root, so a
+//   * links the shared variables.css + base.css into that root, so a
 //     component never hardcodes a color/size that isn't a token
 //   * is defined idempotently, so re-importing a module twice (which
 //     happens naturally with multiple entry HTML files) never throws
 
-const SHARED_STYLE_HREFS = ["../css/tokens.css", "../css/base.css"];
+const SHARED_STYLE_HREFS = ["../css/variables.css", "../css/base.css"];
 
 export class AvlElement extends HTMLElement {
   constructor() {
