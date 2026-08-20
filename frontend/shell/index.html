@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Aarya Voice Lab — VL-D0 Design System Wireframe</title>
+<link rel="icon" href="data:," />
+<style>
+  html, body { margin: 0; height: 100%; }
+</style>
+</head>
+<body>
+
+<avl-app-shell id="shell">
+  <avl-sidebar-nav slot="sidebar">
+    <avl-sidebar-item icon="◆" label="Overview" destination="overview" active></avl-sidebar-item>
+    <avl-sidebar-item icon="≋" label="Pipeline" destination="pipeline"></avl-sidebar-item>
+    <avl-sidebar-item icon="♪" label="Voice Preview" destination="voice-preview"></avl-sidebar-item>
+    <avl-sidebar-item icon="✓" label="Calibration" destination="calibration"></avl-sidebar-item>
+    <avl-sidebar-item icon="▣" label="Hardware" destination="hardware"></avl-sidebar-item>
+    <avl-sidebar-item icon="✎" label="Accent" destination="accent" planned></avl-sidebar-item>
+    <avl-sidebar-item icon="⌘" label="Claude Code" destination="claude"></avl-sidebar-item>
+    <avl-theme-toggle style="margin-top: 1rem; display: block; padding: 0 0.5rem;"></avl-theme-toggle>
+  </avl-sidebar-nav>
+
+  <div slot="workspace" id="workspace">
+    <avl-tabs>
+      <avl-tab label="Pipeline">
+        <h2 class="avl-type-heading">Pipeline stages</h2>
+        <p class="avl-type-body-small" style="color: var(--avl-color-text-secondary)">
+          Rendered directly from <code class="avl-type-code">frontend/contracts/generated/pipeline_stage.json</code>,
+          which is exported from <code class="avl-type-code">pipeline/stages.py</code> — nothing here recomputes the
+          stage order or the speaker-identity boundary.
+        </p>
+        <avl-pipeline-stage-track id="pipeline-track"></avl-pipeline-stage-track>
+      </avl-tab>
+
+      <avl-tab label="Voice Preview">
+        <h2 class="avl-type-heading">Voice preview (example data)</h2>
+        <p class="avl-type-body-small" style="color: var(--avl-color-text-secondary)">
+          No real preview exists yet — the artifact below is a synthetic-fixture example shaped exactly like
+          <code class="avl-type-code">PreviewArtifact.to_dict()</code>, used only to exercise the component.
+        </p>
+        <avl-voice-preview-card id="preview-card"></avl-voice-preview-card>
+        <h3 class="avl-type-subheading" style="margin-top: 1.5rem;">Feedback</h3>
+        <avl-voice-feedback preview-id="example-preview-1" listener="operator"></avl-voice-feedback>
+        <h3 class="avl-type-subheading" style="margin-top: 1.5rem;">Versions</h3>
+        <avl-voice-version id="voice-versions"></avl-voice-version>
+        <h3 class="avl-type-subheading" style="margin-top: 1.5rem;">A/B comparison</h3>
+        <avl-voice-comparison id="voice-comparison"></avl-voice-comparison>
+      </avl-tab>
+
+      <avl-tab label="Calibration">
+        <h2 class="avl-type-heading">Calibration state</h2>
+        <p class="avl-type-body-small" style="color: var(--avl-color-text-secondary)">
+          Honest default: target-speaker calibration is structurally unreachable (see
+          <code class="avl-type-code">identity/calibration.py</code>). This panel shows the UNCALIBRATED default —
+          it never fabricates a score.
+        </p>
+        <avl-calibration-panel></avl-calibration-panel>
+      </avl-tab>
+
+      <avl-tab label="Hardware">
+        <h2 class="avl-type-heading">Hardware &amp; runtime</h2>
+        <p class="avl-type-body-small" style="color: var(--avl-color-text-secondary)">
+          Vendor-neutral. No capability report has been loaded here, so this renders the honest empty state rather
+          than a specific GPU.
+        </p>
+        <avl-hardware-profile-card></avl-hardware-profile-card>
+      </avl-tab>
+
+      <avl-tab label="Accent">
+        <avl-accent-panel></avl-accent-panel>
+      </avl-tab>
+
+      <avl-tab label="Claude Code">
+        <h2 class="avl-type-heading">Claude Code Command Center</h2>
+        <avl-claude-command-shell id="claude-shell"></avl-claude-command-shell>
+      </avl-tab>
+    </avl-tabs>
+
+    <div style="margin-top: 2rem; display: flex; align-items: center; gap: 0.5rem;">
+      <avl-pixel-sprite motif="idle-orb" animated></avl-pixel-sprite>
+      <avl-pixel-sprite motif="waveform-motif"></avl-pixel-sprite>
+      <avl-pixel-sprite motif="calibration-glyph"></avl-pixel-sprite>
+      <span class="avl-type-caption" style="color: var(--avl-color-text-muted);">
+        decorative pixel motifs — aria-hidden, never the only carrier of state
+      </span>
+    </div>
+
+    <div style="margin-top: 1.5rem;">
+      <avl-error-panel
+        summary="Example error panel: a stage failed to resume."
+        detail="StageContractError: input hash mismatch for 03_normalization (expected 3f2a…, got 9c11…)"
+        claude-action="diagnose-stage-failure"
+      ></avl-error-panel>
+    </div>
+
+    <div style="margin-top: 1.5rem;">
+      <avl-notice-banner tone="info">
+        This wireframe demonstrates VL-D0's design-system foundation. It is not the application.
+      </avl-notice-banner>
+    </div>
+  </div>
+
+  <avl-panel slot="inspector" title="Inspector" collapsible>
+    <p class="avl-type-body-small">Contextual detail for the current selection appears here in a later milestone.</p>
+  </avl-panel>
+
+  <avl-activity-bar slot="activity-bar" message="VL-D0 design system wireframe — no pipeline run in progress" domain="core" state="idle"></avl-activity-bar>
+</avl-app-shell>
+
+<script type="module">
+  import "../components/app-shell.js";
+  import "../components/sidebar-nav.js";
+  import "../components/activity-bar.js";
+  import "../components/panel.js";
+  import "../components/tabs.js";
+  import "../components/theme-toggle.js";
+  import "../components/pipeline-stage-track.js";
+  import "../components/voice-preview-card.js";
+  import "../components/voice-feedback.js";
+  import "../components/voice-version.js";
+  import "../components/voice-comparison.js";
+  import "../components/calibration-panel.js";
+  import "../components/hardware-profile-card.js";
+  import "../components/accent-panel.js";
+  import "../components/claude-command-shell.js";
+  import "../components/pixel-sprite.js";
+  import "../components/error-panel.js";
+  import "../components/notice-banner.js";
+
+  async function loadJson(path) {
+    const response = await fetch(path);
+    return response.json();
+  }
+
+  async function main() {
+    const pipelineStage = await loadJson("../contracts/generated/pipeline_stage.json");
+    const track = document.getElementById("pipeline-track");
+    track.stages = pipelineStage.stages.map((name, index) => ({
+      name,
+      phase: pipelineStage.phase_2_stages.includes(name) ? "phase-2" : "phase-3+",
+      implemented: pipelineStage.phase_2_stages.includes(name),
+      past_identity_boundary: index >= pipelineStage.speaker_identity_boundary_index,
+      runtimeState: "not_started",
+    }));
+
+    const exampleArtifact = {
+      preview_id: "example-preview-1",
+      kind: "synthetic_fixture",
+      relative_path: "previews/example.wav",
+      sha256: "0".repeat(64),
+      duration_seconds: 4.2,
+      sample_rate: 22050,
+      iteration: 1,
+      origin_id: "fixture-001",
+      is_synthetic: true,
+    };
+    document.getElementById("preview-card").artifact = exampleArtifact;
+
+    const versions = document.getElementById("voice-versions");
+    versions.previews = [exampleArtifact, { ...exampleArtifact, preview_id: "example-preview-2", iteration: 2 }];
+    versions.acceptedPreviewId = null;
+
+    const comparison = document.getElementById("voice-comparison");
+    comparison.left = exampleArtifact;
+    comparison.right = { ...exampleArtifact, preview_id: "example-preview-2", iteration: 2 };
+
+    document.getElementById("claude-shell").snapshot = {
+      repository: { payload: { branch: "(unloaded)", head_short: "-------", working_tree_clean: true, changed_file_count: 0 } },
+      activity: { payload: { entries: [] } },
+    };
+
+    document.getElementById("shell").addEventListener("avl-navigate", (event) => {
+      console.log("navigate", event.detail);
+    });
+  }
+
+  main();
+</script>
+
+</body>
+</html>

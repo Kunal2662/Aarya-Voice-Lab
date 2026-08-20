@@ -1,0 +1,13 @@
+{
+  "name": "aarya-voice-lab-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "VL-D0 design system foundation. Zero runtime and zero dev dependencies by design — see README.md.",
+  "scripts": {
+    "build:tokens": "node tools/build-tokens.mjs",
+    "check:tokens": "node tools/build-tokens.mjs --check",
+    "serve": "node tools/serve.mjs",
+    "test": "node --test tests/*.test.mjs"
+  }
+}

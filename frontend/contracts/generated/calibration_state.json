@@ -1,0 +1,10 @@
+{
+  "$generated_by": "scripts/export_frontend_contracts.py",
+  "$source": "aarya_voice_lab.identity.calibration.CalibrationState",
+  "description": "UNCALIBRATED/PROVISIONAL/CALIBRATED. CALIBRATED must never be shown without backend evidence \u2014 the UI may only render what this endpoint reports, never infer or upgrade a state.",
+  "values": [
+    "UNCALIBRATED",
+    "PROVISIONAL",
+    "CALIBRATED"
+  ]
+}

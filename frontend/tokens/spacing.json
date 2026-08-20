@@ -1,0 +1,31 @@
+{
+  "$schema": "internal://aarya-voice-lab/tokens/spacing",
+  "description": "4px base grid. Component authors reference these names; raw px/rem values in component CSS are a lint-worthy smell (checked by tests/lint-tokens-only.test.mjs).",
+  "scale": {
+    "0": "0",
+    "1": "0.25rem",
+    "2": "0.5rem",
+    "3": "0.75rem",
+    "4": "1rem",
+    "6": "1.5rem",
+    "8": "2rem",
+    "12": "3rem",
+    "16": "4rem",
+    "24": "6rem",
+    "32": "8rem"
+  },
+  "radius": {
+    "sm": "0.25rem",
+    "md": "0.5rem",
+    "lg": "0.75rem",
+    "pill": "999px",
+    "pixel": "0"
+  },
+  "layout": {
+    "sidebar-width": "15rem",
+    "sidebar-width-collapsed": "3.5rem",
+    "inspector-width": "20rem",
+    "activity-bar-height": "2.5rem",
+    "shell-min-width": "60rem"
+  }
+}

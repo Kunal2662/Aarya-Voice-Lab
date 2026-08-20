@@ -1,0 +1,21 @@
+{
+  "$schema": "internal://aarya-voice-lab/tokens/motion",
+  "description": "Restrained motion system. Motion communicates state changes, never decorates for its own sake. Every duration/easing pair below is disabled (collapsed to near-zero) under prefers-reduced-motion; see css/base.css.",
+  "durations": {
+    "instant": "0ms",
+    "fast": "100ms",
+    "base": "180ms",
+    "slow": "280ms",
+    "deliberate": "420ms"
+  },
+  "easings": {
+    "standard": "cubic-bezier(0.2, 0, 0, 1)",
+    "entrance": "cubic-bezier(0, 0, 0.2, 1)",
+    "exit": "cubic-bezier(0.4, 0, 1, 1)"
+  },
+  "rules": {
+    "reduced_motion_policy": "Under prefers-reduced-motion: reduce, all durations collapse to 1ms and transform-based motion is replaced by opacity-only or instant state changes. No motion may be the sole indicator of a state change — it always accompanies a text/icon/color change.",
+    "loop_forbidden_on": ["status-text", "critical-alerts"],
+    "allowed_looping_elements": ["waveform-idle-motif", "pixel-decorative-motif", "spinner"]
+  }
+}

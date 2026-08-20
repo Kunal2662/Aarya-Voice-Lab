@@ -1,0 +1,16 @@
+{
+  "$schema": "internal://aarya-voice-lab/contracts/claude-context-model",
+  "description": "VL-D0 §16 — interface only, nothing implements this yet. Shape a future 'what does Claude currently know' provider must fill so the Command Center UI (claude-command-shell.js) can render context without embedding any context-gathering logic itself. No component in this repository constructs this object; it is a target shape for VL-D1+.",
+  "fields": {
+    "repository": "identity/command_center.py repository_context() payload — branch, head, working tree state.",
+    "active_view": "Which shell workspace destination is focused (a sidebar-nav destination id), so a command like 'explain this' has a subject.",
+    "selection": "Optional: an id (segment/preview/profile/etc.) the operator has selected in the workspace, or null.",
+    "recent_commands": "Bounded list of the operator's last N submitted command-shell inputs, most recent first — for context, not for auto-replay.",
+    "permissions": "Which CommandRisk tiers the current session may run without an extra confirmation step. Never includes DESTRUCTIVE or GATED by default."
+  },
+  "explicit_non_goals": [
+    "This is not a memory store or conversation history — Claude Code's own session context handles that.",
+    "This never includes recording audio, embeddings, or any biometric artifact path — those stay behind the dataset access gate regardless of what Claude is asked.",
+    "No network transmission of any field here is implied or planned; local-first applies to this contract like everything else."
+  ]
+}

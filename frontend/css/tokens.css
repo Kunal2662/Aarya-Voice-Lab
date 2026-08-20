@@ -1,0 +1,225 @@
+/* GENERATED FILE — do not edit by hand.
+ * Source of truth: frontend/tokens/*.json
+ * Regenerate: node frontend/tools/build-tokens.mjs
+ */
+
+:root, [data-theme='light'] {
+  --avl-color-surface-canvas: #f5f4f0;
+  --avl-color-surface-sunken: #e9e7e0;
+  --avl-color-surface-raised: #ffffff;
+  --avl-color-surface-overlay: #ffffff;
+  --avl-color-surface-inspector: #efeee8;
+  --avl-color-surface-activity-bar: #e2e0d8;
+  --avl-color-border-default: #d6d3c8;
+  --avl-color-border-subtle: #e6e4dc;
+  --avl-color-border-strong: #a9a595;
+  --avl-color-border-focus: #2d5be3;
+  --avl-color-text-primary: #1c1b18;
+  --avl-color-text-secondary: #514e45;
+  --avl-color-text-muted: #847f70;
+  --avl-color-text-disabled: #b3af9f;
+  --avl-color-text-inverse: #f5f4f0;
+  --avl-color-text-link: #1d4ed8;
+  --avl-color-brand-accent: #2d5be3;
+  --avl-color-brand-accent-strong: #1d3fae;
+  --avl-color-brand-accent-subtle: #e1e8fb;
+  --avl-color-state-success: #1a7f4b;
+  --avl-color-state-success-subtle: #e0f3e8;
+  --avl-color-state-warning: #9a6400;
+  --avl-color-state-warning-subtle: #faedcf;
+  --avl-color-state-danger: #b3261e;
+  --avl-color-state-danger-subtle: #fbe2df;
+  --avl-color-state-info: #2d5be3;
+  --avl-color-state-info-subtle: #e1e8fb;
+  --avl-color-voice-recording: #b3261e;
+  --avl-color-voice-recording-subtle: #fbe2df;
+  --avl-color-voice-playback: #1a7f4b;
+  --avl-color-voice-playback-subtle: #e0f3e8;
+  --avl-color-voice-calibration: #7a4fd6;
+  --avl-color-voice-calibration-subtle: #ece3fb;
+  --avl-color-voice-review-required: #9a6400;
+  --avl-color-voice-review-required-subtle: #faedcf;
+  --avl-color-voice-synthetic: #5b6472;
+  --avl-color-voice-synthetic-subtle: #e6e8ec;
+  --avl-color-pixel-accent-primary: #2d5be3;
+  --avl-color-pixel-accent-secondary: #7a4fd6;
+  --avl-color-pixel-accent-highlight: #ffb000;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --avl-color-surface-canvas: #15161a;
+    --avl-color-surface-sunken: #0e0f12;
+    --avl-color-surface-raised: #1d1f24;
+    --avl-color-surface-overlay: #23262c;
+    --avl-color-surface-inspector: #1a1c21;
+    --avl-color-surface-activity-bar: #0e0f12;
+    --avl-color-border-default: #2c2f36;
+    --avl-color-border-subtle: #22242a;
+    --avl-color-border-strong: #454952;
+    --avl-color-border-focus: #6d93ff;
+    --avl-color-text-primary: #eceef2;
+    --avl-color-text-secondary: #b7bcc7;
+    --avl-color-text-muted: #828795;
+    --avl-color-text-disabled: #4d515c;
+    --avl-color-text-inverse: #15161a;
+    --avl-color-text-link: #8fb2ff;
+    --avl-color-brand-accent: #6d93ff;
+    --avl-color-brand-accent-strong: #a6c1ff;
+    --avl-color-brand-accent-subtle: #1e2947;
+    --avl-color-state-success: #4fd18b;
+    --avl-color-state-success-subtle: #123222;
+    --avl-color-state-warning: #f2b84b;
+    --avl-color-state-warning-subtle: #3a2c0c;
+    --avl-color-state-danger: #ff8a80;
+    --avl-color-state-danger-subtle: #3a1613;
+    --avl-color-state-info: #6d93ff;
+    --avl-color-state-info-subtle: #1e2947;
+    --avl-color-voice-recording: #ff8a80;
+    --avl-color-voice-recording-subtle: #3a1613;
+    --avl-color-voice-playback: #4fd18b;
+    --avl-color-voice-playback-subtle: #123222;
+    --avl-color-voice-calibration: #c3a6ff;
+    --avl-color-voice-calibration-subtle: #2a2147;
+    --avl-color-voice-review-required: #f2b84b;
+    --avl-color-voice-review-required-subtle: #3a2c0c;
+    --avl-color-voice-synthetic: #9aa0ac;
+    --avl-color-voice-synthetic-subtle: #24262b;
+    --avl-color-pixel-accent-primary: #6d93ff;
+    --avl-color-pixel-accent-secondary: #c3a6ff;
+    --avl-color-pixel-accent-highlight: #ffcf5c;
+  }
+}
+
+[data-theme='dark'] {
+  --avl-color-surface-canvas: #15161a;
+  --avl-color-surface-sunken: #0e0f12;
+  --avl-color-surface-raised: #1d1f24;
+  --avl-color-surface-overlay: #23262c;
+  --avl-color-surface-inspector: #1a1c21;
+  --avl-color-surface-activity-bar: #0e0f12;
+  --avl-color-border-default: #2c2f36;
+  --avl-color-border-subtle: #22242a;
+  --avl-color-border-strong: #454952;
+  --avl-color-border-focus: #6d93ff;
+  --avl-color-text-primary: #eceef2;
+  --avl-color-text-secondary: #b7bcc7;
+  --avl-color-text-muted: #828795;
+  --avl-color-text-disabled: #4d515c;
+  --avl-color-text-inverse: #15161a;
+  --avl-color-text-link: #8fb2ff;
+  --avl-color-brand-accent: #6d93ff;
+  --avl-color-brand-accent-strong: #a6c1ff;
+  --avl-color-brand-accent-subtle: #1e2947;
+  --avl-color-state-success: #4fd18b;
+  --avl-color-state-success-subtle: #123222;
+  --avl-color-state-warning: #f2b84b;
+  --avl-color-state-warning-subtle: #3a2c0c;
+  --avl-color-state-danger: #ff8a80;
+  --avl-color-state-danger-subtle: #3a1613;
+  --avl-color-state-info: #6d93ff;
+  --avl-color-state-info-subtle: #1e2947;
+  --avl-color-voice-recording: #ff8a80;
+  --avl-color-voice-recording-subtle: #3a1613;
+  --avl-color-voice-playback: #4fd18b;
+  --avl-color-voice-playback-subtle: #123222;
+  --avl-color-voice-calibration: #c3a6ff;
+  --avl-color-voice-calibration-subtle: #2a2147;
+  --avl-color-voice-review-required: #f2b84b;
+  --avl-color-voice-review-required-subtle: #3a2c0c;
+  --avl-color-voice-synthetic: #9aa0ac;
+  --avl-color-voice-synthetic-subtle: #24262b;
+  --avl-color-pixel-accent-primary: #6d93ff;
+  --avl-color-pixel-accent-secondary: #c3a6ff;
+  --avl-color-pixel-accent-highlight: #ffcf5c;
+}
+
+:root {
+  --avl-font-readable: -apple-system, 'Segoe UI', Roboto, 'Inter', 'Helvetica Neue', Arial, sans-serif;
+  --avl-font-monospace: 'SFMono-Regular', 'JetBrains Mono', Consolas, 'Liberation Mono', Menlo, monospace;
+  --avl-font-pixel-decorative: 'Press Start 2P', 'VT323', var(--avl-font-monospace);
+  --avl-type-display-size: 2.5rem;
+  --avl-type-display-line-height: 1.15;
+  --avl-type-display-weight: 600;
+  --avl-type-display-family: var(--avl-font-readable);
+  --avl-type-title-size: 1.75rem;
+  --avl-type-title-line-height: 1.25;
+  --avl-type-title-weight: 600;
+  --avl-type-title-family: var(--avl-font-readable);
+  --avl-type-heading-size: 1.25rem;
+  --avl-type-heading-line-height: 1.3;
+  --avl-type-heading-weight: 600;
+  --avl-type-heading-family: var(--avl-font-readable);
+  --avl-type-subheading-size: 1.05rem;
+  --avl-type-subheading-line-height: 1.4;
+  --avl-type-subheading-weight: 500;
+  --avl-type-subheading-family: var(--avl-font-readable);
+  --avl-type-body-size: 0.95rem;
+  --avl-type-body-line-height: 1.55;
+  --avl-type-body-weight: 400;
+  --avl-type-body-family: var(--avl-font-readable);
+  --avl-type-body-small-size: 0.85rem;
+  --avl-type-body-small-line-height: 1.5;
+  --avl-type-body-small-weight: 400;
+  --avl-type-body-small-family: var(--avl-font-readable);
+  --avl-type-caption-size: 0.75rem;
+  --avl-type-caption-line-height: 1.4;
+  --avl-type-caption-weight: 500;
+  --avl-type-caption-family: var(--avl-font-readable);
+  --avl-type-code-size: 0.85rem;
+  --avl-type-code-line-height: 1.5;
+  --avl-type-code-weight: 400;
+  --avl-type-code-family: var(--avl-font-monospace);
+  --avl-type-pixel-label-size: 0.7rem;
+  --avl-type-pixel-label-line-height: 1.6;
+  --avl-type-pixel-label-weight: 400;
+  --avl-type-pixel-label-family: var(--avl-font-pixel-decorative);
+}
+
+:root {
+  --avl-space-0: 0;
+  --avl-space-1: 0.25rem;
+  --avl-space-2: 0.5rem;
+  --avl-space-3: 0.75rem;
+  --avl-space-4: 1rem;
+  --avl-space-6: 1.5rem;
+  --avl-space-8: 2rem;
+  --avl-space-12: 3rem;
+  --avl-space-16: 4rem;
+  --avl-space-24: 6rem;
+  --avl-space-32: 8rem;
+  --avl-radius-sm: 0.25rem;
+  --avl-radius-md: 0.5rem;
+  --avl-radius-lg: 0.75rem;
+  --avl-radius-pill: 999px;
+  --avl-radius-pixel: 0;
+  --avl-layout-sidebar-width: 15rem;
+  --avl-layout-sidebar-width-collapsed: 3.5rem;
+  --avl-layout-inspector-width: 20rem;
+  --avl-layout-activity-bar-height: 2.5rem;
+  --avl-layout-shell-min-width: 60rem;
+}
+
+:root {
+  --avl-duration-instant: 0ms;
+  --avl-duration-fast: 100ms;
+  --avl-duration-base: 180ms;
+  --avl-duration-slow: 280ms;
+  --avl-duration-deliberate: 420ms;
+  --avl-easing-standard: cubic-bezier(0.2, 0, 0, 1);
+  --avl-easing-entrance: cubic-bezier(0, 0, 0.2, 1);
+  --avl-easing-exit: cubic-bezier(0.4, 0, 1, 1);
+}
+
+/* Reduced motion: collapse every duration token to effectively
+ * instant. Components must use these custom properties for all
+ * durations so this single override disables motion app-wide. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --avl-duration-instant: 1ms;
+    --avl-duration-fast: 1ms;
+    --avl-duration-base: 1ms;
+    --avl-duration-slow: 1ms;
+    --avl-duration-deliberate: 1ms;
+  }
+}

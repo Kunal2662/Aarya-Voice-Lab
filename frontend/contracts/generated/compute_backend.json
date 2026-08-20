@@ -1,0 +1,15 @@
+{
+  "$generated_by": "scripts/export_frontend_contracts.py",
+  "$source": "aarya_voice_lab.identity.runtime.ComputeBackend",
+  "description": "Vendor-neutral compute backends. The UI must render these as generic labels (CPU/GPU/backend name) and must never assume or design around one specific product.",
+  "values": [
+    "cpu",
+    "rocm",
+    "cuda",
+    "metal",
+    "opencl",
+    "vulkan",
+    "xpu",
+    "other"
+  ]
+}

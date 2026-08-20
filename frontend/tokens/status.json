@@ -1,0 +1,57 @@
+{
+  "$schema": "internal://aarya-voice-lab/tokens/status",
+  "description": "Cross-domain status vocabulary. Each domain is a closed set of states with a color-token reference, an icon glyph name, and a required text label (color is never the only signal — see accessibility docs). The 'calibration' domain values are NOT independently chosen: they mirror aarya_voice_lab.identity.calibration.CalibrationState exactly and are verified against it by tests/contracts-drift.test.mjs.",
+  "domains": {
+    "core": {
+      "states": ["idle", "busy", "ready", "attention", "error", "offline"],
+      "color_token": { "idle": "text.muted", "busy": "state.info", "ready": "state.success", "attention": "state.warning", "error": "state.danger", "offline": "text.disabled" }
+    },
+    "pipeline_stage": {
+      "description": "Runtime execution status of one pipeline stage instance. This is UI-only vocabulary layered on top of the backend PipelineStage enum (pipeline/stages.py) — it does not rename or replace it.",
+      "states": ["not_started", "queued", "running", "success", "warning", "failed", "blocked", "paused", "cancelled"],
+      "color_token": {
+        "not_started": "text.disabled",
+        "queued": "text.muted",
+        "running": "state.info",
+        "success": "state.success",
+        "warning": "state.warning",
+        "failed": "state.danger",
+        "blocked": "voice.review-required",
+        "paused": "text.secondary",
+        "cancelled": "text.disabled"
+      }
+    },
+    "voice": {
+      "states": ["idle", "recording", "playback", "processing", "review-required", "accepted", "rejected"],
+      "color_token": {
+        "idle": "text.muted",
+        "recording": "voice.recording",
+        "playback": "voice.playback",
+        "processing": "state.info",
+        "review-required": "voice.review-required",
+        "accepted": "state.success",
+        "rejected": "state.danger"
+      }
+    },
+    "calibration": {
+      "description": "Mirrors aarya_voice_lab.identity.calibration.CalibrationState exactly. Do not add, rename, or remove values here without updating the backend enum and regenerating frontend/contracts/generated/calibration_state.json.",
+      "states": ["UNCALIBRATED", "PROVISIONAL", "CALIBRATED"],
+      "color_token": {
+        "UNCALIBRATED": "text.muted",
+        "PROVISIONAL": "state.warning",
+        "CALIBRATED": "state.success"
+      }
+    },
+    "hardware": {
+      "description": "Mirrors aarya_voice_lab.core.capability.CapabilityState exactly (used by environment/audit.py and the future runtime detection VL-D19 will read). Do not add, rename, or remove values here without updating the backend enum and regenerating frontend/contracts/generated/capability_state.json.",
+      "states": ["AVAILABLE", "NOT_AVAILABLE", "OPTIONAL", "INCOMPATIBLE", "UNKNOWN"],
+      "color_token": {
+        "AVAILABLE": "state.success",
+        "NOT_AVAILABLE": "state.danger",
+        "OPTIONAL": "state.info",
+        "INCOMPATIBLE": "state.danger",
+        "UNKNOWN": "text.muted"
+      }
+    }
+  }
+}

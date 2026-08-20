@@ -1,0 +1,11 @@
+{
+  "$generated_by": "scripts/export_frontend_contracts.py",
+  "$source": "aarya_voice_lab.identity.preview.PreviewFeedbackOutcome",
+  "description": "Reviewer feedback outcomes for a voice preview.",
+  "values": [
+    "accepted",
+    "rejected",
+    "regenerate",
+    "uncertain"
+  ]
+}

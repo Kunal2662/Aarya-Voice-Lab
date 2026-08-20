@@ -1,0 +1,12 @@
+{
+  "$generated_by": "scripts/export_frontend_contracts.py",
+  "$source": "aarya_voice_lab.core.capability.CapabilityState",
+  "description": "Hardware/toolchain capability states surfaced by environment audit and (later) VL-D19 runtime detection.",
+  "values": [
+    "AVAILABLE",
+    "NOT_AVAILABLE",
+    "OPTIONAL",
+    "INCOMPATIBLE",
+    "UNKNOWN"
+  ]
+}

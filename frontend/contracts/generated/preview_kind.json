@@ -1,0 +1,10 @@
+{
+  "$generated_by": "scripts/export_frontend_contracts.py",
+  "$source": "aarya_voice_lab.identity.preview.PreviewKind",
+  "description": "Kinds of voice preview artifact. Only SOURCE_SEGMENT and SYNTHETIC_FIXTURE exist in practice today; GENERATED_SPEECH is planned and must render as unavailable, never as if it works.",
+  "values": [
+    "source_segment",
+    "generated_speech",
+    "synthetic_fixture"
+  ]
+}

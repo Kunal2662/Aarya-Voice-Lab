@@ -1,0 +1,11 @@
+{
+  "$generated_by": "scripts/export_frontend_contracts.py",
+  "$source": "aarya_voice_lab.identity.command_center.CommandRisk",
+  "description": "Risk tiers for Claude Code Command Center actions. READ_ONLY commands need no confirmation; DESTRUCTIVE and GATED always do.",
+  "values": [
+    "read_only",
+    "writes_local",
+    "destructive",
+    "gated"
+  ]
+}

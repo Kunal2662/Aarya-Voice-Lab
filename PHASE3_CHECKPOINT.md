@@ -23,7 +23,7 @@ re-run `git log` and `pytest` before trusting anything below.
 | 3.5 (implied) | Real-data enrollment decision, credential/licence sign-off | ⏳ Not started — see §7 |
 | 4 | Real dataset processing (requires the dataset access gate) | ⏳ Blocked on Phase 3.5 |
 | 5+ | Voice model training/experiments, benchmarking | ⏳ Not started |
-| Desktop | JARVIS × Voice Lab UI (VL-D0–D20) | ⏳ Not started — contracts exist |
+| Desktop | Aarya Voice Lab desktop UI (VL-D0–D20) | ⏳ Not started — contracts exist |
 
 **Current phase: 3, complete (software only).**
 

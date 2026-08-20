@@ -1,0 +1,118 @@
+{
+  "$schema": "internal://aarya-voice-lab/tokens/color",
+  "description": "Semantic color tokens for Aarya Voice Lab. Components must reference these names, never raw hex values. Each token is defined once per theme (light, dark); themes are selected at the CSS custom-property layer, not by branching component logic.",
+  "themes": {
+    "light": {
+      "surface": {
+        "canvas": "#f5f4f0",
+        "sunken": "#e9e7e0",
+        "raised": "#ffffff",
+        "overlay": "#ffffff",
+        "inspector": "#efeee8",
+        "activity-bar": "#e2e0d8"
+      },
+      "border": {
+        "default": "#d6d3c8",
+        "subtle": "#e6e4dc",
+        "strong": "#a9a595",
+        "focus": "#2d5be3"
+      },
+      "text": {
+        "primary": "#1c1b18",
+        "secondary": "#514e45",
+        "muted": "#847f70",
+        "disabled": "#b3af9f",
+        "inverse": "#f5f4f0",
+        "link": "#1d4ed8"
+      },
+      "brand": {
+        "accent": "#2d5be3",
+        "accent-strong": "#1d3fae",
+        "accent-subtle": "#e1e8fb"
+      },
+      "state": {
+        "success": "#1a7f4b",
+        "success-subtle": "#e0f3e8",
+        "warning": "#9a6400",
+        "warning-subtle": "#faedcf",
+        "danger": "#b3261e",
+        "danger-subtle": "#fbe2df",
+        "info": "#2d5be3",
+        "info-subtle": "#e1e8fb"
+      },
+      "voice": {
+        "recording": "#b3261e",
+        "recording-subtle": "#fbe2df",
+        "playback": "#1a7f4b",
+        "playback-subtle": "#e0f3e8",
+        "calibration": "#7a4fd6",
+        "calibration-subtle": "#ece3fb",
+        "review-required": "#9a6400",
+        "review-required-subtle": "#faedcf",
+        "synthetic": "#5b6472",
+        "synthetic-subtle": "#e6e8ec"
+      },
+      "pixel-accent": {
+        "primary": "#2d5be3",
+        "secondary": "#7a4fd6",
+        "highlight": "#ffb000"
+      }
+    },
+    "dark": {
+      "surface": {
+        "canvas": "#15161a",
+        "sunken": "#0e0f12",
+        "raised": "#1d1f24",
+        "overlay": "#23262c",
+        "inspector": "#1a1c21",
+        "activity-bar": "#0e0f12"
+      },
+      "border": {
+        "default": "#2c2f36",
+        "subtle": "#22242a",
+        "strong": "#454952",
+        "focus": "#6d93ff"
+      },
+      "text": {
+        "primary": "#eceef2",
+        "secondary": "#b7bcc7",
+        "muted": "#828795",
+        "disabled": "#4d515c",
+        "inverse": "#15161a",
+        "link": "#8fb2ff"
+      },
+      "brand": {
+        "accent": "#6d93ff",
+        "accent-strong": "#a6c1ff",
+        "accent-subtle": "#1e2947"
+      },
+      "state": {
+        "success": "#4fd18b",
+        "success-subtle": "#123222",
+        "warning": "#f2b84b",
+        "warning-subtle": "#3a2c0c",
+        "danger": "#ff8a80",
+        "danger-subtle": "#3a1613",
+        "info": "#6d93ff",
+        "info-subtle": "#1e2947"
+      },
+      "voice": {
+        "recording": "#ff8a80",
+        "recording-subtle": "#3a1613",
+        "playback": "#4fd18b",
+        "playback-subtle": "#123222",
+        "calibration": "#c3a6ff",
+        "calibration-subtle": "#2a2147",
+        "review-required": "#f2b84b",
+        "review-required-subtle": "#3a2c0c",
+        "synthetic": "#9aa0ac",
+        "synthetic-subtle": "#24262b"
+      },
+      "pixel-accent": {
+        "primary": "#6d93ff",
+        "secondary": "#c3a6ff",
+        "highlight": "#ffcf5c"
+      }
+    }
+  }
+}
