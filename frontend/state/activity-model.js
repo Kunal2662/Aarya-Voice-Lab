@@ -13,6 +13,9 @@ export const ActivitySource = Object.freeze({
   VAD: "vad",
   SEGMENTATION: "segmentation",
   REVIEW: "review",
+  // VL-D4 §26 — processing/conditioning events (boundary trim,
+  // normalization, noise-conditioning decision, quality re-check).
+  PROCESSING: "processing",
   SPEAKER_VERIFICATION: "speaker_verification",
   MODEL: "model",
   CALIBRATION: "calibration",

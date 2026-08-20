@@ -32,6 +32,11 @@ export class AvlWorkspaceCommandCenter extends AvlElement {
         if (this.isConnected) this._render();
       });
     }
+    if (this._services.processingQueueStore) {
+      this._services.processingQueueStore.addEventListener("change", () => {
+        if (this.isConnected) this._render();
+      });
+    }
     this._load();
   }
 
@@ -178,7 +183,40 @@ export class AvlWorkspaceCommandCenter extends AvlElement {
     }
     reviewPanel.appendChild(currentBatch);
 
-    grid.append(systemPanel, pipelinePanel, jobsPanel, activityPanel, importsPanel, reviewPanel);
+    // PROCESSING — overview only (VL-D4 §26: "Command Center should show
+    // aggregate processing activity"); the Processing workspace owns the
+    // detailed queue/profiles/before-after view.
+    const processingPanel = document.createElement("avl-panel");
+    processingPanel.setAttribute("title", "Processing");
+    const processingItems = this._services.processingQueueStore ? this._services.processingQueueStore.list() : [];
+    const processingCounts = this._services.processingQueueStore
+      ? this._services.processingQueueStore.counts()
+      : {};
+    const processingDurations = processingItems.map((i) => i.processingDurationSeconds).filter((d) => d != null);
+    const avgProcessingDuration = processingDurations.length
+      ? processingDurations.reduce((a, b) => a + b, 0) / processingDurations.length
+      : null;
+    for (const [label, value] of [
+      ["Total processed", processingItems.length],
+      ["Success", processingCounts.SUCCESS || 0],
+      ["Warning", processingCounts.WARNING || 0],
+      ["Failed", processingCounts.FAILED || 0],
+      ["Blocked", processingCounts.BLOCKED || 0],
+    ]) {
+      const metric = document.createElement("avl-metric-placeholder");
+      metric.setAttribute("label", label);
+      metric.setAttribute("value", String(value));
+      processingPanel.appendChild(metric);
+    }
+    const avgDurationMetric = document.createElement("avl-metric-placeholder");
+    avgDurationMetric.setAttribute("label", "Avg duration");
+    if (avgProcessingDuration != null) {
+      avgDurationMetric.setAttribute("value", avgProcessingDuration.toFixed(2));
+      avgDurationMetric.setAttribute("unit", "s");
+    }
+    processingPanel.appendChild(avgDurationMetric);
+
+    grid.append(systemPanel, pipelinePanel, jobsPanel, activityPanel, importsPanel, reviewPanel, processingPanel);
     wrapper.appendChild(grid);
     this.shadowRoot.appendChild(wrapper);
   }

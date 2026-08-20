@@ -17,6 +17,7 @@ const DESTINATIONS = [
   "batches",
   "recordings",
   "review",
+  "processing",
   "pipeline",
   "voices",
   "models",

@@ -45,6 +45,7 @@ class SchemaName(StrEnum):
     IMPORT_MANIFEST = "import_manifest"
     CANDIDATE_REVIEW = "candidate_review"
     FEEDBACK = "feedback"
+    PROCESSING_HISTORY = "processing_history"
 
 
 class ValidationError(ValueError):

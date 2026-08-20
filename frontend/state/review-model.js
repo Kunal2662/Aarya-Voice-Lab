@@ -31,6 +31,8 @@ export const FeedbackType = Object.freeze({
   SEGMENT_FEEDBACK: "SEGMENT_FEEDBACK",
   CANDIDATE_FEEDBACK: "CANDIDATE_FEEDBACK",
   PLAYBACK_FEEDBACK: "PLAYBACK_FEEDBACK",
+  // VL-D4 §28 — mirrors pipeline.feedback.FeedbackType exactly.
+  PROCESSING_FEEDBACK: "PROCESSING_FEEDBACK",
 });
 
 let _reviewCounter = 0;

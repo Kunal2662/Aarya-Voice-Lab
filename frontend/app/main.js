@@ -15,6 +15,7 @@ import "../components/workspace-import.js";
 import "../components/workspace-batches.js";
 import "../components/workspace-recordings.js";
 import "../components/workspace-dataset-review.js";
+import "../components/workspace-processing.js";
 import "../components/workspace-pipeline.js";
 import "../components/workspace-voices.js";
 import "../components/workspace-models.js";
@@ -32,6 +33,7 @@ import { syntheticJobs, syntheticActivity } from "../state/synthetic-fixtures.js
 import { ImportQueue } from "../state/import-engine.js";
 import { CandidateReviewStore, FeedbackStore } from "../state/review-model.js";
 import { createActivityEvent, ActivitySource, ActivitySeverity } from "../state/activity-model.js";
+import { ProcessingQueueStore, ProcessingProfileStore, ProcessingHistoryStore, ProcessingStatus } from "../state/processing-model.js";
 
 const DESTINATION_META = {
   "command-center": { icon: "◆", label: "Command Center", tag: "avl-workspace-command-center" },
@@ -39,6 +41,7 @@ const DESTINATION_META = {
   batches: { icon: "▤", label: "Batches", tag: "avl-workspace-batches" },
   recordings: { icon: "♫", label: "Recordings", tag: "avl-workspace-recordings" },
   review: { icon: "◎", label: "Dataset Review", tag: "avl-workspace-dataset-review" },
+  processing: { icon: "▶", label: "Processing", tag: "avl-workspace-processing" },
   pipeline: { icon: "≋", label: "Pipeline", tag: "avl-workspace-pipeline" },
   voices: { icon: "♪", label: "Voices", tag: "avl-workspace-voices" },
   models: { icon: "▣", label: "Models", tag: "avl-workspace-models" },
@@ -99,8 +102,26 @@ async function main() {
   // persist these beyond the session (see state/command-executor.js).
   const reviewStore = new CandidateReviewStore();
   const feedbackStore = new FeedbackStore();
+  // Same session-only ownership as reviewStore/feedbackStore above — VL-D4
+  // §5's queue and §16/§18's history must survive navigating away from
+  // Processing and back.
+  const processingQueueStore = new ProcessingQueueStore();
+  const processingProfileStore = new ProcessingProfileStore();
+  const processingHistoryStore = new ProcessingHistoryStore();
 
-  const services = { jobStore, activityStore, executor, pipelineStageContract, importQueue, reviewStore, feedbackStore, router };
+  const services = {
+    jobStore,
+    activityStore,
+    executor,
+    pipelineStageContract,
+    importQueue,
+    reviewStore,
+    feedbackStore,
+    processingQueueStore,
+    processingProfileStore,
+    processingHistoryStore,
+    router,
+  };
 
   // VL-D3 §23 — a technical review decision is itself an activity event
   // (recording reviewed / candidate accepted / rejected / marked for
@@ -122,6 +143,44 @@ async function main() {
         source: ActivitySource.REVIEW,
         status: record.decision.toLowerCase(),
         summary: `Candidate ${record.decision.toLowerCase().replace("_", " ")}: ${record.segmentId} (${record.reasonCode})`,
+      }),
+    );
+  });
+
+  // VL-D4 §26 — one activity event per real processing item status
+  // transition (queued/started/completed/warning/failed/cancelled).
+  const PROCESSING_STATUS_SEVERITY = {
+    [ProcessingStatus.SUCCESS]: ActivitySeverity.SUCCESS,
+    [ProcessingStatus.WARNING]: ActivitySeverity.WARNING,
+    [ProcessingStatus.FAILED]: ActivitySeverity.DANGER,
+    [ProcessingStatus.BLOCKED]: ActivitySeverity.DANGER,
+    [ProcessingStatus.CANCELLED]: ActivitySeverity.INFO,
+  };
+  let lastAnnouncedProcessingStatus = new Map();
+  processingQueueStore.addEventListener("change", (event) => {
+    const item = event.detail.item;
+    if (lastAnnouncedProcessingStatus.get(item.itemId) === item.status) return;
+    lastAnnouncedProcessingStatus.set(item.itemId, item.status);
+    activityStore.append(
+      createActivityEvent({
+        id: `processing-activity-${item.itemId}-${item.status}`,
+        severity: PROCESSING_STATUS_SEVERITY[item.status] || ActivitySeverity.INFO,
+        source: ActivitySource.PROCESSING,
+        status: item.status.toLowerCase(),
+        summary: `Processing ${item.status.toLowerCase()}: ${item.recordingId} (${item.profileId})`,
+      }),
+    );
+  });
+  processingProfileStore.addEventListener("change", (event) => {
+    const profile = event.detail.profile;
+    if (!profile) return;
+    activityStore.append(
+      createActivityEvent({
+        id: `processing-profile-activity-${profile.profileId}`,
+        severity: ActivitySeverity.INFO,
+        source: ActivitySource.PROCESSING,
+        status: profile.version === 1 ? "profile_created" : "profile_updated",
+        summary: `Processing profile ${profile.version === 1 ? "created" : "updated"}: ${profile.name} v${profile.version}`,
       }),
     );
   });

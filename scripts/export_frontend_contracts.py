@@ -34,8 +34,10 @@ from aarya_voice_lab.pipeline.candidate_review import (  # noqa: E402
     CandidateReviewDecision,
     CandidateReviewReason,
 )
-from aarya_voice_lab.pipeline.feedback import FeedbackType  # noqa: E402
+from aarya_voice_lab.pipeline.feedback import FeedbackType, ProcessingFeedbackCategory  # noqa: E402
 from aarya_voice_lab.pipeline.overlap import OverlapStatus  # noqa: E402
+from aarya_voice_lab.pipeline.processing import ProcessingDecision, ProcessingStatus  # noqa: E402
+from aarya_voice_lab.pipeline.processing_profile import NoiseConditioningMode  # noqa: E402
 from aarya_voice_lab.pipeline.quality import QualityDecision  # noqa: E402
 from aarya_voice_lab.pipeline.stages import (  # noqa: E402
     PHASE_2_STAGES,
@@ -153,7 +155,37 @@ def build_payloads() -> dict[str, dict]:
             "aarya_voice_lab.pipeline.feedback.FeedbackType",
             FeedbackType,
             "Feedback categories a human can attach to a recording, segment, "
-            "candidate, or preview. Never converted into a training label.",
+            "candidate, processing result, or preview. Never converted into a "
+            "training label.",
+        ),
+        "processing_status.json": _enum_payload(
+            "aarya_voice_lab.pipeline.processing.ProcessingStatus",
+            ProcessingStatus,
+            "Voice-processing queue item states (VL-D4). BLOCKED means the "
+            "item could not be processed at all (source verification failed); "
+            "WARNING means it completed with a caveat (e.g. an optional tool "
+            "was unavailable). Neither is ever silently upgraded to SUCCESS.",
+        ),
+        "processing_decision.json": _enum_payload(
+            "aarya_voice_lab.pipeline.processing.ProcessingDecision",
+            ProcessingDecision,
+            "The processing DECISION (config-driven, from estimated SNR), kept "
+            "strictly separate from the measurement that produced it. The UI "
+            "must never compute this itself.",
+        ),
+        "noise_conditioning_mode.json": _enum_payload(
+            "aarya_voice_lab.pipeline.processing_profile.NoiseConditioningMode",
+            NoiseConditioningMode,
+            "OFF and MEASURE_ONLY are implemented; LIGHT and STANDARD are a "
+            "real, closed vocabulary with no noise-reduction tool wired up "
+            "yet in VL-D4 — the UI must render them as NOT AVAILABLE if "
+            "selected, never silently treat them as MEASURE_ONLY.",
+        ),
+        "processing_feedback_category.json": _enum_payload(
+            "aarya_voice_lab.pipeline.feedback.ProcessingFeedbackCategory",
+            ProcessingFeedbackCategory,
+            "Closed vocabulary for feedback on a processing result, stored in "
+            "a PROCESSING_FEEDBACK record's attributes.category.",
         ),
     }
 

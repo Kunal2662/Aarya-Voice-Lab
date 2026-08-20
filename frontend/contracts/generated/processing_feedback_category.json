@@ -1,0 +1,16 @@
+{
+  "$generated_by": "scripts/export_frontend_contracts.py",
+  "$source": "aarya_voice_lab.pipeline.feedback.ProcessingFeedbackCategory",
+  "description": "Closed vocabulary for feedback on a processing result, stored in a PROCESSING_FEEDBACK record's attributes.category.",
+  "values": [
+    "TOO_AGGRESSIVE",
+    "TOO_NOISY",
+    "TOO_QUIET",
+    "OVER_PROCESSED",
+    "UNDER_PROCESSED",
+    "BOUNDARY_INCORRECT",
+    "QUALITY_DEGRADED",
+    "GOOD_RESULT",
+    "OTHER"
+  ]
+}

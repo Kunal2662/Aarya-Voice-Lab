@@ -340,6 +340,183 @@ export function syntheticWaveformPeaks(recordingId) {
   return peaks;
 }
 
+// VL-D4 — processing profile / queue / history fixtures. Shapes mirror
+// pipeline.processing_profile.ProcessingProfile.to_dict() /
+// pipeline.processing.ProcessingItem.to_dict() /
+// pipeline.processing_history.ProcessingHistoryRecord.to_dict() closely
+// enough that a real backend response could be dropped in without
+// changing any component, but nothing here is computed -- it's fixed
+// example data, same as every other synthetic-fixtures.js export.
+export function syntheticProcessingProfiles() {
+  return [
+    {
+      profileId: "conservative-v1",
+      name: "conservative",
+      version: 1,
+      normalization: {
+        targetSampleRate: 16000,
+        targetChannels: 1,
+        targetBitDepth: 16,
+        applyLoudnessNormalization: false,
+        targetLoudnessLufs: -23.0,
+      },
+      boundary: { trimLeadingSilence: true, trimTrailingSilence: true, minTrimSeconds: 0.1, padSeconds: 0.05 },
+      noiseConditioningMode: "MEASURE_ONLY",
+      notes: "Gentle defaults -- minimal alteration.",
+      createdAt: "2026-08-10T09:00:00Z",
+      is_synthetic: true,
+    },
+    {
+      profileId: "standard-v1",
+      name: "standard",
+      version: 1,
+      normalization: {
+        targetSampleRate: 16000,
+        targetChannels: 1,
+        targetBitDepth: 16,
+        applyLoudnessNormalization: false,
+        targetLoudnessLufs: -23.0,
+      },
+      boundary: { trimLeadingSilence: true, trimTrailingSilence: true, minTrimSeconds: 0.1, padSeconds: 0.05 },
+      noiseConditioningMode: "MEASURE_ONLY",
+      notes: "Default processing profile.",
+      createdAt: "2026-08-12T09:00:00Z",
+      is_synthetic: true,
+    },
+    {
+      profileId: "standard-v2",
+      name: "standard",
+      version: 2,
+      normalization: {
+        targetSampleRate: 22050,
+        targetChannels: 1,
+        targetBitDepth: 16,
+        applyLoudnessNormalization: false,
+        targetLoudnessLufs: -23.0,
+      },
+      boundary: { trimLeadingSilence: true, trimTrailingSilence: true, minTrimSeconds: 0.15, padSeconds: 0.05 },
+      noiseConditioningMode: "MEASURE_ONLY",
+      notes: "Bumped target sample rate for TTS-oriented derivation.",
+      createdAt: "2026-08-18T09:00:00Z",
+      is_synthetic: true,
+    },
+  ];
+}
+
+export function syntheticProcessingItems() {
+  return {
+    "synthetic-rec-0001": {
+      itemId: "proc-0000-synthetic-rec-0001",
+      recordingId: "synthetic-rec-0001",
+      profileId: "standard-v1",
+      status: "SUCCESS",
+      progress: 1.0,
+      currentOperation: null,
+      warnings: [],
+      errors: [],
+      decision: "NO_PROCESSING",
+      processingDurationSeconds: 1.82,
+      derivedArtifact: {
+        artifactId: "af1" + "af1af1af1af1af1af1af1af1af1af1af1af1af1af1".slice(0, 61),
+        outputPath: "proc-0000-synthetic-rec-0001.normalized.wav",
+        outputSha256: "d1".repeat(32),
+        boundary: { leadingTrimSeconds: 0.42, trailingTrimSeconds: 0.3, note: null },
+        normalization: { tool: "ffmpeg", toolVersion: "6.1.1", status: "completed" },
+        noiseConditioning: {
+          mode: "MEASURE_ONLY",
+          outcome: "measured_only",
+          note: "Noise floor and estimated SNR are already reported by quality measurements; audio is unchanged.",
+        },
+      },
+      qualityBefore: { decision: "PASS", measurements: { estimatedSnrDb: 33.7, durationSeconds: 128.4 } },
+      qualityAfter: { decision: "PASS", measurements: { estimatedSnrDb: 34.1, durationSeconds: 127.68 } },
+    },
+    "synthetic-rec-0002": {
+      itemId: "proc-0001-synthetic-rec-0002",
+      recordingId: "synthetic-rec-0002",
+      profileId: "standard-v1",
+      status: "WARNING",
+      progress: 1.0,
+      currentOperation: null,
+      warnings: [
+        "normalization unavailable: FFmpeg is not installed, so audio cannot be normalized. The original " +
+          "was not read, converted, or modified. Install FFmpeg and re-run; no substitute tool will be used.",
+      ],
+      errors: [],
+      decision: "STANDARD_CONDITIONING",
+      processingDurationSeconds: 0.61,
+      derivedArtifact: {
+        artifactId: "b2".repeat(32),
+        outputPath: "proc-0001-synthetic-rec-0002.boundary.wav",
+        outputSha256: "b2".repeat(32),
+        boundary: { leadingTrimSeconds: 0.0, trailingTrimSeconds: 0.0, note: null },
+        normalization: null,
+        noiseConditioning: {
+          mode: "MEASURE_ONLY",
+          outcome: "measured_only",
+          note: "Noise floor and estimated SNR are already reported by quality measurements; audio is unchanged.",
+        },
+      },
+      qualityBefore: { decision: "REVIEW", measurements: { estimatedSnrDb: 5.8, durationSeconds: 44.9 } },
+      qualityAfter: { decision: "REVIEW", measurements: { estimatedSnrDb: 5.8, durationSeconds: 44.9 } },
+    },
+    "synthetic-rec-0003": {
+      itemId: "proc-0002-synthetic-rec-0003",
+      recordingId: "synthetic-rec-0003",
+      profileId: "standard-v1",
+      status: "BLOCKED",
+      progress: 1.0,
+      currentOperation: null,
+      warnings: [],
+      errors: [
+        "source hash mismatch for synthetic-rec-0003: expected c3c3c3…, found 000000…. " +
+          "Source recordings are immutable; processing stopped.",
+      ],
+      decision: null,
+      processingDurationSeconds: 0.02,
+      derivedArtifact: null,
+      qualityBefore: null,
+      qualityAfter: null,
+    },
+  };
+}
+
+export function syntheticProcessingHistory(recordingId) {
+  const byRecording = {
+    "synthetic-rec-0001": [
+      {
+        recordId: "proc-hist-00001",
+        recordingId: "synthetic-rec-0001",
+        artifactId: "aa1" + "aa1aa1aa1aa1aa1aa1aa1aa1aa1aa1aa1aa1aa1aa1".slice(0, 61),
+        outputSha256: "aa".repeat(32),
+        profileId: "standard-v1",
+        profileName: "standard",
+        profileVersion: 1,
+        status: "SUCCESS",
+        toolVersion: "6.1.1",
+        supersedes: null,
+        isRollback: false,
+        recordedAt: "2026-08-15T10:00:00Z",
+      },
+      {
+        recordId: "proc-hist-00002",
+        recordingId: "synthetic-rec-0001",
+        artifactId: "af1" + "af1af1af1af1af1af1af1af1af1af1af1af1af1af1".slice(0, 61),
+        outputSha256: "d1".repeat(32),
+        profileId: "standard-v2",
+        profileName: "standard",
+        profileVersion: 2,
+        status: "SUCCESS",
+        toolVersion: "6.1.1",
+        supersedes: "proc-hist-00001",
+        isRollback: false,
+        recordedAt: "2026-08-18T10:00:00Z",
+      },
+    ],
+  };
+  return byRecording[recordingId] || [];
+}
+
 export function syntheticModels() {
   return [
     {

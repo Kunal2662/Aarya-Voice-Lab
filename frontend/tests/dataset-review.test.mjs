@@ -103,7 +103,7 @@ test("open Dataset Review: the workspace mounts with a real dashboard, never a p
   });
 });
 
-test("select a recording: the Inspector updates with the expanded VL-D3 sections", { timeout: 30_000 }, async () => {
+test("select a recording: the Inspector updates with the expanded VL-D3/VL-D4 sections", { timeout: 30_000 }, async () => {
   await withPage(async (page) => {
     await goToReview(page);
     await selectFirstRecording(page);
@@ -120,6 +120,7 @@ test("select a recording: the Inspector updates with the expanded VL-D3 sections
       "Technical Review",
       "Feedback",
       "Provenance",
+      "Processing",
     ]);
   });
 });

@@ -166,6 +166,7 @@ No test uses, references, or requires the real recordings.
 | [VLD1_COMMAND_CENTER.md](docs/VLD1_COMMAND_CENTER.md) | VL-D1 operational workspace: routing, job/activity model, Command Center, Claude context & fix workflow, security boundary |
 | [VLD2_DATASET_WORKSPACE.md](docs/VLD2_DATASET_WORKSPACE.md) | VL-D2 bulk import: content-addressed intake, dataset gate, client-side hashing, Dataset Workspace UI, security boundary |
 | [VLD3_DATASET_REVIEW.md](docs/VLD3_DATASET_REVIEW.md) | VL-D3 dataset review & quality analysis: candidate review, feedback, overlap candidates, Dataset Review UI, speaker-identity boundary |
+| [VLD4_VOICE_PROCESSING.md](docs/VLD4_VOICE_PROCESSING.md) | VL-D4 voice processing & conditioning: processing profiles, boundary trim, normalization, derived-artifact identity, rollback, Processing UI |
 | [TOOLCHAIN.md](docs/TOOLCHAIN.md) | Provider abstraction & candidate tools |
 | [MODEL_STRATEGY.md](docs/MODEL_STRATEGY.md) | Model registry, experiments, TTS candidates |
 | [BENCHMARKING.md](docs/BENCHMARKING.md) | Voice quality benchmark framework |

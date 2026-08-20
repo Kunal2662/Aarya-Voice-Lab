@@ -1,0 +1,11 @@
+{
+  "$generated_by": "scripts/export_frontend_contracts.py",
+  "$source": "aarya_voice_lab.pipeline.processing.ProcessingDecision",
+  "description": "The processing DECISION (config-driven, from estimated SNR), kept strictly separate from the measurement that produced it. The UI must never compute this itself.",
+  "values": [
+    "NO_PROCESSING",
+    "LIGHT_CONDITIONING",
+    "STANDARD_CONDITIONING",
+    "REVIEW_REQUIRED"
+  ]
+}

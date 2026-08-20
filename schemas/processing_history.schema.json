@@ -1,0 +1,44 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://aarya-voice-lab/schemas/processing_history.schema.json",
+  "title": "AARYA Voice Lab Processing History Record (VL-D4 §16, §18)",
+  "description": "Provenance for one voice-processing run against a recording -- boundary conditioning + normalization + noise-conditioning decision, bundled into one derived artifact. Records are immutable; a correction or rollback appends a new record referencing the one it supersedes via `supersedes`, so history is never silently overwritten. `recorded_at` describes the event and is never used as identity -- `record_id` is.",
+  "type": "object",
+  "required": [
+    "schema_version", "record_id", "recording_id", "artifact_id", "source_sha256",
+    "profile_id", "profile_name", "profile_version", "config_hash", "status",
+    "recorded_at", "stage_version"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "type": "string" },
+    "record_id": { "type": "string", "minLength": 1 },
+    "recording_id": { "type": "string", "minLength": 1 },
+    "artifact_id": {
+      "type": "string",
+      "description": "Deterministic derived-artifact identity (pipeline.resume.StageFingerprint digest) -- same source + profile + config + tool version always yields the same id. Empty string when processing was blocked before an artifact could be produced."
+    },
+    "source_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "output_sha256": {
+      "type": ["string", "null"],
+      "description": "SHA-256 of the derived output. Null when no artifact was produced (a BLOCKED/FAILED run)."
+    },
+    "profile_id": { "type": "string", "minLength": 1 },
+    "profile_name": { "type": "string", "minLength": 1 },
+    "profile_version": { "type": "integer", "minimum": 1 },
+    "config_hash": { "type": "string" },
+    "status": {
+      "type": "string",
+      "enum": ["QUEUED", "PREPARING", "PROCESSING", "QUALITY_CHECK", "SUCCESS", "WARNING", "FAILED", "BLOCKED", "CANCELLED"]
+    },
+    "tool_version": { "type": ["string", "null"] },
+    "supersedes": {
+      "type": ["string", "null"],
+      "description": "record_id of the version this one displaces as active, if any (including a rollback target). Never edit a prior record -- append a new one referencing it."
+    },
+    "is_rollback": { "type": "boolean" },
+    "recorded_at": { "type": "string" },
+    "stage_version": { "type": "string" },
+    "processing_version": { "type": "string" }
+  }
+}

@@ -294,6 +294,28 @@ def generate_noisy_speech(
     return write_wav(path, mixed, sample_rate)
 
 
+def generate_padded_speech(
+    path: Path,
+    *,
+    frequency_hz: float = 180.0,
+    speech_seconds: float = 2.0,
+    leading_silence_seconds: float = 1.0,
+    trailing_silence_seconds: float = 0.8,
+    sample_rate: int = DEFAULT_SAMPLE_RATE,
+    amplitude: float = 0.4,
+) -> Path:
+    """Speech with real silence padding at both edges — for exercising
+    VL-D4's boundary trim (`pipeline.conditioning.condition_boundaries()`)
+    against a fixture that actually has something to trim, unlike
+    `generate_speech_like()`'s edge-to-edge speech."""
+    samples = (
+        _silence_samples(leading_silence_seconds, sample_rate)
+        + _speech_like_samples(frequency_hz, speech_seconds, sample_rate, amplitude)
+        + _silence_samples(trailing_silence_seconds, sample_rate)
+    )
+    return write_wav(path, samples, sample_rate)
+
+
 def generate_zero_byte(path: Path) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(b"")

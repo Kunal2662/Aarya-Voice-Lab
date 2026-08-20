@@ -1,11 +1,12 @@
 {
   "$generated_by": "scripts/export_frontend_contracts.py",
   "$source": "aarya_voice_lab.pipeline.feedback.FeedbackType",
-  "description": "Feedback categories a human can attach to a recording, segment, candidate, or preview. Never converted into a training label.",
+  "description": "Feedback categories a human can attach to a recording, segment, candidate, processing result, or preview. Never converted into a training label.",
   "values": [
     "QUALITY_FEEDBACK",
     "SEGMENT_FEEDBACK",
     "CANDIDATE_FEEDBACK",
-    "PLAYBACK_FEEDBACK"
+    "PLAYBACK_FEEDBACK",
+    "PROCESSING_FEEDBACK"
   ]
 }

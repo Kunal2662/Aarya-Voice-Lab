@@ -22,6 +22,9 @@ import "./candidate-review-panel.js";
 import "./feedback-form.js";
 import "./claude-review-context.js";
 import "./audio-player.js";
+import "./processing-history-panel.js";
+import "./processing-feedback-form.js";
+import "./claude-processing-context.js";
 
 const RENDERERS = {
   batch: (data) => [
@@ -125,6 +128,7 @@ export class AvlInspectorRouter extends AvlElement {
       details { margin-top: var(--avl-space-3); border-top: 1px solid var(--avl-color-border-subtle); padding-top: var(--avl-space-2); }
       summary { cursor: pointer; font: var(--avl-type-caption-weight) var(--avl-type-caption-size) / 1 var(--avl-type-caption-family); text-transform: uppercase; letter-spacing: 0.04em; color: var(--avl-color-text-secondary); }
       details > *:not(summary) { margin-top: var(--avl-space-2); }
+      h4 { margin: var(--avl-space-3) 0 var(--avl-space-1) 0; font: var(--avl-type-caption-weight) var(--avl-type-caption-size) / 1 var(--avl-type-caption-family); text-transform: uppercase; letter-spacing: 0.04em; color: var(--avl-color-text-secondary); }
     `;
     this.shadowRoot.appendChild(style);
 
@@ -282,6 +286,123 @@ export class AvlInspectorRouter extends AvlElement {
     }
     provenanceDetails.appendChild(provenanceRows);
     this.shadowRoot.appendChild(provenanceDetails);
+
+    this._appendProcessingSection(data);
+  }
+
+  // VL-D4 §20 — Processing Profile / Input / Output / Measurements /
+  // Decisions / Warnings / Errors / Quality Before / Quality After /
+  // Provenance / History, for whatever the latest processing run against
+  // this recording produced. Unknown values stay UNKNOWN/NOT AVAILABLE —
+  // never guessed. Nothing here can express speaker identity (VL-D4 §2
+  // never touches that boundary at all).
+  _appendProcessingSection(data) {
+    const queueStore = this._services ? this._services.processingQueueStore : null;
+    const historyStore = this._services ? this._services.processingHistoryStore : null;
+    const items = queueStore ? queueStore.list().filter((i) => i.recordingId === data.id) : [];
+    const item = items.length ? items[items.length - 1] : null;
+
+    const processingDetails = document.createElement("details");
+    processingDetails.innerHTML = "<summary>Processing</summary>";
+
+    if (!item) {
+      const empty = document.createElement("p");
+      empty.className = "empty";
+      empty.textContent = "Not queued for processing yet.";
+      processingDetails.appendChild(empty);
+      this.shadowRoot.appendChild(processingDetails);
+      return;
+    }
+
+    const summaryRows = document.createElement("div");
+    summaryRows.className = "rows";
+    const statusRow = document.createElement("div");
+    statusRow.className = "row";
+    const statusLabel = document.createElement("span");
+    statusLabel.className = "label";
+    statusLabel.textContent = "Status";
+    statusRow.appendChild(statusLabel);
+    const statusBadge = document.createElement("avl-status-badge");
+    statusBadge.setAttribute("domain", "processing_status");
+    statusBadge.setAttribute("state", item.status);
+    statusRow.appendChild(statusBadge);
+    summaryRows.appendChild(statusRow);
+
+    const decisionRow = document.createElement("div");
+    decisionRow.className = "row";
+    const decisionLabel = document.createElement("span");
+    decisionLabel.className = "label";
+    decisionLabel.textContent = "Decision";
+    decisionRow.appendChild(decisionLabel);
+    if (item.decision) {
+      const decisionBadge = document.createElement("avl-status-badge");
+      decisionBadge.setAttribute("domain", "processing_decision");
+      decisionBadge.setAttribute("state", item.decision);
+      decisionRow.appendChild(decisionBadge);
+    } else {
+      const decisionValue = document.createElement("span");
+      decisionValue.className = "value";
+      decisionValue.textContent = "—";
+      decisionRow.appendChild(decisionValue);
+    }
+    summaryRows.appendChild(decisionRow);
+
+    for (const [label, value] of [
+      ["Profile", item.profileId],
+      ["Output path", item.derivedArtifact ? item.derivedArtifact.outputPath : null],
+      ["Output SHA-256", item.derivedArtifact ? item.derivedArtifact.outputSha256 : null],
+      ["Artifact ID", item.derivedArtifact ? item.derivedArtifact.artifactId : null],
+      ["Warnings", item.warnings.length ? item.warnings.join("; ") : null],
+      ["Errors", item.errors.length ? item.errors.join("; ") : null],
+    ]) {
+      const row = document.createElement("div");
+      row.className = "row";
+      row.innerHTML = `<span class="label">${label}</span><span class="value">${value == null || value === "" ? "—" : value}</span>`;
+      summaryRows.appendChild(row);
+    }
+    processingDetails.appendChild(summaryRows);
+
+    const qualityBeforeHeading = document.createElement("h4");
+    qualityBeforeHeading.textContent = "Quality before";
+    processingDetails.appendChild(qualityBeforeHeading);
+    const qualityBefore = document.createElement("avl-quality-profile");
+    qualityBefore.assessment = item.qualityBefore;
+    processingDetails.appendChild(qualityBefore);
+
+    const qualityAfterHeading = document.createElement("h4");
+    qualityAfterHeading.textContent = "Quality after";
+    processingDetails.appendChild(qualityAfterHeading);
+    const qualityAfter = document.createElement("avl-quality-profile");
+    qualityAfter.assessment = item.qualityAfter;
+    processingDetails.appendChild(qualityAfter);
+
+    const historyHeading = document.createElement("h4");
+    historyHeading.textContent = "History";
+    processingDetails.appendChild(historyHeading);
+    const historyPanel = document.createElement("avl-processing-history-panel");
+    historyPanel.historyStore = historyStore;
+    historyPanel.recordingId = data.id;
+    processingDetails.appendChild(historyPanel);
+
+    const feedbackHeading = document.createElement("h4");
+    feedbackHeading.textContent = "Processing feedback";
+    processingDetails.appendChild(feedbackHeading);
+    const processingFeedbackForm = document.createElement("avl-processing-feedback-form");
+    processingFeedbackForm.feedbackStore = this._services ? this._services.feedbackStore : null;
+    const currentHistory = historyStore ? historyStore.current(data.id) : null;
+    processingFeedbackForm.targetId = currentHistory ? currentHistory.recordId : null;
+    processingDetails.appendChild(processingFeedbackForm);
+
+    const claudeHeading = document.createElement("h4");
+    claudeHeading.textContent = "Ask Claude";
+    processingDetails.appendChild(claudeHeading);
+    const claudeContext = document.createElement("avl-claude-processing-context");
+    claudeContext.recording = data;
+    claudeContext.item = item;
+    if (this._services && this._services.executor) claudeContext.executor = this._services.executor;
+    processingDetails.appendChild(claudeContext);
+
+    this.shadowRoot.appendChild(processingDetails);
   }
 }
 

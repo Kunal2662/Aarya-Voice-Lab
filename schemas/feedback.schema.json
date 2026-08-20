@@ -1,8 +1,8 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://aarya-voice-lab/schemas/feedback.schema.json",
-  "title": "AARYA Voice Lab Feedback Record (VL-D3 §26)",
-  "description": "Free-text human feedback attached to a technical object (recording, segment, or candidate) or a voice preview. NOT a training label -- nothing in this project converts a feedback record into model training data. Stored so a future AI Calibration Engine (VL-D15) can read review disagreement and feedback volume as inputs; it never computes a score itself.",
+  "title": "AARYA Voice Lab Feedback Record (VL-D3 §26, extended by VL-D4 §28)",
+  "description": "Free-text human feedback attached to a technical object (recording, segment, candidate, or processing result) or a voice preview. NOT a training label -- nothing in this project converts a feedback record into model training data. Stored so a future AI Calibration Engine (VL-D15) can read review disagreement and feedback volume as inputs; it never computes a score itself.",
   "type": "object",
   "required": ["schema_version", "feedback_id", "feedback_type", "target_id", "reviewer", "created_at"],
   "additionalProperties": false,
@@ -11,7 +11,7 @@
     "feedback_id": { "type": "string", "minLength": 1 },
     "feedback_type": {
       "type": "string",
-      "enum": ["QUALITY_FEEDBACK", "SEGMENT_FEEDBACK", "CANDIDATE_FEEDBACK", "PLAYBACK_FEEDBACK"]
+      "enum": ["QUALITY_FEEDBACK", "SEGMENT_FEEDBACK", "CANDIDATE_FEEDBACK", "PLAYBACK_FEEDBACK", "PROCESSING_FEEDBACK"]
     },
     "target_id": {
       "type": "string",

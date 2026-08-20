@@ -105,6 +105,41 @@
         "REJECTED": "state.danger",
         "NEEDS_REVIEW": "voice.review-required"
       }
+    },
+    "processing_status": {
+      "description": "Mirrors aarya_voice_lab.pipeline.processing.ProcessingStatus exactly. BLOCKED means the item could not be processed at all (source verification failed); WARNING means it completed with a caveat (e.g. an optional tool was unavailable) — neither is ever silently upgraded to SUCCESS.",
+      "states": ["QUEUED", "PREPARING", "PROCESSING", "QUALITY_CHECK", "SUCCESS", "WARNING", "FAILED", "BLOCKED", "CANCELLED"],
+      "color_token": {
+        "QUEUED": "text.muted",
+        "PREPARING": "state.info",
+        "PROCESSING": "state.info",
+        "QUALITY_CHECK": "state.info",
+        "SUCCESS": "state.success",
+        "WARNING": "state.warning",
+        "FAILED": "state.danger",
+        "BLOCKED": "voice.review-required",
+        "CANCELLED": "text.disabled"
+      }
+    },
+    "processing_decision": {
+      "description": "Mirrors aarya_voice_lab.pipeline.processing.ProcessingDecision exactly. A config-driven DECISION, never computed by the UI itself.",
+      "states": ["NO_PROCESSING", "LIGHT_CONDITIONING", "STANDARD_CONDITIONING", "REVIEW_REQUIRED"],
+      "color_token": {
+        "NO_PROCESSING": "state.success",
+        "LIGHT_CONDITIONING": "state.info",
+        "STANDARD_CONDITIONING": "state.warning",
+        "REVIEW_REQUIRED": "voice.review-required"
+      }
+    },
+    "noise_conditioning_mode": {
+      "description": "Mirrors aarya_voice_lab.pipeline.processing_profile.NoiseConditioningMode exactly. OFF/MEASURE_ONLY are implemented; LIGHT/STANDARD are a real, closed vocabulary with no tool wired up yet in VL-D4 and render as NOT AVAILABLE rather than being silently treated as MEASURE_ONLY.",
+      "states": ["OFF", "MEASURE_ONLY", "LIGHT", "STANDARD"],
+      "color_token": {
+        "OFF": "text.muted",
+        "MEASURE_ONLY": "state.info",
+        "LIGHT": "text.disabled",
+        "STANDARD": "text.disabled"
+      }
     }
   }
 }

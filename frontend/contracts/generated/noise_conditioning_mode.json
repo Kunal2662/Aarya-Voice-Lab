@@ -1,0 +1,11 @@
+{
+  "$generated_by": "scripts/export_frontend_contracts.py",
+  "$source": "aarya_voice_lab.pipeline.processing_profile.NoiseConditioningMode",
+  "description": "OFF and MEASURE_ONLY are implemented; LIGHT and STANDARD are a real, closed vocabulary with no noise-reduction tool wired up yet in VL-D4 \u2014 the UI must render them as NOT AVAILABLE if selected, never silently treat them as MEASURE_ONLY.",
+  "values": [
+    "OFF",
+    "MEASURE_ONLY",
+    "LIGHT",
+    "STANDARD"
+  ]
+}

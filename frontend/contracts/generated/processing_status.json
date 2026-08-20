@@ -1,0 +1,16 @@
+{
+  "$generated_by": "scripts/export_frontend_contracts.py",
+  "$source": "aarya_voice_lab.pipeline.processing.ProcessingStatus",
+  "description": "Voice-processing queue item states (VL-D4). BLOCKED means the item could not be processed at all (source verification failed); WARNING means it completed with a caveat (e.g. an optional tool was unavailable). Neither is ever silently upgraded to SUCCESS.",
+  "values": [
+    "QUEUED",
+    "PREPARING",
+    "PROCESSING",
+    "QUALITY_CHECK",
+    "SUCCESS",
+    "WARNING",
+    "FAILED",
+    "BLOCKED",
+    "CANCELLED"
+  ]
+}
