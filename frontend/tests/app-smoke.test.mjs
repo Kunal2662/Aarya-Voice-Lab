@@ -193,7 +193,11 @@ test("the import workspace shows the real (gitignored) dataset gate snapshot hon
       await page.waitForTimeout(200);
       const workspaceTag = "avl-workspace-import";
       const text = await collectShadowText(page, workspaceTag);
-      assert.match(text, /synthetic fixtures only/i);
+      // VL-D2: the import workspace now does real client-side hashing —
+      // the honesty boundary moved from "nothing is hashed" to "nothing
+      // is written into source/" (no execution transport exists to do
+      // that). See docs/VLD2_DATASET_WORKSPACE.md.
+      assert.match(text, /nothing is written into source\//i);
       // Either the live snapshot renders its real unsatisfied-condition
       // count, or the honest "not evaluated" fallback shows — never a
       // bare "access granted" claim with no evidence.

@@ -1,0 +1,59 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://aarya-voice-lab/schemas/import_manifest.schema.json",
+  "title": "AARYA Voice Lab Import Manifest",
+  "description": "The result of one VL-D2 bulk-import run (pipeline.import_intake.ImportQueue.to_manifest()). Records only content-derived and relative-path data — never an absolute host filesystem path, never audio content.",
+  "type": "object",
+  "required": ["batch_id", "source", "is_synthetic", "items", "counts"],
+  "additionalProperties": false,
+  "properties": {
+    "batch_id": { "type": "string", "pattern": "^batch-\\d{3,}$" },
+    "source": { "type": "string", "enum": ["local_files", "local_folder"] },
+    "is_synthetic": {
+      "type": "boolean",
+      "description": "Must be true for any manifest tracked in Git. False is reserved for a future, explicitly-approved real-recording import."
+    },
+    "items": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/import_item" }
+    },
+    "counts": {
+      "type": "object",
+      "additionalProperties": { "type": "integer", "minimum": 0 }
+    }
+  },
+  "definitions": {
+    "import_item": {
+      "type": "object",
+      "required": ["item_id", "original_filename", "status"],
+      "additionalProperties": false,
+      "properties": {
+        "item_id": { "type": "string", "minLength": 1 },
+        "original_filename": {
+          "type": "string",
+          "description": "Display only. Never used to construct a filesystem path — stored files are named by content hash."
+        },
+        "declared_extension": { "type": ["string", "null"] },
+        "size_bytes": { "type": ["integer", "null"], "minimum": 0 },
+        "detected_container": { "type": ["string", "null"] },
+        "sha256": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
+        "content_id": { "type": ["string", "null"] },
+        "status": {
+          "type": "string",
+          "enum": [
+            "queued", "scanning", "hashing", "validating",
+            "accepted", "warning", "invalid", "blocked",
+            "duplicate", "failed", "cancelled"
+          ]
+        },
+        "warnings": { "type": "array", "items": { "type": "string" } },
+        "errors": { "type": "array", "items": { "type": "string" } },
+        "duplicate_of": { "type": ["string", "null"] },
+        "stored_relative_path": {
+          "type": ["string", "null"],
+          "description": "Relative to the data root only. An absolute path here would fail this schema's intent even though JSON Schema can't forbid a leading slash by itself — see pipeline.import_intake's docstring for the code-level guarantee."
+        }
+      }
+    }
+  }
+}

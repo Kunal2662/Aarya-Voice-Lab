@@ -26,7 +26,7 @@ import sys
 from pathlib import Path
 
 from aarya_voice_lab import __version__
-from aarya_voice_lab.cli import phase2, phase3
+from aarya_voice_lab.cli import dataset_import, phase2, phase3
 from aarya_voice_lab.core.config import ConfigError, load_config
 from aarya_voice_lab.core.paths import PROJECT_ROOT
 from aarya_voice_lab.environment.audit import format_audit, run_audit
@@ -297,6 +297,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     phase2.register(subparsers)
     phase3.register(subparsers)
+    dataset_import.register(subparsers)
 
     for name in PLANNED_COMMANDS:
         sp = subparsers.add_parser(name, help=f"PLANNED: {name} is not implemented in Phase 0.")

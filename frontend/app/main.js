@@ -28,6 +28,7 @@ import { JobStore } from "../state/job-model.js";
 import { ActivityStore } from "../state/activity-model.js";
 import { NullCommandExecutor } from "../state/command-executor.js";
 import { syntheticJobs, syntheticActivity } from "../state/synthetic-fixtures.js";
+import { ImportQueue } from "../state/import-engine.js";
 
 const DESTINATION_META = {
   "command-center": { icon: "◆", label: "Command Center", tag: "avl-workspace-command-center" },
@@ -84,8 +85,12 @@ async function main() {
   const activityStore = new ActivityStore(syntheticActivity());
   const executor = new NullCommandExecutor();
   const pipelineStageContract = await loadJson("../contracts/generated/pipeline_stage.json").catch(() => null);
+  // Owned here (not by workspace-import.js) so the queue — and its
+  // in-flight hashing/validation state — survives navigating to another
+  // workspace and back, matching VL-D2 §5's "queue" semantics.
+  const importQueue = new ImportQueue({ batchId: "batch-001", source: "local_files" });
 
-  const services = { jobStore, activityStore, executor, pipelineStageContract };
+  const services = { jobStore, activityStore, executor, pipelineStageContract, importQueue, router };
 
   const shell = document.createElement("avl-app-shell");
   shell.id = "shell";

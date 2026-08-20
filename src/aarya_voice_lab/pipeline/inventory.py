@@ -142,7 +142,7 @@ def require_synthetic_or_approved(directory: Path, *, approved: bool = False) ->
             )
 
 
-def _probe_wav_quietly(path: Path) -> dict[str, Any]:
+def probe_wav_quietly(path: Path) -> dict[str, Any]:
     """Best-effort WAV header read. Returns {} rather than raising —
     inventory records unreadability as a status, it does not fail a run."""
     try:
@@ -226,7 +226,7 @@ def build_inventory(
             record.processing_status = "unsupported"
             record.note = f"container {detected.container.value} is not supported"
         elif detected.container is ContainerFormat.WAV:
-            probe = _probe_wav_quietly(path)
+            probe = probe_wav_quietly(path)
             if probe:
                 record.duration_seconds = probe["duration_seconds"]
                 record.sample_rate = probe["sample_rate"]

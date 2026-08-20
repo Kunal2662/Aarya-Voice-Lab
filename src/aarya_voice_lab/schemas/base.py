@@ -42,6 +42,7 @@ class SchemaName(StrEnum):
     VERIFICATION = "verification"
     IDENTITY_REVIEW = "identity_review"
     CALIBRATION = "calibration"
+    IMPORT_MANIFEST = "import_manifest"
 
 
 class ValidationError(ValueError):

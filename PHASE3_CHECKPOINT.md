@@ -23,7 +23,7 @@ re-run `git log` and `pytest` before trusting anything below.
 | 3.5 (implied) | Real-data enrollment decision, credential/licence sign-off | ⏳ Not started — see §7 |
 | 4 | Real dataset processing (requires the dataset access gate) | ⏳ Blocked on Phase 3.5 |
 | 5+ | Voice model training/experiments, benchmarking | ⏳ Not started |
-| Desktop | Aarya Voice Lab desktop UI (VL-D0–D20) | 🔶 VL-D0 (design system) + VL-D1 (Command Center + operational workspace) complete — see docs/VLD1_COMMAND_CENTER.md. VL-D2+ not started. |
+| Desktop | Aarya Voice Lab desktop UI (VL-D0–D20) | 🔶 VL-D0 (design system) + VL-D1 (Command Center + operational workspace) + VL-D2 (bulk import + Dataset Workspace, synthetic data only) complete — see docs/VLD2_DATASET_WORKSPACE.md. VL-D3+ not started. |
 
 **Current phase: 3, complete (software only).**
 

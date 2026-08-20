@@ -44,11 +44,12 @@ export function syntheticBatches() {
   ];
 }
 
-export function syntheticRecordings(batchId = "synthetic-batch-001") {
+export function syntheticRecordings() {
   return [
     {
       id: "synthetic-rec-0001",
-      batchId,
+      batchId: "synthetic-batch-001",
+      filename: "segment_0001.wav",
       contentAddressedId: "sha256:" + "a1".repeat(32),
       format: "wav",
       durationSeconds: 128.4,
@@ -62,7 +63,8 @@ export function syntheticRecordings(batchId = "synthetic-batch-001") {
     },
     {
       id: "synthetic-rec-0002",
-      batchId,
+      batchId: "synthetic-batch-001",
+      filename: "segment_0002.wav",
       contentAddressedId: "sha256:" + "b2".repeat(32),
       format: "wav",
       durationSeconds: 44.9,
@@ -71,6 +73,21 @@ export function syntheticRecordings(batchId = "synthetic-batch-001") {
       validation: "warning",
       quality: "low_snr",
       processingState: "quality_analysis",
+      classification: "source",
+      is_synthetic: true,
+    },
+    {
+      id: "synthetic-rec-0003",
+      batchId: "synthetic-batch-002",
+      filename: "segment_0003.wav",
+      contentAddressedId: "sha256:" + "c3".repeat(32),
+      format: "mp3",
+      durationSeconds: 61.2,
+      sampleRate: 22050,
+      channels: 2,
+      validation: "invalid",
+      quality: "unacceptable",
+      processingState: "normalization",
       classification: "source",
       is_synthetic: true,
     },

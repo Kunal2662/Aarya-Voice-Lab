@@ -1,8 +1,10 @@
-// <avl-workspace-command-center> — VL-D1 §6. High-level operational view:
-// SYSTEM / PIPELINE / JOBS / ACTIVITY. Set `.services` to
-// { jobStore, activityStore, executor, pipelineStageContract }. Every
-// number here comes from a real store or a real generated contract, or
-// is rendered as an honest "not available" — nothing is invented.
+// <avl-workspace-command-center> — VL-D1 §6, extended in VL-D2 §22 with
+// an IMPORTS summary. SYSTEM / PIPELINE / JOBS / ACTIVITY / IMPORTS. Set
+// `.services` to { jobStore, activityStore, executor,
+// pipelineStageContract, importQueue }. Every number here comes from a
+// real store or a real generated contract, or is rendered as an honest
+// "not available" — nothing is invented. This is an overview only — the
+// Dataset Workspace (Import/Batches/Recordings) owns the detailed view.
 import { AvlElement, defineComponent } from "./base-element.js";
 import "./workspace-state.js";
 import "./panel.js";
@@ -19,6 +21,11 @@ export class AvlWorkspaceCommandCenter extends AvlElement {
 
   connectedCallback() {
     this._services = this._services || {};
+    if (this._services.importQueue) {
+      this._services.importQueue.addEventListener("change", () => {
+        if (this.isConnected) this._render();
+      });
+    }
     this._load();
   }
 
@@ -114,7 +121,31 @@ export class AvlWorkspaceCommandCenter extends AvlElement {
     timeline.events = this._services.activityStore ? this._services.activityStore.list({ limit: 5 }) : [];
     activityPanel.appendChild(timeline);
 
-    grid.append(systemPanel, pipelinePanel, jobsPanel, activityPanel);
+    // IMPORTS — overview only; the Import workspace owns the detailed queue.
+    const importsPanel = document.createElement("avl-panel");
+    importsPanel.setAttribute("title", "Imports");
+    const importQueue = this._services.importQueue;
+    if (importQueue && importQueue.items.size) {
+      const counts = importQueue.counts();
+      const active = counts.queued + counts.scanning + counts.hashing + counts.validating;
+      for (const [label, value] of [
+        ["Active", active],
+        ["Accepted", counts.accepted],
+        ["Warnings", counts.warning],
+        ["Failed", counts.failed + counts.invalid + counts.blocked],
+      ]) {
+        const metric = document.createElement("avl-metric-placeholder");
+        metric.setAttribute("label", label);
+        metric.setAttribute("value", String(value));
+        importsPanel.appendChild(metric);
+      }
+    } else {
+      const empty = document.createElement("avl-metric-placeholder");
+      empty.setAttribute("label", "Active imports");
+      importsPanel.appendChild(empty);
+    }
+
+    grid.append(systemPanel, pipelinePanel, jobsPanel, activityPanel, importsPanel);
     wrapper.appendChild(grid);
     this.shadowRoot.appendChild(wrapper);
   }

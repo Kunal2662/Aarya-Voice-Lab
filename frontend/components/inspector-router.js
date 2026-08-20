@@ -20,14 +20,22 @@ const RENDERERS = {
   ],
   recording: (data) => [
     ["Content-addressed ID", data.contentAddressedId],
+    ["Filename", data.filename],
     ["Format", data.format],
     ["Duration", `${data.durationSeconds}s`],
     ["Sample rate", `${data.sampleRate} Hz`],
     ["Channels", data.channels],
     ["Validation", data.validation],
     ["Quality", data.quality],
-    ["Processing state", { badge: [JOB_STATUS_DOMAIN, data.processingState === "candidate_manifest" ? "success" : "running"] }],
     ["Classification", data.classification],
+    ["Batch", data.batchId],
+    ["Pipeline status", { badge: [JOB_STATUS_DOMAIN, data.processingState === "candidate_manifest" ? "success" : "running"] }],
+    // Future engines (VL-D3+). Never fabricated — always the honest
+    // placeholder until a real analysis exists (VL-D2 §15).
+    ["Speaker identity", "NOT AVAILABLE — behind the Phase 3+ speaker-identity boundary"],
+    ["Accent fidelity", "NOT ANALYZED"],
+    ["Pronunciation fidelity", "NOT ANALYZED"],
+    ["Calibration", "NOT CALIBRATED"],
   ],
   "pipeline-stage": (data) => [
     ["Stage", data.name],
