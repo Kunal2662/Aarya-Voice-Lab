@@ -36,8 +36,11 @@ class PipelineStage(StrEnum):
     CANDIDATE_REVIEW = "candidate_review"
 
     # --- Phase 3+: speaker identity, transcription, modelling -------------
+    SPEAKER_ENROLLMENT = "speaker_enrollment"
     SPEAKER_DIARIZATION = "speaker_diarization"
     SPEAKER_IDENTIFICATION = "speaker_identification"
+    OPERATOR_REJECTION = "operator_rejection"
+    CONFIDENCE_CLASSIFICATION = "confidence_classification"
     QUALITY_FILTERING = "quality_filtering"
     TRANSCRIPTION = "transcription"
     WORD_ALIGNMENT = "word_alignment"
@@ -67,12 +70,15 @@ PHASE_2_STAGES: tuple[PipelineStage, ...] = (
 
 #: The first stage that reasons about *who* is speaking. Nothing at or
 #: after this point may be implemented before Phase 3 is approved.
-SPEAKER_IDENTITY_BOUNDARY: PipelineStage = PipelineStage.SPEAKER_DIARIZATION
+SPEAKER_IDENTITY_BOUNDARY: PipelineStage = PipelineStage.SPEAKER_ENROLLMENT
 
 #: Stages that determine or depend on speaker identity.
 SPEAKER_IDENTITY_STAGES: frozenset[PipelineStage] = frozenset(
     {
+        PipelineStage.SPEAKER_ENROLLMENT,
         PipelineStage.SPEAKER_DIARIZATION,
+        PipelineStage.OPERATOR_REJECTION,
+        PipelineStage.CONFIDENCE_CLASSIFICATION,
         PipelineStage.SPEAKER_IDENTIFICATION,
         PipelineStage.SPEAKER_VERIFICATION,
         PipelineStage.MANUAL_REVIEW,

@@ -38,6 +38,10 @@ class SchemaName(StrEnum):
     MANUAL_REVIEW = "manual_review"
     STAGE_RESULT = "stage_result"
     CANDIDATE_MANIFEST = "candidate_manifest"
+    ENROLLMENT_PROFILE = "enrollment_profile"
+    VERIFICATION = "verification"
+    IDENTITY_REVIEW = "identity_review"
+    CALIBRATION = "calibration"
 
 
 class ValidationError(ValueError):

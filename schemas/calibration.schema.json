@@ -1,0 +1,50 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://aarya-voice-lab/schemas/calibration.schema.json",
+  "title": "AARYA Voice Lab Calibration Record (Phase 3)",
+  "description": "Thresholds plus the evidence behind them. CALIBRATED requires held-out labelled evidence and is UNREACHABLE for the target speaker: every recording of her is inside the dataset being labelled, so no held-out set exists. Representing a provisional threshold as validated is the specific claim this schema prevents.",
+  "type": "object",
+  "required": [
+    "calibration_id", "state", "evidence", "thresholds", "thresholds_hash",
+    "provider_name", "provider_version", "provider_is_synthetic",
+    "is_statistically_validated", "limitations", "created_at", "calibration_version"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "calibration_id": { "type": "string", "minLength": 1 },
+    "state": { "type": "string", "enum": ["UNCALIBRATED", "PROVISIONAL", "CALIBRATED"] },
+    "evidence": {
+      "type": "string",
+      "enum": ["none", "synthetic_fixtures", "operator_held_out", "channel_mismatch_study", "reviewer_feedback", "public_corpus", "target_held_out"]
+    },
+    "thresholds": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operator_rejection_threshold", "target_acceptance_threshold", "target_review_threshold"],
+      "properties": {
+        "operator_rejection_threshold": { "type": "number", "minimum": 0, "maximum": 1 },
+        "target_acceptance_threshold": { "type": "number", "minimum": 0, "maximum": 1 },
+        "target_review_threshold": { "type": "number", "minimum": 0, "maximum": 1 },
+        "min_segment_seconds_for_scoring": { "type": "number", "minimum": 0 },
+        "channel_mismatch_allowance": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "thresholds_hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "provider_name": { "type": "string" },
+    "provider_version": { "type": "string" },
+    "provider_is_synthetic": { "type": "boolean" },
+    "applies_to_role": { "type": ["string", "null"] },
+    "genuine_distribution": { "type": ["object", "null"], "additionalProperties": true },
+    "impostor_distribution": { "type": ["object", "null"], "additionalProperties": true },
+    "limitations": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Plain-language statement of what this calibration does NOT establish. Required, and required to be non-empty for non-CALIBRATED states."
+    },
+    "reviewer_feedback_count": { "type": "integer", "minimum": 0 },
+    "is_statistically_validated": { "type": "boolean" },
+    "created_at": { "type": "string" },
+    "calibration_version": { "type": "string" },
+    "superseded_by": { "type": ["string", "null"] }
+  }
+}

@@ -1,0 +1,84 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://aarya-voice-lab/schemas/verification.schema.json",
+  "title": "AARYA Voice Lab Verification Result (Phase 3)",
+  "description": "The result of comparing one candidate segment against speaker profiles. 'provider_is_synthetic' and 'is_real_identity_claim' together guarantee a development result can never be read as a real identity determination. Calibration state is explicit and is never implied to be stronger than its evidence.",
+  "type": "object",
+  "required": [
+    "verification_id", "segment_id", "decision", "reason", "confidence",
+    "calibration_state", "thresholds_hash", "provider_is_synthetic",
+    "is_real_identity_claim", "engine_version", "processing_version",
+    "fingerprint", "created_at"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "verification_id": { "type": "string", "minLength": 1 },
+    "segment_id": { "type": "string", "minLength": 1 },
+    "decision": {
+      "type": "string",
+      "enum": [
+        "eligible", "rejected_operator", "rejected_low_similarity",
+        "rejected_overlap", "manual_review", "insufficient_audio", "synthetic_only"
+      ]
+    },
+    "reason": { "type": "string" },
+    "primary": { "$ref": "#/definitions/system_score" },
+    "secondary": { "$ref": "#/definitions/system_score" },
+    "operator_score": { "$ref": "#/definitions/system_score" },
+    "confidence": { "type": "string", "enum": ["high", "medium", "low"] },
+    "calibration_state": { "type": "string", "enum": ["UNCALIBRATED", "PROVISIONAL", "CALIBRATED"] },
+    "calibration_id": { "type": ["string", "null"] },
+    "thresholds_hash": { "type": "string" },
+    "provider_is_synthetic": { "type": "boolean" },
+    "is_real_identity_claim": {
+      "type": "boolean",
+      "description": "False for any synthetic-derived result. The verified dataset refuses these."
+    },
+    "overlap_status_inherited": {
+      "type": ["string", "null"],
+      "description": "Carried forward from Phase 2, never recomputed here."
+    },
+    "source_file_id": { "type": ["string", "null"] },
+    "source_sha256": { "type": ["string", "null"], "pattern": "^[a-f0-9]{64}$" },
+    "candidate_manifest_sha256": { "type": ["string", "null"], "pattern": "^[a-f0-9]{64}$" },
+    "reviewer_feedback": { "type": "array", "items": { "$ref": "#/definitions/feedback" } },
+    "engine_version": { "type": "string" },
+    "processing_version": { "type": "string" },
+    "fingerprint": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "created_at": { "type": "string" }
+  },
+  "definitions": {
+    "system_score": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["system_name", "model_name", "model_version", "profile_version_key", "similarity", "role_hypothesis"],
+      "properties": {
+        "system_name": { "type": "string" },
+        "model_name": { "type": "string" },
+        "model_version": { "type": "string" },
+        "profile_version_key": { "type": "string" },
+        "similarity": { "type": "number", "minimum": 0, "maximum": 1 },
+        "role_hypothesis": { "type": "string", "enum": ["target_speaker", "operator", "synthetic_speaker", "unknown"] },
+        "calibrated_score": {
+          "type": ["number", "null"],
+          "description": "Populated ONLY when calibration_state is CALIBRATED. Null otherwise -- never fabricated."
+        }
+      }
+    },
+    "feedback": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reviewer", "outcome", "reviewed_at", "listened"],
+      "properties": {
+        "reviewer": { "type": "string" },
+        "outcome": { "type": "string", "enum": ["accepted", "rejected", "uncertain", "needs_review"] },
+        "reviewed_at": { "type": "string" },
+        "comment": { "type": ["string", "null"] },
+        "listened": { "type": "boolean" },
+        "listen_duration_seconds": { "type": ["number", "null"] },
+        "machine_decision": { "type": ["string", "null"] },
+        "agreed_with_machine": { "type": ["boolean", "null"] }
+      }
+    }
+  }
+}

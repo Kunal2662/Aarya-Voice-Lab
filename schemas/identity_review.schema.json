@@ -1,0 +1,37 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://aarya-voice-lab/schemas/identity_review.schema.json",
+  "title": "AARYA Voice Lab Identity Review Record (Phase 3)",
+  "description": "A human decision about WHO is speaking. Distinct from the Phase 2 candidate_review record, which asks only about technical fitness -- review_type is pinned to 'identity' so the two can never be confused. Records are immutable; a correction supersedes rather than edits.",
+  "type": "object",
+  "required": [
+    "schema_version", "review_id", "segment_id", "verification_id",
+    "reviewer", "decision", "listened", "reviewed_at", "review_type", "is_valid_review"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "type": "string" },
+    "review_id": { "type": "string", "minLength": 1 },
+    "segment_id": { "type": "string", "minLength": 1 },
+    "verification_id": { "type": "string", "minLength": 1 },
+    "reviewer": { "type": "string", "minLength": 1 },
+    "decision": {
+      "type": "string",
+      "enum": ["confirm_target", "confirm_operator", "ambiguous", "unusable"],
+      "description": "'ambiguous' is first-class: on degraded audio 'I cannot tell' is often correct, and forcing a binary choice is how errors enter."
+    },
+    "listened": {
+      "type": "boolean",
+      "description": "A decision made without playback is not a review."
+    },
+    "listen_duration_seconds": { "type": ["number", "null"], "minimum": 0 },
+    "machine_recommendation": { "type": ["string", "null"] },
+    "agreed_with_machine": { "type": ["boolean", "null"] },
+    "notes": { "type": ["string", "null"] },
+    "reviewed_at": { "type": "string" },
+    "supersedes": { "type": ["string", "null"] },
+    "review_type": { "type": "string", "const": "identity" },
+    "processing_version": { "type": "string" },
+    "is_valid_review": { "type": "boolean" }
+  }
+}

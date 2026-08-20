@@ -54,6 +54,19 @@
 /data/**
 !/data/README.md
 
+# Phase 3 biometric artifacts. A speaker embedding is a biometric
+# identifier derived from a person's voice -- voice characteristics can be
+# partially reconstructed from these vectors, so they carry the SAME
+# protection as the recordings themselves. These rules exist before any
+# embedding code does, and a behavioural test asks Git directly whether
+# they are effective.
+/data/embeddings/**
+/data/enrollment/**
+/data/audit/**
+**/embeddings/**
+*.vec
+*.vector
+
 # ---------------------------------------------------------------------------
 # Speaker embeddings / voice fingerprints / diarization artifacts
 # ---------------------------------------------------------------------------

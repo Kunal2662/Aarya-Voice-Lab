@@ -10,6 +10,9 @@ Layout:
       reports/     Human-readable summaries.
       review/      Manual-review metadata (no audio unless requested).
       cache/       Disposable; never committed.
+      embeddings/  Phase 3 biometric vectors. Never committed, never exported.
+      enrollment/  Phase 3 speaker profiles.
+      audit/       Phase 3 append-only identity audit log.
 
 Everything under `data/` is git-ignored except the README. `source/` is
 additionally protected in code: `assert_source_writable` refuses any
@@ -44,6 +47,9 @@ MANIFESTS_DIR = "manifests"
 REPORTS_DIR = "reports"
 REVIEW_DIR = "review"
 CACHE_DIR = "cache"
+EMBEDDINGS_DIR = "embeddings"
+ENROLLMENT_DIR = "enrollment"
+AUDIT_DIR = "audit"
 
 DATA_SUBDIRECTORIES: tuple[str, ...] = (
     SOURCE_DIR,
@@ -53,6 +59,9 @@ DATA_SUBDIRECTORIES: tuple[str, ...] = (
     REPORTS_DIR,
     REVIEW_DIR,
     CACHE_DIR,
+    EMBEDDINGS_DIR,
+    ENROLLMENT_DIR,
+    AUDIT_DIR,
 )
 
 #: The one directory the pipeline must never write to.
@@ -104,6 +113,21 @@ class DataRoot:
     @property
     def cache(self) -> Path:
         return self.root / CACHE_DIR
+
+    @property
+    def embeddings(self) -> Path:
+        """Biometric vectors. Git-ignored; never exported."""
+        return self.root / EMBEDDINGS_DIR
+
+    @property
+    def enrollment(self) -> Path:
+        """Speaker profiles. Git-ignored: naming which segments a human
+        identified as a specific person is sensitive even without the vector."""
+        return self.root / ENROLLMENT_DIR
+
+    @property
+    def audit(self) -> Path:
+        return self.root / AUDIT_DIR
 
     def create(self) -> DataRoot:
         """Create the writable directories. Does NOT create `source/` —

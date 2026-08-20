@@ -3,15 +3,17 @@
 Standalone, **local-first** research and engineering project for AARYA's
 voice system.
 
-> **Status: Phase 2 — Dataset Pipeline Engineering.**
-> The technical audio-preparation pipeline is implemented and tested
-> against synthetic audio: inventory, validation, quality analysis,
-> speech/silence detection, segmentation, and overlap-candidate flagging.
+> **Status: Phase 3 — Speaker Identity Architecture (software-only).**
+> The identity architecture is implemented and tested against synthetic
+> fixtures: embedding provider abstraction, pluggable enrollment, speaker
+> profiles, verification engine, calibration states, identity review, and
+> an append-only audit log.
 >
-> **Phase 2 does not determine speaker identity** — that is Phase 3.
-> **No recordings have been accessed. No ML package is installed. No model
-> weights are downloaded. No voice model has been built. No cloud voice API
-> is used.** Capabilities marked *PLANNED* are not implemented.
+> **No recordings have been accessed. No real embedding has ever been
+> computed. No speaker model is installed. No training has occurred. No
+> cloud voice API is used.** The only embedding provider is a deterministic
+> synthetic one, and every artifact it produces is stamped synthetic so it
+> can never be read as a real identity conclusion.
 
 This project is **separate from AARYA Core and AARYA Frontend**. It does
 not modify, import from, or integrate with either.
@@ -35,7 +37,7 @@ these rules are not optional.
 
 ---
 
-## What exists today (Phases 0–2)
+## What exists today (Phases 0–3)
 
 | Area | Status |
 |---|---|
@@ -53,12 +55,14 @@ these rules are not optional.
 | Experiment & model registries | Implemented |
 | Manual-review data model | Implemented |
 | CLI | Implemented |
-| Test suite (synthetic fixtures only) | Implemented — 327 tests |
+| Test suite (synthetic fixtures only) | Implemented — 432 tests |
 | `VoiceService` interface contract | Defined, **no provider implemented** |
 | NeMo / WhisperX / TTS environments | **Specified, NOT installed** |
 | Model weights | **None downloaded** |
 | Dataset candidate pipeline (Phase 2) | Implemented — synthetic audio only |
-| Speaker identity / diarization | **PLANNED — Phase 3** |
+| Speaker identity architecture (Phase 3) | Implemented — **synthetic provider only** |
+| Real speaker verification | **BLOCKED** — no real provider installed |
+| Speaker diarization | **PLANNED** |
 | Verified dataset construction | **PLANNED** |
 | Voice model training | **PLANNED** |
 | Benchmark execution | **PLANNED** (framework/schema only) |
@@ -103,6 +107,15 @@ aarya-voice segment <dir> --dry-run  # candidate segments + manifest
 aarya-voice dataset-report <dir>     # summary + technical review queue
 aarya-voice dataset-gate             # may we touch the real recordings?
 
+aarya-voice identity-status          # speaker identity architecture status
+aarya-voice enrollment-strategies    # pluggable enrollment strategies
+aarya-voice calibration-status       # calibration state and its limits
+aarya-voice runtime-capabilities     # vendor-neutral component capabilities
+aarya-voice identity-audit           # append-only identity audit log
+aarya-voice embedding-inventory      # stored embeddings (never their vectors)
+aarya-voice synthetic-e2e            # full Phase 3 chain on generated audio
+aarya-voice voice-preview-status     # VL-V0 preview contracts (no generation)
+
 aarya-voice experiment --help
 aarya-voice benchmark --help
 ```
@@ -125,7 +138,7 @@ the private source tree unless explicitly approved.
 ## Testing
 
 ```bash
-pytest        # 327 tests, synthetic fixtures only
+pytest        # 432 tests, synthetic fixtures only
 ruff check .
 ```
 
@@ -148,6 +161,7 @@ No test uses, references, or requires the real recordings.
 | [SECURITY.md](docs/SECURITY.md) | Speaker safety, verification, private-voice security model |
 | [PRIVACY.md](docs/PRIVACY.md) | Data handling rules for the private recordings |
 | [DATASET_PIPELINE.md](docs/DATASET_PIPELINE.md) | The Phase 2 dataset pipeline, provenance, and the access gate |
+| [PHASE3_IDENTITY.md](docs/PHASE3_IDENTITY.md) | Phase 3 identity architecture, calibration honesty, embedding security |
 | [TOOLCHAIN.md](docs/TOOLCHAIN.md) | Provider abstraction & candidate tools |
 | [MODEL_STRATEGY.md](docs/MODEL_STRATEGY.md) | Model registry, experiments, TTS candidates |
 | [BENCHMARKING.md](docs/BENCHMARKING.md) | Voice quality benchmark framework |
