@@ -3,12 +3,15 @@
 Standalone, **local-first** research and engineering project for AARYA's
 voice system.
 
-> **Status: Phase 1 — ML Toolchain & Environment Engineering.**
-> This repository contains architecture, schemas, safety policy, the
-> environment/toolchain specification, pipeline contracts, and tooling.
-> **No ML package is installed. No model weights are downloaded. No voice
-> model has been built. No recordings have been processed. No cloud voice
-> API is used.** Capabilities marked *PLANNED* are not implemented.
+> **Status: Phase 2 — Dataset Pipeline Engineering.**
+> The technical audio-preparation pipeline is implemented and tested
+> against synthetic audio: inventory, validation, quality analysis,
+> speech/silence detection, segmentation, and overlap-candidate flagging.
+>
+> **Phase 2 does not determine speaker identity** — that is Phase 3.
+> **No recordings have been accessed. No ML package is installed. No model
+> weights are downloaded. No voice model has been built. No cloud voice API
+> is used.** Capabilities marked *PLANNED* are not implemented.
 
 This project is **separate from AARYA Core and AARYA Frontend**. It does
 not modify, import from, or integrate with either.
@@ -32,7 +35,7 @@ these rules are not optional.
 
 ---
 
-## What exists today (Phase 0)
+## What exists today (Phases 0–2)
 
 | Area | Status |
 |---|---|
@@ -50,12 +53,13 @@ these rules are not optional.
 | Experiment & model registries | Implemented |
 | Manual-review data model | Implemented |
 | CLI | Implemented |
-| Test suite (synthetic fixtures only) | Implemented — 219 tests |
+| Test suite (synthetic fixtures only) | Implemented — 327 tests |
 | `VoiceService` interface contract | Defined, **no provider implemented** |
 | NeMo / WhisperX / TTS environments | **Specified, NOT installed** |
 | Model weights | **None downloaded** |
-| Diarization / transcription / alignment | **PLANNED** |
-| Dataset construction | **PLANNED** |
+| Dataset candidate pipeline (Phase 2) | Implemented — synthetic audio only |
+| Speaker identity / diarization | **PLANNED — Phase 3** |
+| Verified dataset construction | **PLANNED** |
 | Voice model training | **PLANNED** |
 | Benchmark execution | **PLANNED** (framework/schema only) |
 | AARYA Core integration | **PLANNED** — explicitly out of scope here |
@@ -93,6 +97,11 @@ aarya-voice whisperx-check           # verify env-whisperx (reports stop conditi
 aarya-voice tts-check
 aarya-voice tts-candidates           # TTS candidate matrix + license audit
 aarya-voice inventory <dir>          # catalogue audio (refuses the private source tree)
+aarya-voice validate-audio <dir>     # VALID / WARNING / INVALID / BLOCKED
+aarya-voice analyze-quality <dir>    # measurements + configured decisions
+aarya-voice segment <dir> --dry-run  # candidate segments + manifest
+aarya-voice dataset-report <dir>     # summary + technical review queue
+aarya-voice dataset-gate             # may we touch the real recordings?
 
 aarya-voice experiment --help
 aarya-voice benchmark --help
@@ -107,15 +116,16 @@ scripts/verify_all.sh
 Environment detection works on machines with **no GPU, no CUDA, and no
 FFmpeg**, reporting missing capabilities rather than failing.
 
-Future commands (`inventory`, `diarize`, `transcribe`, `review`,
-`build-dataset`, `train`, `evaluate`) are registered but deliberately
-refuse to run — they exit non-zero with a PLANNED notice so no script can
-accidentally begin processing private material.
+Future commands (`diarize`, `transcribe`, `review`, `build-dataset`,
+`train`, `evaluate`) are registered but deliberately refuse to run — they
+exit non-zero with a PLANNED notice so no script can accidentally begin
+processing private material. Phase 2 commands additionally refuse to read
+the private source tree unless explicitly approved.
 
 ## Testing
 
 ```bash
-pytest        # 148 tests, synthetic fixtures only
+pytest        # 327 tests, synthetic fixtures only
 ruff check .
 ```
 
@@ -137,7 +147,7 @@ No test uses, references, or requires the real recordings.
 | [REPRODUCIBILITY.md](docs/REPRODUCIBILITY.md) | What is and isn't reproducible |
 | [SECURITY.md](docs/SECURITY.md) | Speaker safety, verification, private-voice security model |
 | [PRIVACY.md](docs/PRIVACY.md) | Data handling rules for the private recordings |
-| [DATASET_PIPELINE.md](docs/DATASET_PIPELINE.md) | The full future processing pipeline |
+| [DATASET_PIPELINE.md](docs/DATASET_PIPELINE.md) | The Phase 2 dataset pipeline, provenance, and the access gate |
 | [TOOLCHAIN.md](docs/TOOLCHAIN.md) | Provider abstraction & candidate tools |
 | [MODEL_STRATEGY.md](docs/MODEL_STRATEGY.md) | Model registry, experiments, TTS candidates |
 | [BENCHMARKING.md](docs/BENCHMARKING.md) | Voice quality benchmark framework |

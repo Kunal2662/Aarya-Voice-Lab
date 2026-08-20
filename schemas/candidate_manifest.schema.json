@@ -1,0 +1,141 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://aarya-voice-lab/schemas/candidate_manifest.schema.json",
+  "title": "AARYA Voice Lab Candidate Manifest (Phase 2)",
+  "description": "Output of the Phase 2 dataset pipeline: technically suitable candidate segments with full provenance. IMPORTANT: 'technical_eligibility' means the segment is technically usable audio. It does NOT mean the segment has been approved as target-speaker training data, and it carries no claim about who is speaking. Speaker identity is determined in Phase 3. This schema deliberately has no field capable of expressing a speaker role.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "dataset_version",
+    "batch_id",
+    "created_at",
+    "processing_version",
+    "phase",
+    "is_synthetic",
+    "candidates"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "type": "string" },
+    "dataset_version": { "type": "string", "minLength": 1 },
+    "batch_id": {
+      "type": "string",
+      "pattern": "^batch-\\d{3,}$",
+      "description": "Batches let new recordings be added later without reprocessing existing ones."
+    },
+    "created_at": { "type": "string", "format": "date-time" },
+    "processing_version": { "type": "string" },
+    "phase": {
+      "type": "string",
+      "const": "phase-2",
+      "description": "Fixed to phase-2. A consumer must not read speaker conclusions from this manifest."
+    },
+    "is_synthetic": {
+      "type": "boolean",
+      "description": "True when built from generated test audio. Must be true for any manifest tracked in Git."
+    },
+    "source_files": {
+      "type": "array",
+      "description": "Source recordings this manifest derives from, by id and hash.",
+      "items": {
+        "type": "object",
+        "required": ["source_file_id", "source_sha256"],
+        "additionalProperties": true,
+        "properties": {
+          "source_file_id": { "type": "string" },
+          "source_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+        }
+      }
+    },
+    "candidates": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/candidate" }
+    }
+  },
+  "definitions": {
+    "candidate": {
+      "type": "object",
+      "required": [
+        "segment_id",
+        "source_file_id",
+        "source_sha256",
+        "start_time",
+        "end_time",
+        "duration",
+        "technical_eligibility",
+        "quality_status",
+        "overlap_status",
+        "processing_version"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "segment_id": { "type": "string", "minLength": 1 },
+        "source_file_id": { "type": "string", "minLength": 1 },
+        "source_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "segment_sha256": {
+          "type": ["string", "null"],
+          "pattern": "^[a-f0-9]{64}$",
+          "description": "Hash of the extracted segment audio, when it has been written."
+        },
+        "start_time": { "type": "number", "minimum": 0 },
+        "end_time": { "type": "number", "minimum": 0 },
+        "duration": { "type": "number", "exclusiveMinimum": 0 },
+        "audio_format": { "type": ["string", "null"] },
+        "sample_rate": { "type": ["integer", "null"], "minimum": 1 },
+        "channels": { "type": ["integer", "null"], "minimum": 1 },
+        "technical_eligibility": {
+          "type": "string",
+          "enum": ["technically_eligible", "needs_review", "technically_rejected"],
+          "description": "Whether the segment is technically usable audio. NOT an approval as target-speaker data — that decision belongs to Phase 3."
+        },
+        "technical_rejection_reason": { "type": ["string", "null"] },
+        "quality_status": {
+          "type": "string",
+          "enum": ["PASS", "WARNING", "REVIEW", "FAIL"]
+        },
+        "quality_characteristics": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Recorded traits (e.g. narrowband telephone audio) that are NOT defects."
+        },
+        "speech_status": {
+          "type": ["string", "null"],
+          "enum": ["speech_detected", "no_speech_detected", "insufficient_speech", null]
+        },
+        "overlap_status": {
+          "type": "string",
+          "enum": ["NO_OVERLAP_DETECTED", "POSSIBLE_OVERLAP", "OVERLAP_DETECTED", "UNKNOWN"],
+          "description": "Candidate assessment only. UNKNOWN must never be auto-promoted to eligible."
+        },
+        "overlap_confidence": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Heuristic score, not a probability."
+        },
+        "overlap_detection_method": { "type": ["string", "null"] },
+        "overlap_detector_version": { "type": ["string", "null"] },
+        "requires_phase3_review": {
+          "type": "boolean",
+          "description": "True when overlap or quality is unresolved and Phase 3 must adjudicate."
+        },
+        "provenance": {
+          "type": "object",
+          "description": "How this candidate was produced, for reproducibility.",
+          "additionalProperties": false,
+          "properties": {
+            "segmentation_version": { "type": ["string", "null"] },
+            "segmentation_config_hash": { "type": ["string", "null"] },
+            "quality_thresholds_hash": { "type": ["string", "null"] },
+            "vad_config_hash": { "type": ["string", "null"] },
+            "normalization_applied": { "type": "boolean" },
+            "normalization_config": { "type": ["object", "null"], "additionalProperties": true },
+            "split_reason": { "type": ["string", "null"] },
+            "stage": { "type": ["string", "null"] }
+          }
+        },
+        "processing_version": { "type": "string" }
+      }
+    }
+  }
+}

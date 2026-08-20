@@ -1,112 +1,348 @@
 # Dataset Pipeline
 
-> **PLANNED — no stage is implemented.** Phase 0 defines the stage
-> ordering, the record schema each stage reads and writes, and the safety
-> policy applied at the verification step. No stage has been run against
-> the private recordings.
+> ## Phase 2 does not determine speaker identity.
 >
-> The CLI commands named below exist but deliberately refuse to execute,
-> exiting non-zero with a PLANNED notice.
+> This pipeline prepares audio: it validates, measures, segments, and
+> flags. It produces **candidate segments** described by time span,
+> quality, and possible overlap. It makes **no claim about who is
+> speaking**, and its data structures are built so it cannot.
+>
+> Speaker identity is decided in **Phase 3**.
 
-## The pipeline
+**Implemented and tested against synthetic audio only.** The 31 private
+recordings have not been accessed, read, or copied.
+
+---
+
+## Stages
 
 ```
-SOURCE
-  ↓  Inventory                  catalogue recordings; no audio modified
-  ↓  Speaker Diarization        who spoke when (recording-local labels)
-  ↓  Speaker Identification     map local labels → target / operator / unknown
-  ↓  Overlap Detection          find simultaneous speech
-  ↓  Candidate Extraction       cut candidate segments
-  ↓  Quality Filtering          SNR, clipping, silence, duration
-  ↓  Transcription              text per segment (mostly Marathi)
-  ↓  Word Alignment             word/phoneme timings
-  ↓  Speaker Verification       independent second-system check
-  ↓  Manual Review              human approve / reject / ambiguous
-  ↓  VERIFIED DATASET
-  ↓  Voice Model Experiments
-  ↓  Fidelity Benchmark
-  ↓  PRODUCTION VOICE MODEL
+SOURCE                          read-only originals
+  ↓ INVENTORY                   catalogue, hash, detect duplicates/corruption
+  ↓ AUDIO VALIDATION            VALID / WARNING / INVALID / BLOCKED
+  ↓ NORMALIZATION               derived copies only (requires FFmpeg)
+  ↓ QUALITY ANALYSIS            measure, then decide (separately)
+  ↓ SPEECH / SILENCE ANALYSIS   activity regions, natural pauses preserved
+  ↓ SEGMENTATION                deterministic candidate spans
+  ↓ OVERLAP CANDIDATE DETECTION possible overlap flagged, never resolved
+  ↓ CANDIDATE MANIFEST          the Phase 2 deliverable
+  ↓ CANDIDATE REVIEW            technical triage by a human
+━━━━━━━━ speaker-identity boundary ━━━━━━━━
+  → PHASE 3: SPEAKER VERIFICATION & SAFETY
 ```
 
-Canonical ordering lives in
-[`pipeline/stages.py`](../src/aarya_voice_lab/pipeline/stages.py) so code,
-docs, and tests can't drift apart.
+Canonical ordering: [`pipeline/stages.py`](../src/aarya_voice_lab/pipeline/stages.py).
 
-## Stage notes
+### A correction from Phase 0
 
-**Inventory** — Catalogue the 31 recordings: ID, duration, format, sample
-rate, checksum. Originals are opened read-only and never modified.
-Assigns the stable `source_file_id` every later record references.
+Phase 0 ordered `speaker_diarization` immediately after `inventory`,
+placing every speaker-related stage *before* quality analysis and
+segmentation. Phase 2 reordered it: all technical preparation happens
+first, and `SPEAKER_IDENTITY_BOUNDARY` marks where Phase 3 begins. Three
+tests enforce that every Phase 2 stage precedes that boundary.
 
-**Speaker Diarization** — Primary system: NeMo Sortformer. Produces
-recording-local labels (`spk_0`, `spk_1`) that are **meaningless across
-files** — see [SECURITY.md](SECURITY.md).
+### Two review stages, deliberately
 
-**Speaker Identification** — Maps local labels to real roles by verifying
-against a reference sample, never by label number, filename, or pitch.
+| Stage | Phase | Reviewer is asked |
+|---|---|---|
+| `candidate_review` | 2 | Is this audio technically usable? |
+| `manual_review` | 3 | Is this the target speaker? |
 
-**Overlap Detection** — Simultaneous speech is unusable for voice
-training: it would teach the model the operator's voice mixed with the
-target's. Rejected by default.
+They are separate stages because collapsing them would put a speaker
+question in front of a Phase 2 reviewer. Every Phase 2 review item
+carries `asks_about_speaker_identity: false`, asserted by test.
 
-**Candidate Extraction** — Cuts candidate segments into new derived
-files. Originals untouched. Every segment records its source timestamps.
+---
 
-**Quality Filtering** — SNR, clipping, silence ratio, duration bounds.
-Relevant to a stated goal: the Private Voice must sound like a natural
-person, **not a telephone/call recording**. Source material recorded over
-a call carries band-limiting and codec artifacts that a model will
-faithfully reproduce, so quality filtering and any restoration strategy
-matter as much as quantity here. *(Whether restoration is viable is an
-open question for a later phase — it cannot be answered without listening
-to the material, which Phase 0 does not do.)*
+## Stage detail
 
-**Transcription** — Mostly Marathi, possibly with Hindi/English
-code-switching. ASR quality for Marathi is materially worse than for
-English; expect transcripts to need correction at manual review.
+### Inventory
 
-**Word Alignment** — Word/phoneme-level timings for TTS training.
+Catalogues every audio file: size, SHA-256, detected container, and
+properties where readable.
 
-**Speaker Verification** — The independent second system. Combined with
-the primary result to produce the HIGH/MEDIUM/LOW classification driving
-[`decide_eligibility()`](../src/aarya_voice_lab/security/speaker_policy.py).
+- **Container detected from content**, never the extension. A recording
+  handed over as `.wav` that is really an MP3 is identified correctly and
+  the mismatch is recorded. A file with a *missing* extension is still
+  inventoried — dropping it would silently lose a recording.
+- **`source_file_id` is content-addressed** (`src-<hash prefix>`), so a
+  file keeps its identity across renames, machines, and runs. This is
+  what makes the stage deterministic.
+- Detects **duplicate content** (by hash, regardless of filename),
+  zero-byte files, unreadable files, and unsupported formats.
+- **Never modifies, moves, or renames** anything.
 
-**Manual Review** — A human listens and makes the final call. Data model
-in [`review.py`](../src/aarya_voice_lab/review.py); the reviewer sees
-transcript, timestamps, speaker assignment, and confidence.
-**Automated confidence never substitutes for this step.**
+### Audio validation
 
-**Verified Dataset** — Only segments that are both automatically eligible
-and human-approved. Versioned; never committed to Git.
+| Status | Meaning |
+|---|---|
+| `VALID` | Usable as-is |
+| `WARNING` | Usable; something needs attention |
+| `INVALID` | Not usable — corrupt, empty, unrecognised |
+| `BLOCKED` | **Cannot be determined here** — a capability is missing |
 
-## Reproducibility
+`BLOCKED` is distinct from `INVALID` on purpose: "we cannot inspect this
+without FFmpeg" must never be recorded as "this file is bad". Nothing is
+converted or repaired — a failing file is reported, not fixed.
 
-Each stage reads and writes records conforming to
-[`segment.schema.json`](../schemas/segment.schema.json). Stages
-communicate through **files, not function calls** — a design forced by
-NeMo and WhisperX pinning incompatible PyTorch versions
-([ENVIRONMENT.md](ENVIRONMENT.md)), and useful anyway: each stage is
-independently resumable and inspectable, and `processing_version` on
-every record identifies the code that produced it.
+**Telephone recordings are expected input.** Low sample rate produces a
+`low_sample_rate` *warning*, never a rejection.
 
-## Safety properties
+### Normalization
 
-1. **No stage runs without an explicit operation.** Future commands can't
-   be triggered incidentally; they refuse to run today.
-2. **Originals are read-only** at every stage.
-3. **Rejection is the default** for anything uncertain.
-4. **Nothing leaves the machine** — no stage uploads audio or transcripts.
-5. **Manual review is mandatory** before a segment reaches the dataset.
+Writes a **new** file to `data/working/`. The original is opened
+read-only and re-hashed afterwards to confirm it is byte-identical.
 
-## Scale expectation
+| Setting | Default | Why |
+|---|---|---|
+| Sample rate | 16 kHz | What NeMo/Sortformer diarization and speaker-verification models expect |
+| Channels | mono | Those models operate on one channel; mixing is deterministic |
+| Bit depth | 16-bit PCM | Lossless for analysis, universally readable |
+| Loudness normalization | **off** | Level is *evidence*; normalizing it away would erase what quality analysis measures |
 
-31 recordings, split between two speakers, minus overlap, minus quality
-rejections, minus review rejections. The usable target-speaker material
-will be **a fraction of the total runtime** — likely well under an hour.
+Note that TTS training generally prefers 22.05/24 kHz. The normalized
+copy serves *analysis*; a separate derivation should serve TTS later —
+which is precisely why the original is preserved untouched.
 
-This shapes the model strategy: few-shot / reference-based voice cloning
-is far more plausible than training from scratch, which typically needs
-many hours of clean single-speaker audio. See
-[MODEL_STRATEGY.md](MODEL_STRATEGY.md). The exact yield is unknown and
-unknowable until the recordings are actually processed in an approved
-phase — do not plan around an assumed number.
+**Without FFmpeg the stage is BLOCKED**, the original is left alone, and
+no substitute tool is used.
+
+### Quality analysis — measurement and decision are separate
+
+[`audio/analysis.py`](../src/aarya_voice_lab/audio/analysis.py) **only
+measures**: peak, RMS, dBFS, crest factor, clipping ratio, DC offset,
+zero-crossing rate, noise floor, estimated SNR, silent-frame ratio. It
+contains no thresholds.
+
+[`pipeline/quality.py`](../src/aarya_voice_lab/pipeline/quality.py)
+turns those numbers into `PASS` / `WARNING` / `REVIEW` / `FAIL` using
+configurable thresholds.
+
+This split is not stylistic. The source material is expected to include
+call recordings, which are band-limited and quiet by nature. If
+measurement and judgement were entangled, "sounds like a phone call"
+would silently become "bad audio" and the pipeline would discard its own
+dataset.
+
+Such traits are recorded as **characteristics**, not defects:
+
+```
+narrowband_8000hz (typical of telephone/call recordings; recorded, not penalised)
+compressed_dynamics_crest_4.2db (common in call recordings)
+```
+
+Every finding cites the measurement and threshold that produced it — no
+score is invented.
+
+### Speech / silence
+
+Energy-based VAD over stdlib-decoded PCM: no model, no download, no GPU.
+It detects **acoustic activity**, not speech content and not identity.
+
+The goal is useful segments, not maximal chopping:
+
+- Silence must last `min_silence_seconds` (default 0.3 s) to split a
+  region, so pauses inside a sentence survive.
+- Activity under `min_speech_seconds` (0.2 s) is discarded as a transient.
+- Region edges are padded 0.1 s, because energy-based onset detection
+  clips quiet consonants.
+
+### Segmentation
+
+Deterministic: identical audio and configuration produce byte-identical
+output, including segment ids.
+
+| Bound | Default | Reasoning |
+|---|---|---|
+| Minimum | 1.0 s | Below ~1 s there is too little prosodic context for TTS training or reliable verification, and such fragments cost review time |
+| Maximum | 20.0 s | Long spans are likelier to contain a speaker change; most TTS pipelines work well below this |
+| Drop below | 0.5 s | Unusable fragments |
+
+Splitting prefers an existing silence nearest the midpoint, so cuts land
+in real pauses. A cut made without one is recorded as `hard_split` so
+review can find it.
+
+`CandidateSegment` **has no speaker field** — a test asserts this.
+
+### Overlap candidate detection
+
+Flags segments that may contain simultaneous speech, so Phase 3 knows
+where to look. Heuristic (zero-crossing instability, energy stability)
+over stdlib PCM — no model, no network.
+
+| Status | Meaning |
+|---|---|
+| `NO_OVERLAP_DETECTED` | Heuristics found no indication |
+| `POSSIBLE_OVERLAP` | Weak indication |
+| `OVERLAP_DETECTED` | Strong indication |
+| `UNKNOWN` | **Could not be determined** |
+
+**`UNKNOWN` never becomes eligible automatically.** A segment too short
+to judge is `UNKNOWN`, not "clear" — asserted by test. The reported
+`overlap_confidence` is a heuristic score, explicitly **not** a
+probability, and Phase 3 makes the authoritative determination.
+
+---
+
+## Terminology: "eligible" means *technically* eligible
+
+| Value | Means | Does **not** mean |
+|---|---|---|
+| `technically_eligible` | Usable audio, workable length, no unresolved overlap | Approved as target-speaker training data |
+| `needs_review` | A human must look | — |
+| `technically_rejected` | Not usable audio | Not the target speaker |
+
+The manifest also carries `"phase": "phase-2"` so no consumer can mistake
+it for a speaker-approved dataset.
+
+---
+
+## Data root
+
+```
+data/
+  source/      READ-ONLY originals, by batch
+  working/     derived intermediates + stage results
+  segments/    derived candidate audio
+  manifests/   batch metadata + candidate manifests
+  reports/     human-readable summaries
+  review/      review metadata
+  cache/       disposable
+```
+
+Everything except the README is git-ignored.
+
+**`source/` immutability is enforced in code**, not just documented:
+
+- `assert_source_writable()` raises `SourceImmutabilityError` for any
+  write resolving inside `source/`; every writing stage calls it.
+- Reading `source/` requires an explicit approval flag.
+- Source hashes are re-verified after processing; a change halts that file.
+- FFmpeg is invoked with `-n` (never `-y`), so it cannot overwrite.
+
+### Batches
+
+`batch-001`, `batch-002`, … Nothing is designed around a fixed number of
+files; new recordings are added as a new batch with no reprocessing and
+no code changes.
+
+---
+
+## Provenance and integrity
+
+```
+source SHA-256 → derived artifact SHA-256 → manifest → stage result
+```
+
+Every candidate records `source_file_id`, `source_sha256`, exact
+timestamps, `segmentation_config_hash`, `quality_thresholds_hash`,
+detector versions, and `processing_version`.
+
+**Timestamps are never used** for anything — they are trivially wrong
+after a copy or checkout.
+
+## Resumability
+
+A stage may reuse previous output **only** when all of these hold:
+
+- input hashes match
+- configuration hash matches
+- tool version matches
+- stage version matches
+- every declared output exists and re-hashes to its recorded value
+
+Any mismatch recomputes. The default answer is recompute: CPU is cheap,
+whereas wrongly reusing an artifact silently corrupts a dataset built
+from irreplaceable recordings. Interrupted (`running`) and `blocked`
+runs are never reusable.
+
+---
+
+## Privacy and offline operation
+
+- No network client anywhere in the pipeline; no cloud provider configured.
+- Stage subprocesses default to `HF_HUB_OFFLINE=1` and
+  `TRANSFORMERS_OFFLINE=1`, so a stage **fails loudly rather than
+  silently downloading**.
+- Telemetry opt-outs are applied to every stage subprocess.
+- Manifests store **relative** paths, so no record embeds an absolute
+  path into private storage.
+- All analysis is pure-Python over stdlib-decoded PCM — no numpy, no
+  GPU, no model weights.
+
+## Hardware
+
+CPU-only throughout. No GPU, no CUDA, and no FFmpeg is required for the
+WAV path; FFmpeg is required only for other containers, and its absence
+is reported as `BLOCKED` rather than failing the run.
+
+---
+
+## The real-recording access gate
+
+Twelve conditions, checked mechanically by
+[`dataset_gate.py`](../src/aarya_voice_lab/pipeline/dataset_gate.py):
+
+```bash
+aarya-voice dataset-gate
+```
+
+Phases pushed · clean tree · Phase 2 complete · tests passing · security
+scan clean · source protection verified · output dirs git-ignored · no
+cloud upload path · offline/telemetry intact · config reviewed ·
+**explicit approval**.
+
+**Explicit approval cannot be self-satisfied.** No combination of
+automatic checks opens the gate — a test asserts this. Exit code 3 means
+access is denied.
+
+### After approval: one recording first
+
+```
+DRY RUN → ONE RECORDING → inspect → verify hashes → verify source
+unchanged → verify outputs → only then the rest
+```
+
+`aarya-voice segment <dir> --limit 1` exists for exactly this. Do not
+continue after a failed or suspicious first run.
+
+---
+
+## CLI
+
+```bash
+aarya-voice inventory <dir>              # catalogue + duplicates
+aarya-voice validate-audio <dir>         # VALID/WARNING/INVALID/BLOCKED
+aarya-voice analyze-quality <dir>        # measurements + decisions
+aarya-voice segment <dir> [--dry-run] [--limit N] [--extract-audio]
+aarya-voice dataset-report <dir>         # summary + review queue
+aarya-voice normalize-check              # can normalization run?
+aarya-voice dataset-gate                 # may we touch real recordings?
+```
+
+All accept `--json` and `--batch-id`. Reading the protected source tree
+requires `--approved`.
+
+**Exit codes:** `0` success · `1` check failed · `2` usage error ·
+`3` **BLOCKED** (stop condition).
+
+---
+
+## Limitations
+
+Stated plainly:
+
+- **Verified on synthetic audio only.** Behaviour on real recordings is
+  unverified.
+- **VAD and overlap detection are energy heuristics**, not models. They
+  are adequate for producing candidates and finding places to look; they
+  are not accurate speech or overlap detection. Both are replaceable
+  without changing the stage interface.
+- **Estimated SNR is a coarse proxy** that assumes the recording contains
+  both quiet and loud passages. It is comparative, not calibrated.
+- **Only WAV is processable without FFmpeg.** Everything else is BLOCKED.
+- **Normalization is untested end-to-end** — no FFmpeg on the
+  development machine, so only its blocked path has been exercised.
+- **Segmentation bounds are reasoned, not empirically tuned.** They
+  should be revisited once real material has been inspected.
+- **Nothing here says anything about who is speaking.**

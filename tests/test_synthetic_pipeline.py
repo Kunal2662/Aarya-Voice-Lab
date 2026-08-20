@@ -215,7 +215,7 @@ def test_blocked_status_is_distinct_from_failed(tmp_path):
 
 def test_predecessor_required_before_downstream_stage(tmp_path):
     with pytest.raises(StageContractError, match="requires"):
-        require_predecessor(tmp_path, PipelineStage.SPEAKER_DIARIZATION)
+        require_predecessor(tmp_path, PipelineStage.AUDIO_VALIDATION)
 
 
 def test_predecessor_must_be_completed_not_merely_present(tmp_path):
@@ -223,7 +223,7 @@ def test_predecessor_must_be_completed_not_merely_present(tmp_path):
     failed.mark_failed("execution_error", "boom")
     failed.write(tmp_path)
     with pytest.raises(StageContractError, match="completed"):
-        require_predecessor(tmp_path, PipelineStage.SPEAKER_DIARIZATION)
+        require_predecessor(tmp_path, PipelineStage.AUDIO_VALIDATION)
 
 
 def test_first_stage_has_no_predecessor(tmp_path):
@@ -234,7 +234,7 @@ def test_predecessor_accepted_when_completed(tmp_path):
     done = StageResult(stage=PipelineStage.INVENTORY, environment_id="base")
     done.mark_completed()
     done.write(tmp_path)
-    record = require_predecessor(tmp_path, PipelineStage.SPEAKER_DIARIZATION)
+    record = require_predecessor(tmp_path, PipelineStage.AUDIO_VALIDATION)
     assert record["status"] == StageStatus.COMPLETED
 
 
@@ -453,19 +453,19 @@ def test_full_synthetic_handoff_between_two_stages(tmp_path):
     first.mark_completed()
     first.write(run_dir)
 
-    predecessor = require_predecessor(run_dir, PipelineStage.SPEAKER_DIARIZATION)
+    predecessor = require_predecessor(run_dir, PipelineStage.AUDIO_VALIDATION)
     assert predecessor["outputs"][0]["kind"] == "manifest"
     assert verify_inputs_unchanged(run_dir, predecessor) == []
 
-    second = StageResult(stage=PipelineStage.SPEAKER_DIARIZATION, environment_id="env-nemo")
+    second = StageResult(stage=PipelineStage.AUDIO_VALIDATION, environment_id="base")
     second.inputs.append(describe_artifact(manifest_path, run_dir, kind="manifest"))
-    second.mark_blocked("missing_model", "Sortformer weights not downloaded in Phase 1")
+    second.mark_blocked("missing_dependency", "FFmpeg not installed for non-WAV containers")
     second.write(run_dir)
 
-    loaded = read_stage_result(run_dir, PipelineStage.SPEAKER_DIARIZATION)
+    loaded = read_stage_result(run_dir, PipelineStage.AUDIO_VALIDATION)
     assert loaded["status"] == StageStatus.BLOCKED
     assert loaded["inputs"][0]["sha256"] == predecessor["outputs"][0]["sha256"]
-    assert loaded["environment_id"] == "env-nemo"
+    assert loaded["environment_id"] == "base"
 
 
 def test_handoff_detects_modified_intermediate(tmp_path):
@@ -484,5 +484,5 @@ def test_handoff_detects_modified_intermediate(tmp_path):
     first.write(run_dir)
 
     manifest_path.write_text('{"tampered": true}', encoding="utf-8")
-    record = require_predecessor(run_dir, PipelineStage.SPEAKER_DIARIZATION)
+    record = require_predecessor(run_dir, PipelineStage.AUDIO_VALIDATION)
     assert verify_inputs_unchanged(run_dir, record)

@@ -37,6 +37,7 @@ class SchemaName(StrEnum):
     BENCHMARK = "benchmark"
     MANUAL_REVIEW = "manual_review"
     STAGE_RESULT = "stage_result"
+    CANDIDATE_MANIFEST = "candidate_manifest"
 
 
 class ValidationError(ValueError):

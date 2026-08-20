@@ -2,7 +2,16 @@ from __future__ import annotations
 
 import pytest
 
-from aarya_voice_lab.pipeline.stages import PIPELINE_ORDER, PipelineStage, is_implemented, stage_index
+from aarya_voice_lab.pipeline.stages import (
+    PHASE_2_STAGES,
+    PIPELINE_ORDER,
+    SPEAKER_IDENTITY_BOUNDARY,
+    SPEAKER_IDENTITY_STAGES,
+    PipelineStage,
+    determines_speaker_identity,
+    is_implemented,
+    stage_index,
+)
 from aarya_voice_lab.review import ManualReviewLog, ReviewQueue
 from aarya_voice_lab.voice_service import VoiceService
 
@@ -17,9 +26,45 @@ def test_verification_precedes_manual_review_and_dataset():
     assert stage_index(PipelineStage.MANUAL_REVIEW) < stage_index(PipelineStage.VERIFIED_DATASET)
 
 
-def test_no_pipeline_stage_is_implemented_in_phase_0():
-    """Phase 0 acceptance criterion: no real processing exists yet."""
-    assert not any(is_implemented(stage) for stage in PipelineStage)
+def test_only_phase_2_stages_are_implemented():
+    """Phase 2 implements technical preparation and nothing beyond it.
+
+    This replaces the Phase 0 assertion that *nothing* was implemented,
+    which became false once Phase 2 landed. The stricter property is kept:
+    no stage at or past the speaker-identity boundary may be implemented.
+    """
+    for stage in PipelineStage:
+        if stage in PHASE_2_STAGES:
+            assert is_implemented(stage), f"{stage} should be implemented in Phase 2"
+        else:
+            assert not is_implemented(stage), f"{stage} must NOT be implemented before its phase"
+
+
+def test_no_speaker_identity_stage_is_implemented():
+    """The boundary that matters: Phase 2 must not decide who is speaking."""
+    for stage in SPEAKER_IDENTITY_STAGES:
+        assert not is_implemented(stage), f"{stage} determines speaker identity and belongs to Phase 3+"
+
+
+def test_technical_preparation_precedes_all_speaker_work():
+    """Every Phase 2 stage must come before the speaker-identity boundary.
+
+    Phase 0 ordered diarization immediately after inventory, which put
+    speaker work ahead of quality analysis and segmentation. Phase 2
+    corrected that; this test keeps it corrected.
+    """
+    boundary = stage_index(SPEAKER_IDENTITY_BOUNDARY)
+    for stage in PHASE_2_STAGES:
+        assert stage_index(stage) < boundary, f"{stage} must precede any speaker-identity stage"
+
+
+def test_candidate_review_is_distinct_from_manual_review():
+    """Phase 2's technical triage and Phase 3's speaker approval are
+    separate stages, so a Phase 2 reviewer is never asked about identity."""
+    assert PipelineStage.CANDIDATE_REVIEW is not PipelineStage.MANUAL_REVIEW
+    assert stage_index(PipelineStage.CANDIDATE_REVIEW) < stage_index(PipelineStage.MANUAL_REVIEW)
+    assert not determines_speaker_identity(PipelineStage.CANDIDATE_REVIEW)
+    assert determines_speaker_identity(PipelineStage.MANUAL_REVIEW)
 
 
 def test_review_queue_surfaces_pending_and_ambiguous(synthetic_segment):

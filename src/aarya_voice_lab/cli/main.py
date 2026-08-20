@@ -1,26 +1,21 @@
-"""AARYA Voice Lab CLI foundation.
+"""AARYA Voice Lab CLI.
 
-Implemented (Phase 0):
-    aarya-voice system-info
-    aarya-voice validate-environment
-    aarya-voice validate-manifest <path>
-    aarya-voice validate-config [path]
-    aarya-voice benchmark --help
-    aarya-voice experiment --help
+Environment & validation (Phase 0/1):
+    system-info, env-audit, validate-environment, validate-config,
+    validate-manifest, nemo-check, whisperx-check, tts-check,
+    tts-candidates
 
-Planned, not implemented (stubs only -- see docs/DATASET_PIPELINE.md):
-    aarya-voice inventory
-    aarya-voice diarize
-    aarya-voice transcribe
-    aarya-voice review
-    aarya-voice build-dataset
-    aarya-voice train
-    aarya-voice evaluate
+Dataset pipeline (Phase 2):
+    inventory, validate-audio, analyze-quality, segment,
+    dataset-report, normalize-check, dataset-gate
 
-The planned commands intentionally do nothing but print a PLANNED notice
-and exit non-zero, so no future scripting can accidentally trigger real
-processing of the private recordings by calling a command that "looks"
-implemented.
+Planned, not implemented (stubs that refuse to run):
+    diarize, transcribe, review, build-dataset, train, evaluate
+
+The planned commands print a PLANNED notice and exit non-zero, so no
+script can trigger unimplemented processing by calling a command that
+merely "looks" implemented. Phase 2 commands additionally refuse to read
+the private source tree unless explicitly approved.
 """
 
 from __future__ import annotations
@@ -31,12 +26,12 @@ import sys
 from pathlib import Path
 
 from aarya_voice_lab import __version__
+from aarya_voice_lab.cli import phase2
 from aarya_voice_lab.core.config import ConfigError, load_config
 from aarya_voice_lab.core.paths import PROJECT_ROOT
 from aarya_voice_lab.environment.audit import format_audit, run_audit
 from aarya_voice_lab.environment.specs import EnvironmentId
 from aarya_voice_lab.environment.verify import format_verification, verify_environment
-from aarya_voice_lab.pipeline.inventory import PrivateSourceAccessError, build_inventory
 from aarya_voice_lab.registry.tts_candidates import TTS_CANDIDATES, private_voice_candidates
 from aarya_voice_lab.schemas.base import SchemaName, ValidationError, validate
 from aarya_voice_lab.security.source_protection import scan_git_repo
@@ -217,27 +212,6 @@ def _cmd_tts_candidates(args: argparse.Namespace) -> int:
     return 0
 
 
-def _cmd_inventory(args: argparse.Namespace) -> int:
-    directory = Path(args.directory)
-    try:
-        inventory = build_inventory(directory, approved=False)
-    except PrivateSourceAccessError as exc:
-        print(f"[BLOCKED] {exc}", file=sys.stderr)
-        return 3
-    except (NotADirectoryError, OSError) as exc:
-        print(f"error: {exc}", file=sys.stderr)
-        return 2
-
-    if args.json:
-        print(json.dumps(inventory.to_dict(), indent=2))
-    else:
-        print(f"Inventoried {len(inventory.files)} audio file(s) in {directory}")
-        print(f"Total duration: {inventory.total_duration_seconds:.2f}s")
-        for record in inventory.files:
-            duration = f"{record.duration_seconds:.2f}s" if record.duration_seconds else "unknown"
-            print(f"  {record.source_file_id}  {record.path}  {duration}  sha256={record.sha256[:12]}...")
-    return 0
-
 
 def _cmd_planned(name: str):
     def handler(args: argparse.Namespace) -> int:
@@ -314,9 +288,14 @@ def build_parser() -> argparse.ArgumentParser:
         "inventory",
         help="Catalogue audio files in a directory (refuses the private source tree).",
     )
-    p.add_argument("directory", help="Directory to inventory. Synthetic/test audio only in Phase 1.")
+    p.add_argument("directory", help="Directory to inventory.")
+    p.add_argument("--batch-id", default="batch-001", help="Batch id (default: batch-001).")
+    p.add_argument("--no-recursive", action="store_true")
+    p.add_argument("--approved", action="store_true", help="Permit reading the protected source tree.")
     p.add_argument("--json", action="store_true")
-    p.set_defaults(func=_cmd_inventory)
+    p.set_defaults(func=phase2.cmd_inventory)
+
+    phase2.register(subparsers)
 
     for name in PLANNED_COMMANDS:
         sp = subparsers.add_parser(name, help=f"PLANNED: {name} is not implemented in Phase 0.")

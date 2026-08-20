@@ -48,6 +48,12 @@
 /datasets/**
 !/datasets/README.md
 
+# The Phase 2 data root. Originals, derived audio, segments, manifests,
+# reports, review metadata and cache all live here and are ALL private.
+# Only the README is tracked.
+/data/**
+!/data/README.md
+
 # ---------------------------------------------------------------------------
 # Speaker embeddings / voice fingerprints / diarization artifacts
 # ---------------------------------------------------------------------------
