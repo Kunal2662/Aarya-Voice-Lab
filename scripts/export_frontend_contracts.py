@@ -34,6 +34,11 @@ from aarya_voice_lab.pipeline.candidate_review import (  # noqa: E402
     CandidateReviewDecision,
     CandidateReviewReason,
 )
+from aarya_voice_lab.pipeline.evaluation import (  # noqa: E402
+    ABDecision,
+    EvaluationCompletionState,
+    VoiceQualityDimension,
+)
 from aarya_voice_lab.pipeline.feedback import FeedbackType, ProcessingFeedbackCategory  # noqa: E402
 from aarya_voice_lab.pipeline.generation import GenerationBackendState, GenerationStatus  # noqa: E402
 from aarya_voice_lab.pipeline.overlap import OverlapStatus  # noqa: E402
@@ -216,6 +221,29 @@ def build_payloads() -> dict[str, dict]:
             PreviewFeedbackCategory,
             "Closed vocabulary for feedback on a generated preview, stored "
             "in a PreviewFeedback record's attributes.category.",
+        ),
+        "voice_quality_dimension.json": _enum_payload(
+            "aarya_voice_lab.pipeline.evaluation.VoiceQualityDimension",
+            VoiceQualityDimension,
+            "VL-D6's bounded, 11-value human-evaluation dimension vocabulary. "
+            "Seven names (NATURALNESS/CLARITY/PRONUNCIATION/PROSODY/PACE/"
+            "ARTIFACTS/OVERALL) are reused verbatim from "
+            "PreviewFeedbackCategory; Rhythm folds into PROSODY and Stability "
+            "folds into CONSISTENCY rather than existing as separate values.",
+        ),
+        "evaluation_completion_state.json": _enum_payload(
+            "aarya_voice_lab.pipeline.evaluation.EvaluationCompletionState",
+            EvaluationCompletionState,
+            "An evaluation's own lifecycle state. COMPLETED must never be "
+            "recorded without the output having actually been listened to "
+            "(pipeline.evaluation.UnlistenedEvaluationError enforces this).",
+        ),
+        "ab_decision.json": _enum_payload(
+            "aarya_voice_lab.pipeline.evaluation.ABDecision",
+            ABDecision,
+            "A reviewer's A/B comparison decision. Deliberately separate from "
+            "PreviewFeedbackOutcome — a comparison between two outputs is a "
+            "different judgement from a single output's accept/reject fate.",
         ),
     }
 

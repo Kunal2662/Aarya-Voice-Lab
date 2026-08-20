@@ -6,6 +6,7 @@
 // panel never dumps everything at once.
 import { AvlElement, defineComponent } from "./base-element.js";
 import { JOB_STATUS_DOMAIN } from "../state/job-model.js";
+import { summarizeOutputEvaluations } from "../state/evaluation-model.js";
 import {
   syntheticQualityAssessments,
   syntheticSegments,
@@ -28,6 +29,10 @@ import "./claude-processing-context.js";
 import "./generation-history-panel.js";
 import "./preview-feedback-form.js";
 import "./claude-generation-context.js";
+import "./evaluation-history-panel.js";
+import "./disagreement-view.js";
+import "./aggregated-results-panel.js";
+import "./claude-evaluation-context.js";
 
 const RENDERERS = {
   batch: (data) => [
@@ -500,6 +505,59 @@ export class AvlInspectorRouter extends AvlElement {
     previewDetails.appendChild(claudeContext);
 
     this.shadowRoot.appendChild(previewDetails);
+
+    this._appendEvaluationSection(data, item);
+  }
+
+  // VL-D6 -- Evaluation History / Disagreement / Aggregated Results /
+  // Ask Claude for whichever output this voice profile's latest
+  // generation produced. Genuinely separate from _appendPreviewSection's
+  // own single-outcome Feedback block above -- this reads
+  // this._services.evaluationStore, the multi-dimension, multi-reviewer
+  // VL-D6 log, never identity.preview.PreviewFeedback.
+  _appendEvaluationSection(data, item) {
+    const evaluationStore = this._services ? this._services.evaluationStore : null;
+    const outputId = item.artifact.preview_id;
+
+    const evaluationDetails = document.createElement("details");
+    evaluationDetails.innerHTML = "<summary>Evaluation</summary>";
+
+    const historyHeading = document.createElement("h4");
+    historyHeading.textContent = "History";
+    evaluationDetails.appendChild(historyHeading);
+    const historyPanel = document.createElement("avl-evaluation-history-panel");
+    historyPanel.evaluationStore = evaluationStore;
+    historyPanel.outputId = outputId;
+    evaluationDetails.appendChild(historyPanel);
+
+    const evaluations = evaluationStore ? evaluationStore.evaluationsFor(outputId) : [];
+    const summary = summarizeOutputEvaluations(evaluations, outputId);
+
+    const disagreementHeading = document.createElement("h4");
+    disagreementHeading.textContent = "Disagreement";
+    evaluationDetails.appendChild(disagreementHeading);
+    const disagreement = document.createElement("avl-disagreement-view");
+    disagreement.summary = summary;
+    evaluationDetails.appendChild(disagreement);
+
+    const aggregatedHeading = document.createElement("h4");
+    aggregatedHeading.textContent = "Aggregated results";
+    evaluationDetails.appendChild(aggregatedHeading);
+    const aggregated = document.createElement("avl-aggregated-results-panel");
+    aggregated.summary = summary;
+    evaluationDetails.appendChild(aggregated);
+
+    const claudeHeading = document.createElement("h4");
+    claudeHeading.textContent = "Ask Claude";
+    evaluationDetails.appendChild(claudeHeading);
+    const claudeContext = document.createElement("avl-claude-evaluation-context");
+    claudeContext.outputId = outputId;
+    claudeContext.voiceProfileId = data.profile_id;
+    claudeContext.summary = summary;
+    if (this._services && this._services.executor) claudeContext.executor = this._services.executor;
+    evaluationDetails.appendChild(claudeContext);
+
+    this.shadowRoot.appendChild(evaluationDetails);
   }
 }
 

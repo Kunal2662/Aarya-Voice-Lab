@@ -1,14 +1,20 @@
-"""Calibration preparation — VL-D3 §27, extended by VL-D5 §23.
+"""Calibration preparation — VL-D3 §27, extended by VL-D5 §23, VL-D6.
 
 Structured, real counts the future AI Calibration Engine (VL-D15) will
 eventually read: how much quality feedback exists, how many segments
 have conflicting review decisions, how many recordings are narrowband,
-how many carry an overlap candidate, and — new in VL-D5 — how many
-generation ratings and regenerations exist. **No score is computed
+how many carry an overlap candidate, how many generation ratings and
+regenerations exist (VL-D5), and — new in VL-D6 — how many human
+evaluations and reviewer disagreements exist. **No score is computed
 here.** The state is always `identity.calibration.CalibrationState.UNCALIBRATED`
 — the same honesty rule `identity.calibration` already enforces for
 target-speaker verification applies here for exactly the same reason:
-there is no engine yet to have calibrated anything.
+there is no engine yet to have calibrated anything. VL-D6 deliberately
+does not call `identity.calibration.provisional_from_reviewer_feedback()`
+itself — that function already exists and already does confidence-aware,
+still-non-calibrating reviewer-agreement adjustment, but invoking it is
+left to a future, explicitly-approved phase rather than happening here
+as a side effect of preparing inputs.
 """
 
 from __future__ import annotations
@@ -19,6 +25,8 @@ from typing import Any
 from aarya_voice_lab.identity.calibration import CalibrationState
 from aarya_voice_lab.identity.preview import PreviewFeedbackOutcome
 from aarya_voice_lab.pipeline.candidate_review import CandidateReviewLog, review_disagreement_count
+from aarya_voice_lab.pipeline.evaluation import EvaluationLog
+from aarya_voice_lab.pipeline.evaluation_aggregation import EvaluationCalibrationSignals, summarize_calibration_signals
 from aarya_voice_lab.pipeline.feedback import FeedbackLog, FeedbackType, counts_by_type
 from aarya_voice_lab.pipeline.inventory import Inventory
 from aarya_voice_lab.pipeline.preview_feedback import PreviewFeedbackLog, counts_by_category, counts_by_outcome
@@ -135,6 +143,66 @@ def summarize_preview_calibration_inputs(
         feedback_counts_by_category=category_counts,
         accepted_count=outcome_counts.get(PreviewFeedbackOutcome.ACCEPTED.value, 0),
         rejected_count=outcome_counts.get(PreviewFeedbackOutcome.REJECTED.value, 0),
+        note=(
+            "No AI Calibration Engine exists yet (VL-D15). These are raw counts "
+            "for a future engine to read, never a computed score."
+        ),
+    )
+
+
+@dataclass(frozen=True)
+class EvaluationCalibrationInputSummary:
+    calibration_state: CalibrationState
+    total_evaluations: int
+    total_outputs_evaluated: int
+    total_reviewers: int
+    disagreement_output_count: int
+    completed_count: int
+    cannot_judge_count: int
+    note: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "calibration_state": self.calibration_state.value,
+            "total_evaluations": self.total_evaluations,
+            "total_outputs_evaluated": self.total_outputs_evaluated,
+            "total_reviewers": self.total_reviewers,
+            "disagreement_output_count": self.disagreement_output_count,
+            "completed_count": self.completed_count,
+            "cannot_judge_count": self.cannot_judge_count,
+            "note": self.note,
+        }
+
+
+def summarize_evaluation_calibration_inputs(
+    *, evaluation_log: EvaluationLog | None = None
+) -> EvaluationCalibrationInputSummary:
+    """VL-D6 — structured human-evaluation/disagreement signals for the
+    future AI Calibration Engine. Always `UNCALIBRATED`; only real
+    counts, computed by `pipeline.evaluation_aggregation` (pure
+    aggregation, no new judgement made here or there)."""
+    signals = (
+        summarize_calibration_signals(evaluation_log)
+        if evaluation_log is not None
+        else EvaluationCalibrationSignals(
+            total_evaluations=0,
+            total_outputs_evaluated=0,
+            total_reviewers=0,
+            disagreement_output_count=0,
+            completed_count=0,
+            cannot_judge_count=0,
+            note="No evaluation log supplied.",
+        )
+    )
+
+    return EvaluationCalibrationInputSummary(
+        calibration_state=CalibrationState.UNCALIBRATED,
+        total_evaluations=signals.total_evaluations,
+        total_outputs_evaluated=signals.total_outputs_evaluated,
+        total_reviewers=signals.total_reviewers,
+        disagreement_output_count=signals.disagreement_output_count,
+        completed_count=signals.completed_count,
+        cannot_judge_count=signals.cannot_judge_count,
         note=(
             "No AI Calibration Engine exists yet (VL-D15). These are raw counts "
             "for a future engine to read, never a computed score."

@@ -1,0 +1,11 @@
+{
+  "$generated_by": "scripts/export_frontend_contracts.py",
+  "$source": "aarya_voice_lab.pipeline.evaluation.ABDecision",
+  "description": "A reviewer's A/B comparison decision. Deliberately separate from PreviewFeedbackOutcome \u2014 a comparison between two outputs is a different judgement from a single output's accept/reject fate.",
+  "values": [
+    "PREFER_A",
+    "PREFER_B",
+    "NO_PREFERENCE",
+    "CANNOT_JUDGE"
+  ]
+}

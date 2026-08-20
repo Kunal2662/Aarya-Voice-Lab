@@ -653,6 +653,83 @@ export function syntheticPreviewFeedback() {
   ];
 }
 
+// VL-D6 — human-evaluation fixtures. Shapes mirror
+// pipeline.evaluation.Evaluation.to_dict() / ABEvaluation.to_dict()
+// closely enough that a real backend response could be dropped in
+// without changing any component -- nothing here is computed, it's
+// fixed example data, same as every other synthetic-fixtures.js export.
+// Two reviewers disagreeing on the same output (demonstrates
+// disagreement detection); one A/B decision.
+export function syntheticEvaluations() {
+  return [
+    {
+      evaluation_id: "eval-example-00001",
+      output_id: "preview-req-example-001-preview",
+      reviewer: "alice",
+      listening: {
+        listened: true,
+        first_listened_at: "2026-08-20T09:00:10Z",
+        replay_count: 1,
+        furthest_position_seconds: 4.4,
+        completed_playback: true,
+      },
+      dimension_scores: { NATURALNESS: 4, CLARITY: 5, OVERALL: 4 },
+      cannot_judge_dimensions: [],
+      confidence: 4,
+      completion_state: "COMPLETED",
+      comment: "Clear and natural-sounding for a synthetic tone.",
+      voice_profile_id: "demo-voice-v1",
+      model_id: "synthetic-tone-v1",
+      config_hash: "e1".repeat(32),
+      output_sha256: "f1".repeat(32),
+      evaluation_version: 1,
+      supersedes: null,
+      created_at: "2026-08-20T09:00:12Z",
+    },
+    {
+      evaluation_id: "eval-example-00002",
+      output_id: "preview-req-example-001-preview",
+      reviewer: "bob",
+      listening: {
+        listened: true,
+        first_listened_at: "2026-08-20T09:05:00Z",
+        replay_count: 0,
+        furthest_position_seconds: 4.4,
+        completed_playback: true,
+      },
+      dimension_scores: { NATURALNESS: 2, CLARITY: 5, OVERALL: 3 },
+      cannot_judge_dimensions: [],
+      confidence: 3,
+      completion_state: "COMPLETED",
+      comment: "Naturalness felt off to me -- disagree with the first review.",
+      voice_profile_id: "demo-voice-v1",
+      model_id: "synthetic-tone-v1",
+      config_hash: "e1".repeat(32),
+      output_sha256: "f1".repeat(32),
+      evaluation_version: 1,
+      supersedes: null,
+      created_at: "2026-08-20T09:05:03Z",
+    },
+  ];
+}
+
+export function syntheticAbEvaluations() {
+  return [
+    {
+      ab_evaluation_id: "ab-eval-example-00001",
+      output_id_a: "preview-req-example-001-preview",
+      output_id_b: "eval-example-002-preview",
+      reviewer: "alice",
+      listened_a: true,
+      listened_b: true,
+      decision: "PREFER_A",
+      blinded: false,
+      comment: null,
+      created_at: "2026-08-20T09:10:00Z",
+    },
+  ];
+}
+
 export function syntheticModels() {
   return [
     {

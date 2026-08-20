@@ -20,6 +20,12 @@ export const ActivitySource = Object.freeze({
   MODEL: "model",
   CALIBRATION: "calibration",
   PREVIEW: "preview",
+  // VL-D6 -- human-evaluation events (evaluation started/output listened/
+  // evaluation submitted/A-B decision submitted/disagreement detected/
+  // evaluation completed). Distinct from PREVIEW: PREVIEW is generation
+  // activity, EVALUATION is the multi-dimension, multi-reviewer judgement
+  // layer on top of a generated output.
+  EVALUATION: "evaluation",
   CLAUDE: "claude",
   SYSTEM: "system",
   SECURITY: "security",

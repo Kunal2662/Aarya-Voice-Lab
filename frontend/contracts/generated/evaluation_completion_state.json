@@ -1,0 +1,11 @@
+{
+  "$generated_by": "scripts/export_frontend_contracts.py",
+  "$source": "aarya_voice_lab.pipeline.evaluation.EvaluationCompletionState",
+  "description": "An evaluation's own lifecycle state. COMPLETED must never be recorded without the output having actually been listened to (pipeline.evaluation.UnlistenedEvaluationError enforces this).",
+  "values": [
+    "IN_PROGRESS",
+    "COMPLETED",
+    "CANNOT_JUDGE",
+    "ABANDONED"
+  ]
+}

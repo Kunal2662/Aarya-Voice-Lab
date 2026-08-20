@@ -1,0 +1,33 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://aarya-voice-lab/schemas/ab_evaluation.schema.json",
+  "title": "AARYA Voice Lab A/B Evaluation Record (VL-D6)",
+  "description": "One reviewer's A/B decision between two voice preview outputs. blinded records only that the reviewer's own panel suppressed model/profile/config labels on screen -- UI-level metadata suppression, never a cryptographic or structural anonymity claim.",
+  "type": "object",
+  "required": [
+    "schema_version", "ab_evaluation_id", "output_id_a", "output_id_b", "reviewer",
+    "listened_a", "listened_b", "decision", "blinded", "comment", "created_at",
+    "processing_version"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "type": "string" },
+    "ab_evaluation_id": { "type": "string", "minLength": 1 },
+    "output_id_a": { "type": "string", "minLength": 1 },
+    "output_id_b": { "type": "string", "minLength": 1 },
+    "reviewer": { "type": "string", "minLength": 1 },
+    "listened_a": { "type": "boolean" },
+    "listened_b": { "type": "boolean" },
+    "decision": {
+      "type": "string",
+      "enum": ["PREFER_A", "PREFER_B", "NO_PREFERENCE", "CANNOT_JUDGE"]
+    },
+    "blinded": {
+      "type": "boolean",
+      "description": "UI-level metadata suppression only -- never a claim of true acoustic blindness."
+    },
+    "comment": { "type": ["string", "null"] },
+    "created_at": { "type": "string" },
+    "processing_version": { "type": "string" }
+  }
+}

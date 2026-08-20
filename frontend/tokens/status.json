@@ -175,6 +175,16 @@
         "BLOCKED": "voice.review-required",
         "ERROR": "state.danger"
       }
+    },
+    "evaluation_completion_state": {
+      "description": "Mirrors aarya_voice_lab.pipeline.evaluation.EvaluationCompletionState exactly (VL-D6). Do not add, rename, or remove values here without updating the backend enum and regenerating frontend/contracts/generated/evaluation_completion_state.json.",
+      "states": ["IN_PROGRESS", "COMPLETED", "CANNOT_JUDGE", "ABANDONED"],
+      "color_token": {
+        "IN_PROGRESS": "state.info",
+        "COMPLETED": "state.success",
+        "CANNOT_JUDGE": "text.muted",
+        "ABANDONED": "text.disabled"
+      }
     }
   }
 }

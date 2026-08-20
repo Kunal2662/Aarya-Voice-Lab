@@ -1,0 +1,18 @@
+{
+  "$generated_by": "scripts/export_frontend_contracts.py",
+  "$source": "aarya_voice_lab.pipeline.evaluation.VoiceQualityDimension",
+  "description": "VL-D6's bounded, 11-value human-evaluation dimension vocabulary. Seven names (NATURALNESS/CLARITY/PRONUNCIATION/PROSODY/PACE/ARTIFACTS/OVERALL) are reused verbatim from PreviewFeedbackCategory; Rhythm folds into PROSODY and Stability folds into CONSISTENCY rather than existing as separate values.",
+  "values": [
+    "NATURALNESS",
+    "CLARITY",
+    "INTELLIGIBILITY",
+    "PRONUNCIATION",
+    "PROSODY",
+    "PACE",
+    "EXPRESSIVENESS",
+    "CONSISTENCY",
+    "ARTIFACTS",
+    "NOISE",
+    "OVERALL"
+  ]
+}

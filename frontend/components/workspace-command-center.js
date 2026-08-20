@@ -13,6 +13,7 @@ import "./status-badge.js";
 import "./metric-placeholder.js";
 import "./job-list.js";
 import "./activity-timeline.js";
+import { summarizeCalibrationSignals, outputsWithDisagreement } from "../state/evaluation-model.js";
 
 export class AvlWorkspaceCommandCenter extends AvlElement {
   set services(value) {
@@ -39,6 +40,16 @@ export class AvlWorkspaceCommandCenter extends AvlElement {
     }
     if (this._services.generationQueueStore) {
       this._services.generationQueueStore.addEventListener("change", () => {
+        if (this.isConnected) this._render();
+      });
+    }
+    if (this._services.evaluationStore) {
+      this._services.evaluationStore.addEventListener("change", () => {
+        if (this.isConnected) this._render();
+      });
+    }
+    if (this._services.abEvaluationStore) {
+      this._services.abEvaluationStore.addEventListener("change", () => {
         if (this.isConnected) this._render();
       });
     }
@@ -252,6 +263,47 @@ export class AvlWorkspaceCommandCenter extends AvlElement {
     }
     previewPanel.appendChild(avgPreviewDurationMetric);
 
+    // FEEDBACK/EVALUATION -- overview only (VL-D6, same "overview only"
+    // convention as the Preview panel above; the Feedback workspace owns
+    // the detailed queue/rating/A-B/history/disagreement view). Every
+    // number here comes from evaluationStore/abEvaluationStore directly
+    // -- never fabricated, never a computed calibration score.
+    const feedbackPanel = document.createElement("avl-panel");
+    feedbackPanel.setAttribute("title", "Feedback");
+    const evaluationStore = this._services.evaluationStore || null;
+    const abEvaluationStore = this._services.abEvaluationStore || null;
+    const generationOutputs = this._services.generationQueueStore
+      ? this._services.generationQueueStore.list().filter((i) => i.artifact)
+      : [];
+    const evaluatedOutputIds = evaluationStore ? new Set(evaluationStore.list().map((r) => r.output_id)) : new Set();
+    const unevaluated = generationOutputs.filter((i) => !evaluatedOutputIds.has(i.artifact.preview_id)).length;
+    const signals = evaluationStore
+      ? summarizeCalibrationSignals(evaluationStore)
+      : { total_evaluations: 0, total_reviewers: 0, completed_count: 0, cannot_judge_count: 0 };
+    const disagreementCount = evaluationStore ? outputsWithDisagreement(evaluationStore).length : 0;
+    for (const [label, value] of [
+      ["Unevaluated outputs", unevaluated],
+      ["Total evaluations", signals.total_evaluations],
+      ["Completed", signals.completed_count],
+      ["Cannot judge", signals.cannot_judge_count],
+      ["Reviewers", signals.total_reviewers],
+      ["Disagreement", disagreementCount],
+      ["A/B decisions", abEvaluationStore ? abEvaluationStore.list().length : 0],
+    ]) {
+      const metric = document.createElement("avl-metric-placeholder");
+      metric.setAttribute("label", label);
+      metric.setAttribute("value", String(value));
+      feedbackPanel.appendChild(metric);
+    }
+    const calibrationRow = document.createElement("div");
+    calibrationRow.className = "row";
+    calibrationRow.innerHTML = '<span class="label">Calibration prep</span>';
+    const calibrationBadge = document.createElement("avl-status-badge");
+    calibrationBadge.setAttribute("domain", "calibration");
+    calibrationBadge.setAttribute("state", "UNCALIBRATED");
+    calibrationRow.appendChild(calibrationBadge);
+    feedbackPanel.appendChild(calibrationRow);
+
     grid.append(
       systemPanel,
       pipelinePanel,
@@ -261,6 +313,7 @@ export class AvlWorkspaceCommandCenter extends AvlElement {
       reviewPanel,
       processingPanel,
       previewPanel,
+      feedbackPanel,
     );
     wrapper.appendChild(grid);
     this.shadowRoot.appendChild(wrapper);

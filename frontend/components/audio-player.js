@@ -5,6 +5,13 @@
 // dataset access gate is satisfied. Controls: play, pause, stop, seek,
 // position, duration, volume, playback speed. Never autoplays. Never
 // loops into an automatic queue — one recording, one manual play.
+// Also dispatches `avl-playback-position` (on native timeupdate) and
+// `avl-playback-ended` (on native `ended`) -- both bubbling+composed like
+// `avl-playback-started`, added for VL-D6 so a listen-gated evaluation
+// form outside this shadow root can honestly track furthest playback
+// position reached and whether playback ever completed, without
+// fabricating a "time listened" figure a reviewer could defeat by
+// seeking.
 import { AvlElement, defineComponent } from "./base-element.js";
 import { buildSyntheticToneWavUrl } from "../state/synthetic-tone.js";
 import "./button.js";
@@ -182,9 +189,29 @@ export class AvlAudioPlayer extends AvlElement {
     audio.addEventListener("timeupdate", () => {
       if (audio.duration) seek.value = String((audio.currentTime / audio.duration) * 100);
       time.textContent = `${formatTime(audio.currentTime)} / ${formatTime(audio.duration)}`;
+      this.dispatchEvent(
+        new CustomEvent("avl-playback-position", {
+          detail: {
+            recordingId: this.getAttribute("recording-id") || null,
+            currentTimeSeconds: audio.currentTime,
+            durationSeconds: Number.isFinite(audio.duration) ? audio.duration : null,
+          },
+          bubbles: true,
+          composed: true,
+        }),
+      );
     });
     audio.addEventListener("loadedmetadata", () => {
       time.textContent = `${formatTime(audio.currentTime)} / ${formatTime(audio.duration)}`;
+    });
+    audio.addEventListener("ended", () => {
+      this.dispatchEvent(
+        new CustomEvent("avl-playback-ended", {
+          detail: { recordingId: this.getAttribute("recording-id") || null },
+          bubbles: true,
+          composed: true,
+        }),
+      );
     });
 
     player.append(controls, seek, time, volumeWrap, speedWrap);

@@ -1,0 +1,83 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://aarya-voice-lab/schemas/evaluation.schema.json",
+  "title": "AARYA Voice Lab Human Evaluation Record (VL-D6)",
+  "description": "One reviewer's structured, multi-dimension evaluation of one voice preview output. Append-only -- a second evaluation of the same output_id (same or different reviewer) is a new record, never an edit; that is how reviewer disagreement is represented. No field here can express a speaker characteristic, an accent, a pronunciation match, or a target-speaker label -- output_id/voice_profile_id/model_id are id references only.",
+  "type": "object",
+  "required": [
+    "schema_version", "evaluation_id", "output_id", "reviewer", "listening",
+    "dimension_scores", "cannot_judge_dimensions", "confidence", "completion_state",
+    "comment", "voice_profile_id", "model_id", "config_hash", "output_sha256",
+    "evaluation_version", "supersedes", "created_at", "processing_version"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "type": "string" },
+    "evaluation_id": { "type": "string", "minLength": 1 },
+    "output_id": { "type": "string", "minLength": 1 },
+    "reviewer": { "type": "string", "minLength": 1 },
+    "listening": {
+      "type": "object",
+      "description": "Honest, browser-measurable listening signals only. furthest_position_seconds is the furthest playback position reached, not elapsed listening time -- a reviewer can seek.",
+      "required": ["listened", "first_listened_at", "replay_count", "furthest_position_seconds", "completed_playback"],
+      "additionalProperties": false,
+      "properties": {
+        "listened": { "type": "boolean" },
+        "first_listened_at": { "type": ["string", "null"] },
+        "replay_count": { "type": "integer", "minimum": 0 },
+        "furthest_position_seconds": { "type": ["number", "null"], "minimum": 0 },
+        "completed_playback": { "type": "boolean" }
+      }
+    },
+    "dimension_scores": {
+      "type": "object",
+      "description": "Closed vocabulary -- one integer 1-5 per pipeline.evaluation.VoiceQualityDimension member. A dimension absent here was not scored (never inferred as a default).",
+      "additionalProperties": false,
+      "properties": {
+        "NATURALNESS": { "type": "integer", "minimum": 1, "maximum": 5 },
+        "CLARITY": { "type": "integer", "minimum": 1, "maximum": 5 },
+        "INTELLIGIBILITY": { "type": "integer", "minimum": 1, "maximum": 5 },
+        "PRONUNCIATION": { "type": "integer", "minimum": 1, "maximum": 5 },
+        "PROSODY": { "type": "integer", "minimum": 1, "maximum": 5 },
+        "PACE": { "type": "integer", "minimum": 1, "maximum": 5 },
+        "EXPRESSIVENESS": { "type": "integer", "minimum": 1, "maximum": 5 },
+        "CONSISTENCY": { "type": "integer", "minimum": 1, "maximum": 5 },
+        "ARTIFACTS": { "type": "integer", "minimum": 1, "maximum": 5 },
+        "NOISE": { "type": "integer", "minimum": 1, "maximum": 5 },
+        "OVERALL": { "type": "integer", "minimum": 1, "maximum": 5 }
+      }
+    },
+    "cannot_judge_dimensions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "NATURALNESS", "CLARITY", "INTELLIGIBILITY", "PRONUNCIATION", "PROSODY",
+          "PACE", "EXPRESSIVENESS", "CONSISTENCY", "ARTIFACTS", "NOISE", "OVERALL"
+        ]
+      }
+    },
+    "confidence": {
+      "type": ["integer", "null"],
+      "minimum": 1,
+      "maximum": 5,
+      "description": "The reviewer's own confidence in this evaluation, not a statistical measure."
+    },
+    "completion_state": {
+      "type": "string",
+      "enum": ["IN_PROGRESS", "COMPLETED", "CANNOT_JUDGE", "ABANDONED"]
+    },
+    "comment": { "type": ["string", "null"] },
+    "voice_profile_id": { "type": ["string", "null"] },
+    "model_id": { "type": ["string", "null"] },
+    "config_hash": { "type": ["string", "null"] },
+    "output_sha256": { "type": ["string", "null"] },
+    "evaluation_version": { "type": "integer", "minimum": 1 },
+    "supersedes": {
+      "type": ["string", "null"],
+      "description": "evaluation_id of this reviewer's own prior evaluation of the same output being revised, if any. Never used to merge a different reviewer's record."
+    },
+    "created_at": { "type": "string" },
+    "processing_version": { "type": "string" }
+  }
+}

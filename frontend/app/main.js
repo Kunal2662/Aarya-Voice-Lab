@@ -17,6 +17,7 @@ import "../components/workspace-recordings.js";
 import "../components/workspace-dataset-review.js";
 import "../components/workspace-processing.js";
 import "../components/workspace-preview.js";
+import "../components/workspace-feedback.js";
 import "../components/workspace-pipeline.js";
 import "../components/workspace-voices.js";
 import "../components/workspace-models.js";
@@ -44,6 +45,7 @@ import {
   GenerationStatus,
 } from "../state/generation-model.js";
 import { syntheticGenerationModels } from "../state/synthetic-fixtures.js";
+import { EvaluationStore, ABEvaluationStore, EvaluationCompletionState, ABDecision, summarizeOutputEvaluations } from "../state/evaluation-model.js";
 
 const DESTINATION_META = {
   "command-center": { icon: "◆", label: "Command Center", tag: "avl-workspace-command-center" },
@@ -53,6 +55,7 @@ const DESTINATION_META = {
   review: { icon: "◎", label: "Dataset Review", tag: "avl-workspace-dataset-review" },
   processing: { icon: "▶", label: "Processing", tag: "avl-workspace-processing" },
   preview: { icon: "♬", label: "Preview", tag: "avl-workspace-preview" },
+  feedback: { icon: "★", label: "Feedback", tag: "avl-workspace-feedback" },
   pipeline: { icon: "≋", label: "Pipeline", tag: "avl-workspace-pipeline" },
   voices: { icon: "♪", label: "Voices", tag: "avl-workspace-voices" },
   models: { icon: "▣", label: "Models", tag: "avl-workspace-models" },
@@ -132,6 +135,14 @@ async function main() {
   const previewHistoryStore = new PreviewHistoryStore();
   const previewFeedbackStore = new PreviewFeedbackStore();
 
+  // Same session-only ownership as the stores above -- VL-D6's evaluation
+  // log and A/B decisions must survive navigating away from Feedback and
+  // back. Genuinely separate from previewFeedbackStore: this holds
+  // multi-dimension, multi-reviewer Evaluation/ABEvaluation records, not
+  // identity.preview.PreviewFeedback's single-outcome shape.
+  const evaluationStore = new EvaluationStore();
+  const abEvaluationStore = new ABEvaluationStore();
+
   const services = {
     jobStore,
     activityStore,
@@ -148,6 +159,8 @@ async function main() {
     generationQueueStore,
     previewHistoryStore,
     previewFeedbackStore,
+    evaluationStore,
+    abEvaluationStore,
     router,
   };
 
@@ -283,6 +296,107 @@ async function main() {
         source: ActivitySource.PREVIEW,
         status: "preview_played",
         summary: `Preview played: ${event.detail.recordingId}`,
+      }),
+    );
+    // VL-D6 -- the same physical Play press also means "output listened"
+    // for the evaluation task, when it happened inside an
+    // avl-evaluation-form (composedPath() carries every element the
+    // event crossed, including shadow-boundary ancestors, so this can
+    // tell an evaluation-context play apart from any other player in the
+    // app without avl-voice-player/avl-audio-player needing to know
+    // anything about evaluation at all).
+    if (event.composedPath().some((el) => el.tagName === "AVL-EVALUATION-FORM")) {
+      activityStore.append(
+        createActivityEvent({
+          id: `evaluation-listened-activity-${event.detail.recordingId}-${Date.now()}`,
+          severity: ActivitySeverity.INFO,
+          source: ActivitySource.EVALUATION,
+          status: "output_listened",
+          summary: `Output listened (evaluation): ${event.detail.recordingId}`,
+        }),
+      );
+    }
+  });
+
+  // VL-D6 -- "evaluation started": a reviewer picking an output from the
+  // queue is a real, meaningful state transition (not fabricated) --
+  // avl-evaluation-queue's own "Evaluate" button already dispatches this
+  // bubbling+composed event for the workspace to focus that output; this
+  // listener just also logs it.
+  document.addEventListener("avl-evaluation-select", (event) => {
+    activityStore.append(
+      createActivityEvent({
+        id: `evaluation-started-activity-${event.detail.output.preview_id}-${Date.now()}`,
+        severity: ActivitySeverity.INFO,
+        source: ActivitySource.EVALUATION,
+        status: "evaluation_started",
+        summary: `Evaluation started: ${event.detail.output.preview_id}`,
+      }),
+    );
+  });
+
+  // VL-D6 -- one activity event per evaluation submission (COMPLETED/
+  // CANNOT_JUDGE/ABANDONED -- IN_PROGRESS is never submitted by the UI),
+  // plus a distinct, de-duplicated "disagreement detected" event the
+  // first time an output's evaluations actually meet
+  // pipeline.evaluation_aggregation's own disagreement threshold. Never
+  // logs the comment text itself, only the outcome and dimension scores'
+  // presence/absence.
+  const EVALUATION_COMPLETION_SEVERITY = {
+    [EvaluationCompletionState.COMPLETED]: ActivitySeverity.SUCCESS,
+    [EvaluationCompletionState.CANNOT_JUDGE]: ActivitySeverity.INFO,
+    [EvaluationCompletionState.ABANDONED]: ActivitySeverity.WARNING,
+  };
+  const EVALUATION_COMPLETION_STATUS = {
+    [EvaluationCompletionState.COMPLETED]: "evaluation_completed",
+    [EvaluationCompletionState.CANNOT_JUDGE]: "evaluation_cannot_judge",
+    [EvaluationCompletionState.ABANDONED]: "evaluation_abandoned",
+  };
+  const alreadyAnnouncedDisagreement = new Set();
+  evaluationStore.addEventListener("change", (event) => {
+    const record = event.detail.record;
+    activityStore.append(
+      createActivityEvent({
+        id: `evaluation-activity-${record.evaluation_id}`,
+        severity: EVALUATION_COMPLETION_SEVERITY[record.completion_state] || ActivitySeverity.INFO,
+        source: ActivitySource.EVALUATION,
+        status: EVALUATION_COMPLETION_STATUS[record.completion_state] || "evaluation_submitted",
+        summary: `Evaluation ${(EVALUATION_COMPLETION_STATUS[record.completion_state] || "submitted").replace("evaluation_", "")}: ${record.output_id} (reviewer: ${record.reviewer})`,
+      }),
+    );
+
+    if (alreadyAnnouncedDisagreement.has(record.output_id)) return;
+    const summary = summarizeOutputEvaluations(evaluationStore.evaluationsFor(record.output_id), record.output_id);
+    if (summary.has_disagreement) {
+      alreadyAnnouncedDisagreement.add(record.output_id);
+      activityStore.append(
+        createActivityEvent({
+          id: `evaluation-disagreement-activity-${record.output_id}`,
+          severity: ActivitySeverity.WARNING,
+          source: ActivitySource.EVALUATION,
+          status: "disagreement_detected",
+          summary: `Reviewer disagreement detected: ${record.output_id} (${summary.disagreement_dimensions.join(", ")})`,
+        }),
+      );
+    }
+  });
+
+  // VL-D6 -- one activity event per A/B decision.
+  const AB_DECISION_SEVERITY = {
+    [ABDecision.PREFER_A]: ActivitySeverity.SUCCESS,
+    [ABDecision.PREFER_B]: ActivitySeverity.SUCCESS,
+    [ABDecision.NO_PREFERENCE]: ActivitySeverity.INFO,
+    [ABDecision.CANNOT_JUDGE]: ActivitySeverity.INFO,
+  };
+  abEvaluationStore.addEventListener("change", (event) => {
+    const record = event.detail.record;
+    activityStore.append(
+      createActivityEvent({
+        id: `ab-evaluation-activity-${record.ab_evaluation_id}`,
+        severity: AB_DECISION_SEVERITY[record.decision] || ActivitySeverity.INFO,
+        source: ActivitySource.EVALUATION,
+        status: "ab_decision_submitted",
+        summary: `A/B decision recorded: ${record.decision} (${record.output_id_a} vs ${record.output_id_b})`,
       }),
     );
   });
