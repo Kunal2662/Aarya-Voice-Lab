@@ -16,9 +16,33 @@ function applyTheme(preference) {
   }
 }
 
+// VL-D9 -- a real browser can have a localStorage object that exists but
+// throws on every use (private browsing in some engines, storage
+// disabled by policy). This was never guarded before VL-D9's
+// persistence-unavailable testing surfaced it; the fix follows the same
+// honest-degradation rule state/session-persistence.js established: a
+// storage failure falls back to the safe default, it never crashes the
+// UI that touched it.
+function readStoredTheme() {
+  try {
+    return localStorage.getItem(STORAGE_KEY) || "system";
+  } catch {
+    return "system";
+  }
+}
+
+function writeStoredTheme(preference) {
+  try {
+    localStorage.setItem(STORAGE_KEY, preference);
+  } catch {
+    // Storage unavailable -- the in-memory preference for this page load
+    // still applies via applyTheme(), it just won't survive a reload.
+  }
+}
+
 export class AvlThemeToggle extends AvlElement {
   connectedCallback() {
-    this._preference = localStorage.getItem(STORAGE_KEY) || "system";
+    this._preference = readStoredTheme();
     applyTheme(this._preference);
     this._render();
   }
@@ -48,7 +72,7 @@ export class AvlThemeToggle extends AvlElement {
     button.addEventListener("click", () => {
       const next = ORDER[(ORDER.indexOf(this._preference) + 1) % ORDER.length];
       this._preference = next;
-      localStorage.setItem(STORAGE_KEY, next);
+      writeStoredTheme(next);
       applyTheme(next);
       button.textContent = `Theme: ${next}`;
       button.setAttribute("aria-label", `Theme preference, currently ${next}. Activate to change.`);

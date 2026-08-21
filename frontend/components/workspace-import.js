@@ -64,7 +64,7 @@ export class AvlWorkspaceImport extends AvlElement {
   }
 
   _onItemChange(item) {
-    if (!TERMINAL.has(item.status) || this._seenTerminal.has(item.itemId)) return;
+    if (!item || !TERMINAL.has(item.status) || this._seenTerminal.has(item.itemId)) return;
     this._seenTerminal.add(item.itemId);
     const activityStore = this._services.activityStore;
     if (!activityStore) return;

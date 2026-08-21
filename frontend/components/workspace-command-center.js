@@ -14,6 +14,7 @@ import "./metric-placeholder.js";
 import "./job-list.js";
 import "./activity-timeline.js";
 import { summarizeCalibrationSignals, outputsWithDisagreement } from "../state/evaluation-model.js";
+import { hasAnySessionData } from "../state/session-persistence.js";
 
 export class AvlWorkspaceCommandCenter extends AvlElement {
   set services(value) {
@@ -106,7 +107,10 @@ export class AvlWorkspaceCommandCenter extends AvlElement {
       ["Core", "core", "ready"],
       ["Runtime", "hardware", "UNKNOWN"],
       ["Hardware", "hardware", "UNKNOWN"],
-      ["Storage", "core", "ready"],
+      // VL-D9 -- honest local-persistence state, never a fabricated
+      // "ready": reflects whether localStorage was actually usable this
+      // session (see state/session-persistence.js's isPersistenceAvailable()).
+      ["Storage", "core", this._services.session?.available ? "ready" : "offline"],
       ["Claude", "core", this._services.executor?.available() ? "ready" : "offline"],
     ]) {
       const row = document.createElement("div");
@@ -369,6 +373,33 @@ export class AvlWorkspaceCommandCenter extends AvlElement {
       calibrationPanel.appendChild(metric);
     }
 
+    // SESSION -- VL-D9 overview: honest local-persistence status, never
+    // "cloud sync" language. `available` reflects whether localStorage
+    // itself could be used this session; `hasAnySessionData()` re-reads
+    // localStorage live on every render, so "Session data saved" tracks
+    // the real current state after each automatic save, not a cached
+    // guess.
+    const sessionPanel = document.createElement("avl-panel");
+    sessionPanel.setAttribute("title", "Session");
+    const session = this._services.session || {};
+    const sessionStatusRow = document.createElement("div");
+    sessionStatusRow.className = "row";
+    const sessionLabel = document.createElement("span");
+    sessionLabel.textContent = "Local persistence";
+    const sessionBadge = document.createElement("avl-status-badge");
+    sessionBadge.setAttribute("domain", "core");
+    sessionBadge.setAttribute("state", session.available ? "ready" : "offline");
+    sessionStatusRow.append(sessionLabel, sessionBadge);
+    sessionPanel.appendChild(sessionStatusRow);
+    const sessionDataMetric = document.createElement("avl-metric-placeholder");
+    sessionDataMetric.setAttribute("label", "Session data saved");
+    sessionDataMetric.setAttribute("value", session.available && hasAnySessionData() ? "yes" : "no");
+    sessionPanel.appendChild(sessionDataMetric);
+    const sessionRestoredMetric = document.createElement("avl-metric-placeholder");
+    sessionRestoredMetric.setAttribute("label", "Restored this load");
+    sessionRestoredMetric.setAttribute("value", session.wasRestored ? "yes" : "no");
+    sessionPanel.appendChild(sessionRestoredMetric);
+
     grid.append(
       systemPanel,
       pipelinePanel,
@@ -380,6 +411,7 @@ export class AvlWorkspaceCommandCenter extends AvlElement {
       previewPanel,
       feedbackPanel,
       calibrationPanel,
+      sessionPanel,
     );
     wrapper.appendChild(grid);
     this.shadowRoot.appendChild(wrapper);

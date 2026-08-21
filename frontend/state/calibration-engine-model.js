@@ -479,7 +479,72 @@ export class CalibrationProfileStore extends EventTarget {
     return [...this._records];
   }
 
+  /** VL-D9 -- restores a previously exportCalibrationPlan()'d append-only
+   * profile history verbatim. Every field a CalibrationProfile record
+   * carries was already reviewed as calibration-engine bookkeeping only
+   * (see docs/VLD8_CALIBRATION_APPLICATION.md's security boundary):
+   * hardware_snapshot has no GPU product name, no speaker field
+   * anywhere, agreement_rate is a real computed ratio, never a
+   * fabricated confidence score. This is a pure restore of
+   * already-computed history, never a re-run of run()/applyAdjustment()/
+   * validateCalibration() -- restoring a VALIDATED record does not
+   * re-measure anything, exactly as the append-only backend log never
+   * re-derives a past record. A record missing profile_id/profile_version
+   * or carrying an unknown run_state/application_state is dropped.
+   * Also advances the module-level profile-id counter so a fresh
+   * run()/applyAdjustment()/rollback() call after hydration can never
+   * mint a profile_id that collides with a restored one. */
+  hydrate(plan) {
+    if (!plan || !Array.isArray(plan.calibration_profiles)) return false;
+    const restored = plan.calibration_profiles
+      .filter(
+        (r) =>
+          r &&
+          typeof r.profile_id === "string" &&
+          typeof r.profile_version === "number" &&
+          Object.values(CalibrationRunState).includes(r.run_state) &&
+          Object.values(ApplicationState).includes(r.application_state),
+      )
+      .map((r) => ({ ...r }));
+    if (!restored.length) return false;
+    this._records = restored;
+
+    let maxCounter = 0;
+    for (const record of restored) {
+      const match = /^cal-profile-(\d+)$/.exec(record.profile_id);
+      if (match) maxCounter = Math.max(maxCounter, parseInt(match[1], 10));
+    }
+    if (maxCounter > _profileCounter) _profileCounter = maxCounter;
+    return true;
+  }
+
+  /** VL-D9 -- clears this store's profile history in place (same object
+   * identity, so existing listeners/service references stay valid) and
+   * announces a detail-less "change" so mounted UI re-renders
+   * immediately. Backs the explicit "Clear session data" control -- never
+   * called automatically. */
+  reset() {
+    this._records = [];
+    this.dispatchEvent(new CustomEvent("change", { detail: {} }));
+  }
+
   _announce(record) {
     this.dispatchEvent(new CustomEvent("change", { detail: { record } }));
   }
+}
+
+/** VL-D9 -- the calibration store's missing export function, added
+ * following the same convention as VL-D2-D6's exportXPlan() functions:
+ * `history()` already returns the exact backend-shaped
+ * CalibrationProfile records (see run()/applyAdjustment()/
+ * validateCalibration()/rollback() above), so this wraps that append-only
+ * log the same way exportReviewPlan()/exportProcessingPlan()/
+ * exportGenerationPlan()/exportEvaluationPlan() wrap theirs -- never a
+ * second, divergent serialization format. */
+export function exportCalibrationPlan(store) {
+  return {
+    is_synthetic: true,
+    generated_by: "frontend client-side calibration engine (session-only, not authoritative)",
+    calibration_profiles: store.history(),
+  };
 }

@@ -93,6 +93,46 @@ export class CandidateReviewStore extends EventTarget {
     }
     return [...bySegment.values()].filter((decisions) => decisions.size > 1).length;
   }
+
+  /** VL-D9 -- restores a previously-exported, already-validated review
+   * history verbatim (see exportReviewPlan()). Every field here was
+   * already reviewed as safe: reviewer is an operator label, not a
+   * speaker identity; notes/comment are free text the operator typed
+   * about a *segment decision*, never audio or a speaker attribute. Any
+   * individual record missing reviewId/segmentId or carrying an unknown
+   * decision/reasonCode is dropped rather than restored -- a malformed
+   * entry is excluded, not guessed at. Replaces (never merges with) the
+   * in-memory history; only ever called once, at startup, before the
+   * user records a new decision (see app/main.js). Returns true only if
+   * at least one record was restored. */
+  hydrate(records) {
+    if (!Array.isArray(records)) return false;
+    const restored = records
+      .filter(
+        (r) =>
+          r &&
+          typeof r.reviewId === "string" &&
+          typeof r.segmentId === "string" &&
+          Object.values(CandidateReviewDecision).includes(r.decision) &&
+          Object.values(CandidateReviewReason).includes(r.reasonCode),
+      )
+      .map((r) => ({ ...r }));
+    if (!restored.length) return false;
+    this._records = restored;
+    const maxCounter = Math.max(0, ...restored.map((r) => parseInt((r.reviewId || "").split("-")[1] || "0", 10) || 0));
+    if (maxCounter > _reviewCounter) _reviewCounter = maxCounter;
+    return true;
+  }
+
+  /** VL-D9 -- clears this store's in-memory history in place (same
+   * object identity, so existing listeners/service references stay
+   * valid) and announces a detail-less "change" so mounted UI re-renders
+   * immediately. Backs the explicit "Clear session data" control (see
+   * components/workspace-settings.js) -- never called automatically. */
+  reset() {
+    this._records = [];
+    this.dispatchEvent(new CustomEvent("change", { detail: {} }));
+  }
 }
 
 export class FeedbackStore extends EventTarget {
@@ -133,6 +173,38 @@ export class FeedbackStore extends EventTarget {
     for (const record of this._records) counts[record.feedbackType] += 1;
     return counts;
   }
+
+  /** VL-D9 -- see CandidateReviewStore.hydrate() above for the general
+   * pattern. `attributes` is restored as-is: it is a small,
+   * caller-supplied key/value bag already scoped to review/quality
+   * feedback (see components that call FeedbackStore.record()), never a
+   * place secrets, paths, or speaker fields have ever been put. */
+  hydrate(records) {
+    if (!Array.isArray(records)) return false;
+    const restored = records
+      .filter(
+        (r) =>
+          r &&
+          typeof r.feedbackId === "string" &&
+          typeof r.targetId === "string" &&
+          Object.values(FeedbackType).includes(r.feedbackType),
+      )
+      .map((r) => ({ ...r }));
+    if (!restored.length) return false;
+    this._records = restored;
+    const maxCounter = Math.max(
+      0,
+      ...restored.map((r) => parseInt((r.feedbackId || "").split("-")[1] || "0", 10) || 0),
+    );
+    if (maxCounter > _feedbackCounter) _feedbackCounter = maxCounter;
+    return true;
+  }
+
+  /** VL-D9 -- see CandidateReviewStore.reset() above. */
+  reset() {
+    this._records = [];
+    this.dispatchEvent(new CustomEvent("change", { detail: {} }));
+  }
 }
 
 export function exportReviewPlan(reviewStore, feedbackStore) {
@@ -142,4 +214,13 @@ export function exportReviewPlan(reviewStore, feedbackStore) {
     review_decisions: reviewStore.all(),
     feedback: feedbackStore.all(),
   };
+}
+
+/** VL-D9 -- restores both stores from a previously exportReviewPlan()'d
+ * payload. Returns true if either store restored at least one record. */
+export function hydrateReviewPlan(reviewStore, feedbackStore, plan) {
+  if (!plan || typeof plan !== "object") return false;
+  const a = reviewStore.hydrate(plan.review_decisions);
+  const b = feedbackStore.hydrate(plan.feedback);
+  return a || b;
 }

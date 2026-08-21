@@ -32,10 +32,17 @@ import { JobStore } from "../state/job-model.js";
 import { ActivityStore } from "../state/activity-model.js";
 import { NullCommandExecutor } from "../state/command-executor.js";
 import { syntheticJobs, syntheticActivity } from "../state/synthetic-fixtures.js";
-import { ImportQueue } from "../state/import-engine.js";
-import { CandidateReviewStore, FeedbackStore } from "../state/review-model.js";
+import { ImportQueue, exportImportPlan } from "../state/import-engine.js";
+import { CandidateReviewStore, FeedbackStore, exportReviewPlan, hydrateReviewPlan } from "../state/review-model.js";
 import { createActivityEvent, ActivitySource, ActivitySeverity } from "../state/activity-model.js";
-import { ProcessingQueueStore, ProcessingProfileStore, ProcessingHistoryStore, ProcessingStatus } from "../state/processing-model.js";
+import {
+  ProcessingQueueStore,
+  ProcessingProfileStore,
+  ProcessingHistoryStore,
+  ProcessingStatus,
+  exportProcessingPlan,
+  hydrateProcessingPlan,
+} from "../state/processing-model.js";
 import {
   GenerationQueueStore,
   VoiceProfileStore,
@@ -43,10 +50,21 @@ import {
   PreviewHistoryStore,
   PreviewFeedbackStore,
   GenerationStatus,
+  exportGenerationPlan,
+  hydrateGenerationPlan,
 } from "../state/generation-model.js";
 import { syntheticGenerationModels } from "../state/synthetic-fixtures.js";
-import { EvaluationStore, ABEvaluationStore, EvaluationCompletionState, ABDecision, summarizeOutputEvaluations } from "../state/evaluation-model.js";
-import { CalibrationProfileStore } from "../state/calibration-engine-model.js";
+import {
+  EvaluationStore,
+  ABEvaluationStore,
+  EvaluationCompletionState,
+  ABDecision,
+  summarizeOutputEvaluations,
+  exportEvaluationPlan,
+  hydrateEvaluationPlan,
+} from "../state/evaluation-model.js";
+import { CalibrationProfileStore, exportCalibrationPlan } from "../state/calibration-engine-model.js";
+import { SessionPersistence, SessionNamespace, isPersistenceAvailable, clearAllSessionData } from "../state/session-persistence.js";
 
 const DESTINATION_META = {
   "command-center": { icon: "◆", label: "Command Center", tag: "avl-workspace-command-center" },
@@ -150,6 +168,57 @@ async function main() {
   // processingHistoryStore's rollback pattern.
   const calibrationStore = new CalibrationProfileStore();
 
+  // ------------------------------------------------------------------
+  // VL-D9 -- Local session persistence. Required sequence: every store
+  // above has just initialized with fresh (empty/default) in-memory
+  // state -> the persistence layer initializes here -> persisted state
+  // loads from localStorage -> stores hydrate from it, still before any
+  // UI element exists or any "change" listener is attached -> the shell
+  // is built and mountWorkspace() (further below) is what actually
+  // renders the now-restored state -> only after all of that does this
+  // function attach the normal state-change listeners (the Activity
+  // wiring below, and the auto-save listeners appended right after it),
+  // so restoring a session can never itself fire an Activity event or an
+  // immediate redundant save. See docs/VLD9_SESSION_PERSISTENCE.md.
+  // ------------------------------------------------------------------
+  const persistenceAvailable = isPersistenceAvailable();
+  const importPersistence = new SessionPersistence(SessionNamespace.IMPORT);
+  const reviewPersistence = new SessionPersistence(SessionNamespace.REVIEW);
+  const processingPersistence = new SessionPersistence(SessionNamespace.PROCESSING);
+  const generationPersistence = new SessionPersistence(SessionNamespace.GENERATION);
+  const evaluationPersistence = new SessionPersistence(SessionNamespace.EVALUATION);
+  const calibrationPersistence = new SessionPersistence(SessionNamespace.CALIBRATION);
+
+  let sessionWasRestored = false;
+  if (persistenceAvailable) {
+    const importPlan = importPersistence.load();
+    if (importPlan && importQueue.hydrate(importPlan)) sessionWasRestored = true;
+
+    const reviewPlan = reviewPersistence.load();
+    if (reviewPlan && hydrateReviewPlan(reviewStore, feedbackStore, reviewPlan)) sessionWasRestored = true;
+
+    const processingPlan = processingPersistence.load();
+    if (processingPlan && hydrateProcessingPlan(processingQueueStore, processingHistoryStore, processingPlan)) {
+      sessionWasRestored = true;
+    }
+
+    const generationPlan = generationPersistence.load();
+    if (
+      generationPlan &&
+      hydrateGenerationPlan(generationQueueStore, previewHistoryStore, previewFeedbackStore, generationPlan)
+    ) {
+      sessionWasRestored = true;
+    }
+
+    const evaluationPlan = evaluationPersistence.load();
+    if (evaluationPlan && hydrateEvaluationPlan(evaluationStore, abEvaluationStore, evaluationPlan)) {
+      sessionWasRestored = true;
+    }
+
+    const calibrationPlan = calibrationPersistence.load();
+    if (calibrationPlan && calibrationStore.hydrate(calibrationPlan)) sessionWasRestored = true;
+  }
+
   const services = {
     jobStore,
     activityStore,
@@ -170,6 +239,14 @@ async function main() {
     abEvaluationStore,
     calibrationStore,
     router,
+    // VL-D9 -- exposed so avl-workspace-settings can render honest
+    // availability/status and offer the explicit "Clear session data"
+    // control without needing to know about every individual store.
+    session: {
+      available: persistenceAvailable,
+      wasRestored: sessionWasRestored,
+      clear: () => clearSessionData(),
+    },
   };
 
   // VL-D3 §23 — a technical review decision is itself an activity event
@@ -185,6 +262,7 @@ async function main() {
   };
   reviewStore.addEventListener("change", (event) => {
     const record = event.detail.record;
+    if (!record) return; // VL-D9 -- reset()/hydrate() dispatch a detail-less change; not a new decision to log.
     activityStore.append(
       createActivityEvent({
         id: `review-activity-${record.reviewId}`,
@@ -208,6 +286,7 @@ async function main() {
   let lastAnnouncedProcessingStatus = new Map();
   processingQueueStore.addEventListener("change", (event) => {
     const item = event.detail.item;
+    if (!item) return; // VL-D9 -- reset() dispatches a detail-less change.
     if (lastAnnouncedProcessingStatus.get(item.itemId) === item.status) return;
     lastAnnouncedProcessingStatus.set(item.itemId, item.status);
     activityStore.append(
@@ -222,7 +301,7 @@ async function main() {
   });
   processingProfileStore.addEventListener("change", (event) => {
     const profile = event.detail.profile;
-    if (!profile) return;
+    if (!profile) return; // also covers VL-D9's reset() detail-less change.
     activityStore.append(
       createActivityEvent({
         id: `processing-profile-activity-${profile.profileId}`,
@@ -249,6 +328,7 @@ async function main() {
   const lastAnnouncedGenerationStatus = new Map();
   generationQueueStore.addEventListener("change", (event) => {
     const item = event.detail.item;
+    if (!item) return; // VL-D9 -- reset() dispatches a detail-less change.
     if (lastAnnouncedGenerationStatus.get(item.item_id) === item.status) return;
     lastAnnouncedGenerationStatus.set(item.item_id, item.status);
     activityStore.append(
@@ -279,6 +359,7 @@ async function main() {
   };
   previewFeedbackStore.addEventListener("change", (event) => {
     const record = event.detail.record;
+    if (!record) return; // VL-D9 -- reset() dispatches a detail-less change.
     activityStore.append(
       createActivityEvent({
         id: `preview-feedback-activity-${record.feedback_id}`,
@@ -363,6 +444,7 @@ async function main() {
   const alreadyAnnouncedDisagreement = new Set();
   evaluationStore.addEventListener("change", (event) => {
     const record = event.detail.record;
+    if (!record) return; // VL-D9 -- reset() dispatches a detail-less change.
     activityStore.append(
       createActivityEvent({
         id: `evaluation-activity-${record.evaluation_id}`,
@@ -398,6 +480,7 @@ async function main() {
   };
   abEvaluationStore.addEventListener("change", (event) => {
     const record = event.detail.record;
+    if (!record) return; // VL-D9 -- reset() dispatches a detail-less change.
     activityStore.append(
       createActivityEvent({
         id: `ab-evaluation-activity-${record.ab_evaluation_id}`,
@@ -417,6 +500,7 @@ async function main() {
   // application_state (never inferred or fabricated).
   calibrationStore.addEventListener("change", (event) => {
     const record = event.detail.record;
+    if (!record) return; // VL-D9 -- reset() dispatches a detail-less change.
     let status;
     let summary;
     if (record.is_rollback) {
@@ -444,6 +528,95 @@ async function main() {
       }),
     );
   });
+
+  // VL-D9 -- automatic save: wired to each domain's own store(s), added
+  // only after every listener above (hydration already happened before
+  // any listener in this function was attached, so this cannot loop back
+  // into hydrate()). Only wired when persistence is actually available;
+  // if it isn't, the app still works exactly as every prior phase did,
+  // purely in-memory. A save failure (quota exceeded mid-session) is
+  // silently absorbed by SessionPersistence.save()'s own honest `false`
+  // return -- it never throws, so it can never break the state change
+  // that triggered it.
+  if (persistenceAvailable) {
+    const saveImport = () => importPersistence.save(exportImportPlan(importQueue));
+    const saveReview = () => reviewPersistence.save(exportReviewPlan(reviewStore, feedbackStore));
+    const saveProcessing = () =>
+      processingPersistence.save(exportProcessingPlan(processingQueueStore, processingHistoryStore));
+    const saveGeneration = () =>
+      generationPersistence.save(exportGenerationPlan(generationQueueStore, previewHistoryStore, previewFeedbackStore));
+    const saveEvaluation = () => evaluationPersistence.save(exportEvaluationPlan(evaluationStore, abEvaluationStore));
+    const saveCalibration = () => calibrationPersistence.save(exportCalibrationPlan(calibrationStore));
+
+    importQueue.addEventListener("change", saveImport);
+    reviewStore.addEventListener("change", saveReview);
+    feedbackStore.addEventListener("change", saveReview);
+    processingQueueStore.addEventListener("change", saveProcessing);
+    processingHistoryStore.addEventListener("change", saveProcessing);
+    generationQueueStore.addEventListener("change", saveGeneration);
+    previewHistoryStore.addEventListener("change", saveGeneration);
+    previewFeedbackStore.addEventListener("change", saveGeneration);
+    evaluationStore.addEventListener("change", saveEvaluation);
+    abEvaluationStore.addEventListener("change", saveEvaluation);
+    calibrationStore.addEventListener("change", saveCalibration);
+  }
+
+  /** VL-D9 -- backs services.session.clear() / the "Clear session data"
+   * control in avl-workspace-settings. Clears every namespace this app
+   * owns (and nothing else -- see clearAllSessionData()), resets each
+   * in-memory store in place (so mounted UI reflects the clear
+   * immediately via each store's own "change" event), and produces
+   * exactly one Activity event. Never called automatically. */
+  function clearSessionData() {
+    clearAllSessionData();
+    importQueue.reset();
+    reviewStore.reset();
+    feedbackStore.reset();
+    processingQueueStore.reset();
+    processingHistoryStore.reset();
+    generationQueueStore.reset();
+    previewHistoryStore.reset();
+    previewFeedbackStore.reset();
+    evaluationStore.reset();
+    abEvaluationStore.reset();
+    calibrationStore.reset();
+    activityStore.append(
+      createActivityEvent({
+        id: `session-cleared-activity-${Date.now()}`,
+        severity: ActivitySeverity.INFO,
+        source: ActivitySource.SYSTEM,
+        status: "session_data_cleared",
+        summary: "Session data cleared: all locally persisted state removed from this browser.",
+      }),
+    );
+  }
+
+  // VL-D9 -- one honest startup Activity event: "Session restored" only
+  // when hydrate() actually restored something (never fabricated), or
+  // "Persistence unavailable" when localStorage itself could not be used
+  // this session (private browsing, storage disabled, etc.) -- never
+  // both, and never a "cloud sync" word anywhere in either summary.
+  if (!persistenceAvailable) {
+    activityStore.append(
+      createActivityEvent({
+        id: `session-persistence-unavailable-activity-${Date.now()}`,
+        severity: ActivitySeverity.WARNING,
+        source: ActivitySource.SYSTEM,
+        status: "persistence_unavailable",
+        summary: "Persistence unavailable: this browser session's state will not be saved locally.",
+      }),
+    );
+  } else if (sessionWasRestored) {
+    activityStore.append(
+      createActivityEvent({
+        id: `session-restored-activity-${Date.now()}`,
+        severity: ActivitySeverity.INFO,
+        source: ActivitySource.SYSTEM,
+        status: "session_restored",
+        summary: "Session restored: prior local session state was loaded from this browser.",
+      }),
+    );
+  }
 
   const shell = document.createElement("avl-app-shell");
   shell.id = "shell";

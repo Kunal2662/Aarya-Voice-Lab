@@ -52,6 +52,24 @@ export const ImportItemStatus = Object.freeze({
 
 const RETRYABLE_STATUSES = new Set([ImportItemStatus.FAILED, ImportItemStatus.INVALID, ImportItemStatus.BLOCKED]);
 
+// VL-D9 -- items in one of these statuses are the only ones safe/useful
+// to persist and restore. QUEUED/SCANNING/HASHING/VALIDATING items are
+// mid-flight (an active _processOne() await chain over a live File
+// object) and cannot be resumed after a reload regardless of storage
+// design -- a browser File object cannot survive JSON serialization, so
+// restoring an in-flight item would only freeze a spinner on screen
+// forever. See ImportQueue.hydrate() below and
+// docs/VLD9_SESSION_PERSISTENCE.md.
+const TERMINAL_IMPORT_STATUSES = new Set([
+  ImportItemStatus.ACCEPTED,
+  ImportItemStatus.WARNING,
+  ImportItemStatus.INVALID,
+  ImportItemStatus.BLOCKED,
+  ImportItemStatus.DUPLICATE,
+  ImportItemStatus.FAILED,
+  ImportItemStatus.CANCELLED,
+]);
+
 const HEADER_BYTES = 16;
 
 // Ported 1:1 from audio/filetype.py's ContainerFormat + _identify(). Any
@@ -157,6 +175,14 @@ export class ImportQueue extends EventTarget {
   async retry(itemId) {
     const item = this.items.get(itemId);
     if (!item || !RETRYABLE_STATUSES.has(item.status)) return false;
+    if (!this._files.has(itemId)) {
+      // A restored item (see hydrate()) has no backing File -- a browser
+      // File object cannot survive a page reload, so this is an honest
+      // refusal, not a fabricated retry.
+      item.errors.push("cannot retry a restored item — the original file is not available after a session reload");
+      this._emit(item);
+      return false;
+    }
     item.status = ImportItemStatus.QUEUED;
     item.errors = [];
     item.warnings = [];
@@ -248,6 +274,61 @@ export class ImportQueue extends EventTarget {
     const counts = Object.fromEntries(Object.values(ImportItemStatus).map((s) => [s, 0]));
     for (const item of this.items.values()) counts[item.status] += 1;
     return counts;
+  }
+
+  /** VL-D9 -- restores a previously exportImportPlan()'d payload as a
+   * read-only validation summary: original_filename (a browser-exposed
+   * basename only -- the File API never exposes a full local filesystem
+   * path, so this is not the banned "arbitrary filesystem path"),
+   * declared_extension, size_bytes, detected_container, sha256,
+   * content_id, status, warnings, errors, duplicate_of. Only items in a
+   * terminal status are restored (see TERMINAL_IMPORT_STATUSES above);
+   * an item missing item_id or in a non-terminal status is dropped.
+   * Restored items carry no backing File (`this._files` stays empty for
+   * them), so retry()/processAll() correctly refuse to act on them
+   * rather than throwing. Also restores batch_id/source when present, so
+   * the restored queue still identifies which batch it summarizes.
+   * Returns true only if at least one item was restored. */
+  hydrate(plan) {
+    if (!plan || !Array.isArray(plan.items)) return false;
+    const restored = plan.items.filter(
+      (raw) => raw && typeof raw.item_id === "string" && TERMINAL_IMPORT_STATUSES.has(raw.status),
+    );
+    if (!restored.length) return false;
+
+    this.items.clear();
+    this._files.clear();
+    if (typeof plan.batch_id === "string") this.batchId = plan.batch_id;
+    if (typeof plan.source === "string") this.source = plan.source;
+
+    for (const raw of restored) {
+      const item = {
+        itemId: raw.item_id,
+        originalFilename: typeof raw.original_filename === "string" ? raw.original_filename : null,
+        declaredExtension: typeof raw.declared_extension === "string" ? raw.declared_extension : null,
+        sizeBytes: typeof raw.size_bytes === "number" ? raw.size_bytes : null,
+        detectedContainer: typeof raw.detected_container === "string" ? raw.detected_container : null,
+        sha256: typeof raw.sha256 === "string" ? raw.sha256 : null,
+        contentId: typeof raw.content_id === "string" ? raw.content_id : null,
+        status: raw.status,
+        warnings: Array.isArray(raw.warnings) ? [...raw.warnings] : [],
+        errors: Array.isArray(raw.errors) ? [...raw.errors] : [],
+        duplicateOf: typeof raw.duplicate_of === "string" ? raw.duplicate_of : null,
+        restored: true,
+      };
+      this.items.set(item.itemId, item);
+    }
+    return true;
+  }
+
+  /** VL-D9 -- clears this queue in place (same object identity) and
+   * announces a detail-less "change" so mounted UI re-renders
+   * immediately. Backs the explicit "Clear session data" control -- never
+   * called automatically. */
+  reset() {
+    this.items.clear();
+    this._files.clear();
+    this.dispatchEvent(new CustomEvent("change", { detail: {} }));
   }
 }
 

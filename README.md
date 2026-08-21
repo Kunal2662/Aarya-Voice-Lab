@@ -171,6 +171,7 @@ No test uses, references, or requires the real recordings.
 | [VLD6_VOICE_FEEDBACK.md](docs/VLD6_VOICE_FEEDBACK.md) | VL-D6 voice feedback & human evaluation: dimension scoring, listening state, multi-reviewer disagreement, A/B evaluation, calibration-prep boundary, Feedback UI |
 | [VLD7_AI_CALIBRATION.md](docs/VLD7_AI_CALIBRATION.md) | VL-D7 AI Calibration Engine: run-state vs evidence-state, hardware snapshot, bounded parameter adjustments, versioned profiles, rollback, Calibration UI |
 | [VLD8_CALIBRATION_APPLICATION.md](docs/VLD8_CALIBRATION_APPLICATION.md) | VL-D8 Calibration Application & Validation Loop: application_state axis, bounded generation-queue concurrency, real before/after batch-count measurement, honest NOT_MEASURABLE |
+| [VLD9_SESSION_PERSISTENCE.md](docs/VLD9_SESSION_PERSISTENCE.md) | VL-D9 Local Session Persistence: versioned localStorage envelopes, per-store hydrate()/export, excluded-field safety review, automatic save, explicit Clear session data, honest persistence indicators |
 | [TOOLCHAIN.md](docs/TOOLCHAIN.md) | Provider abstraction & candidate tools |
 | [MODEL_STRATEGY.md](docs/MODEL_STRATEGY.md) | Model registry, experiments, TTS candidates |
 | [BENCHMARKING.md](docs/BENCHMARKING.md) | Voice quality benchmark framework |

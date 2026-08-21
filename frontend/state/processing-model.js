@@ -254,6 +254,37 @@ export class ProcessingQueueStore extends EventTarget {
     return counts;
   }
 
+  /** VL-D9 -- restores only items in a *terminal* status
+   * (isTerminalProcessingStatus). An item still QUEUED/PREPARING/
+   * PROCESSING/QUALITY_CHECK reflects an async replay
+   * (processOne()/setTimeout chain) that no longer exists after a page
+   * reload -- restoring it would freeze a spinner on screen forever and
+   * imply work is still happening when it isn't. This is a documented
+   * exclusion, not an oversight: see docs/VLD9_SESSION_PERSISTENCE.md.
+   * Non-terminal items and any item missing itemId/recordingId are
+   * dropped. Returns true only if at least one item was restored. */
+  hydrate(items) {
+    if (!Array.isArray(items)) return false;
+    const restored = items
+      .filter(
+        (i) => i && typeof i.itemId === "string" && typeof i.recordingId === "string" && isTerminalProcessingStatus(i.status),
+      )
+      .map((i) => ({ ...i }));
+    if (!restored.length) return false;
+    this._items = restored;
+    const maxCounter = Math.max(0, ...restored.map((i) => parseInt((i.itemId || "").split("-").pop() || "0", 10) || 0));
+    if (maxCounter > _itemCounter) _itemCounter = maxCounter;
+    return true;
+  }
+
+  /** VL-D9 -- clears this store's queue in place (same object identity)
+   * and announces a detail-less "change" so mounted UI re-renders
+   * immediately. Backs the explicit "Clear session data" control. */
+  reset() {
+    this._items = [];
+    this.dispatchEvent(new CustomEvent("change", { detail: {} }));
+  }
+
   _announce(item) {
     this.dispatchEvent(new CustomEvent("change", { detail: { item } }));
   }
@@ -323,6 +354,31 @@ export class ProcessingHistoryStore extends EventTarget {
     return [...this._records];
   }
 
+  /** VL-D9 -- append-only history records are always terminal by
+   * construction (record() is only ever called with a finished item), so
+   * every well-shaped record here is restored -- no status filter
+   * needed. A record missing recordId/recordingId is dropped. */
+  hydrate(records) {
+    if (!Array.isArray(records)) return false;
+    const restored = records
+      .filter((r) => r && typeof r.recordId === "string" && typeof r.recordingId === "string")
+      .map((r) => ({ ...r }));
+    if (!restored.length) return false;
+    this._records = restored;
+    const maxCounter = Math.max(
+      0,
+      ...restored.map((r) => parseInt((r.recordId || "").split("-").pop() || "0", 10) || 0),
+    );
+    if (maxCounter > _historyCounter) _historyCounter = maxCounter;
+    return true;
+  }
+
+  /** VL-D9 -- see ProcessingQueueStore.reset() above. */
+  reset() {
+    this._records = [];
+    this.dispatchEvent(new CustomEvent("change", { detail: {} }));
+  }
+
   _announce(record) {
     this.dispatchEvent(new CustomEvent("change", { detail: { record } }));
   }
@@ -335,4 +391,13 @@ export function exportProcessingPlan(queueStore, historyStore) {
     processing_items: queueStore.list(),
     processing_history: historyStore.all(),
   };
+}
+
+/** VL-D9 -- restores both stores from a previously exportProcessingPlan()'d
+ * payload. Returns true if either store restored at least one record. */
+export function hydrateProcessingPlan(queueStore, historyStore, plan) {
+  if (!plan || typeof plan !== "object") return false;
+  const a = queueStore.hydrate(plan.processing_items);
+  const b = historyStore.hydrate(plan.processing_history);
+  return a || b;
 }

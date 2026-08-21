@@ -542,6 +542,47 @@ export class GenerationQueueStore extends EventTarget {
     return counts;
   }
 
+  /** VL-D9 -- restores only items in a *terminal* status
+   * (isTerminalGenerationStatus), for the same reason
+   * ProcessingQueueStore.hydrate() excludes non-terminal items: a
+   * QUEUED/PREPARING/GENERATING/POST_PROCESSING item reflects an async
+   * processOne() chain that no longer exists after reload. `request.text`
+   * is the operator-authored preview text -- not a secret, not speaker
+   * data, already part of the pre-existing export shape -- so it is
+   * restored along with the rest of the item. Also bumps this module's
+   * request-id counter so a freshly built request after hydration can
+   * never collide with a restored item's request_id. */
+  hydrate(items) {
+    if (!Array.isArray(items)) return false;
+    const restored = items
+      .filter((i) => i && typeof i.item_id === "string" && i.request && isTerminalGenerationStatus(i.status))
+      .map((i) => ({ ...i }));
+    if (!restored.length) return false;
+    this._items = restored;
+
+    let maxItemCounter = 0;
+    let maxRequestCounter = 0;
+    for (const item of restored) {
+      const itemMatch = /^gen-(\d+)-/.exec(item.item_id);
+      if (itemMatch) maxItemCounter = Math.max(maxItemCounter, parseInt(itemMatch[1], 10) + 1);
+      const requestMatch = /^preview-req-(\d+)$/.exec((item.request && item.request.request_id) || "");
+      if (requestMatch) maxRequestCounter = Math.max(maxRequestCounter, parseInt(requestMatch[1], 10));
+    }
+    if (maxItemCounter > _itemCounter) _itemCounter = maxItemCounter;
+    if (maxRequestCounter > _requestCounter) _requestCounter = maxRequestCounter;
+    return true;
+  }
+
+  /** VL-D9 -- clears this store's queue in place (same object identity)
+   * and announces a detail-less "change" so mounted UI re-renders
+   * immediately. Backs the explicit "Clear session data" control.
+   * Leaves maxConcurrentGenerations untouched -- it is a runtime queue
+   * setting, not part of the persisted export*Plan() shape. */
+  reset() {
+    this._items = [];
+    this.dispatchEvent(new CustomEvent("change", { detail: {} }));
+  }
+
   _announce(item) {
     this.dispatchEvent(new CustomEvent("change", { detail: { item } }));
   }
@@ -598,6 +639,30 @@ export class PreviewHistoryStore extends EventTarget {
 
   all() {
     return [...this._records];
+  }
+
+  /** VL-D9 -- append-only history records are always terminal by
+   * construction; every well-shaped record is restored. A record
+   * missing record_id/voice_profile_id is dropped. */
+  hydrate(records) {
+    if (!Array.isArray(records)) return false;
+    const restored = records
+      .filter((r) => r && typeof r.record_id === "string" && typeof r.voice_profile_id === "string")
+      .map((r) => ({ ...r }));
+    if (!restored.length) return false;
+    this._records = restored;
+    const maxCounter = Math.max(
+      0,
+      ...restored.map((r) => parseInt((r.record_id || "").split("-").pop() || "0", 10) || 0),
+    );
+    if (maxCounter > _historyCounter) _historyCounter = maxCounter;
+    return true;
+  }
+
+  /** VL-D9 -- see GenerationQueueStore.reset() above. */
+  reset() {
+    this._records = [];
+    this.dispatchEvent(new CustomEvent("change", { detail: {} }));
   }
 
   _announce(record) {
@@ -675,6 +740,39 @@ export class PreviewFeedbackStore extends EventTarget {
     return [...this._records];
   }
 
+  /** VL-D9 -- one PreviewFeedback record is always a completed
+   * submission (record() enforces listened-before-decision at write
+   * time -- see UnlistenedFeedbackError above), so every well-shaped
+   * record is restored as-is. `comment` is operator-typed feedback text
+   * about a *synthetic* preview output, never speaker data. A record
+   * missing feedback_id/preview_id/outcome is dropped. */
+  hydrate(records) {
+    if (!Array.isArray(records)) return false;
+    const restored = records
+      .filter(
+        (r) =>
+          r &&
+          typeof r.feedback_id === "string" &&
+          typeof r.preview_id === "string" &&
+          Object.values(PreviewFeedbackOutcome).includes(r.outcome),
+      )
+      .map((r) => ({ ...r }));
+    if (!restored.length) return false;
+    this._records = restored;
+    const maxCounter = Math.max(
+      0,
+      ...restored.map((r) => parseInt((r.feedback_id || "").split("-").pop() || "0", 10) || 0),
+    );
+    if (maxCounter > _feedbackCounter) _feedbackCounter = maxCounter;
+    return true;
+  }
+
+  /** VL-D9 -- see GenerationQueueStore.reset() above. */
+  reset() {
+    this._records = [];
+    this.dispatchEvent(new CustomEvent("change", { detail: {} }));
+  }
+
   _announce(record) {
     this.dispatchEvent(new CustomEvent("change", { detail: { record } }));
   }
@@ -688,4 +786,15 @@ export function exportGenerationPlan(queueStore, historyStore, feedbackStore) {
     preview_history: historyStore.all(),
     preview_feedback: feedbackStore.all(),
   };
+}
+
+/** VL-D9 -- restores all three stores from a previously
+ * exportGenerationPlan()'d payload. Returns true if any of the three
+ * restored at least one record. */
+export function hydrateGenerationPlan(queueStore, historyStore, feedbackStore, plan) {
+  if (!plan || typeof plan !== "object") return false;
+  const a = queueStore.hydrate(plan.generation_items);
+  const b = historyStore.hydrate(plan.preview_history);
+  const c = feedbackStore.hydrate(plan.preview_feedback);
+  return a || b || c;
 }

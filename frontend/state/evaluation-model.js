@@ -186,6 +186,50 @@ export class EvaluationStore extends EventTarget {
     return [...this._records];
   }
 
+  /** VL-D9 -- restores a previously-exported, already-validated
+   * evaluation log verbatim (see exportEvaluationPlan()). `comment` is
+   * reviewer-typed feedback text about a *synthetic* output's quality,
+   * never speaker or audio data; `reviewer` is an operator label, not a
+   * speaker identity. A record is dropped, not restored, when it's
+   * missing evaluation_id/output_id, carries an unknown
+   * completion_state, or was marked COMPLETED without ever having been
+   * listened to (the same UnlistenedEvaluationError invariant record()
+   * enforces at write time -- hydrate() re-checks it rather than
+   * trusting a stored payload blindly, but never re-throws: a record
+   * failing this check is simply excluded). This is a restore of
+   * already-validated history, not a second validation pass -- no
+   * legitimately-restored record is ever rejected for a reason it
+   * couldn't have been rejected for when it was first written. */
+  hydrate(records) {
+    if (!Array.isArray(records)) return false;
+    const restored = records
+      .filter(
+        (r) =>
+          r &&
+          typeof r.evaluation_id === "string" &&
+          typeof r.output_id === "string" &&
+          Object.values(EvaluationCompletionState).includes(r.completion_state) &&
+          !(r.completion_state === EvaluationCompletionState.COMPLETED && !(r.listening && r.listening.listened)),
+      )
+      .map((r) => ({ ...r }));
+    if (!restored.length) return false;
+    this._records = restored;
+    const maxCounter = Math.max(
+      0,
+      ...restored.map((r) => parseInt((r.evaluation_id || "").split("-").pop() || "0", 10) || 0),
+    );
+    if (maxCounter > _evaluationCounter) _evaluationCounter = maxCounter;
+    return true;
+  }
+
+  /** VL-D9 -- clears this store's log in place (same object identity)
+   * and announces a detail-less "change" so mounted UI re-renders
+   * immediately. Backs the explicit "Clear session data" control. */
+  reset() {
+    this._records = [];
+    this.dispatchEvent(new CustomEvent("change", { detail: {} }));
+  }
+
   _announce(record) {
     this.dispatchEvent(new CustomEvent("change", { detail: { record } }));
   }
@@ -236,6 +280,39 @@ export class ABEvaluationStore extends EventTarget {
 
   list() {
     return [...this._records];
+  }
+
+  /** VL-D9 -- see EvaluationStore.hydrate() above. A PREFER_A/PREFER_B/
+   * NO_PREFERENCE decision restored without both sides having been
+   * listened to is dropped, mirroring record()'s own
+   * UnlistenedEvaluationError gate; CANNOT_JUDGE never requires it. */
+  hydrate(records) {
+    if (!Array.isArray(records)) return false;
+    const restored = records
+      .filter(
+        (r) =>
+          r &&
+          typeof r.ab_evaluation_id === "string" &&
+          typeof r.output_id_a === "string" &&
+          typeof r.output_id_b === "string" &&
+          Object.values(ABDecision).includes(r.decision) &&
+          !(DECISIONS_REQUIRING_BOTH_LISTENED.has(r.decision) && !(r.listened_a && r.listened_b)),
+      )
+      .map((r) => ({ ...r }));
+    if (!restored.length) return false;
+    this._records = restored;
+    const maxCounter = Math.max(
+      0,
+      ...restored.map((r) => parseInt((r.ab_evaluation_id || "").split("-").pop() || "0", 10) || 0),
+    );
+    if (maxCounter > _abEvaluationCounter) _abEvaluationCounter = maxCounter;
+    return true;
+  }
+
+  /** VL-D9 -- see EvaluationStore.reset() above. */
+  reset() {
+    this._records = [];
+    this.dispatchEvent(new CustomEvent("change", { detail: {} }));
   }
 
   _announce(record) {
@@ -402,4 +479,13 @@ export function exportEvaluationPlan(evaluationStore, abEvaluationStore) {
     evaluations: evaluationStore.list(),
     ab_evaluations: abEvaluationStore.list(),
   };
+}
+
+/** VL-D9 -- restores both stores from a previously exportEvaluationPlan()'d
+ * payload. Returns true if either store restored at least one record. */
+export function hydrateEvaluationPlan(evaluationStore, abEvaluationStore, plan) {
+  if (!plan || typeof plan !== "object") return false;
+  const a = evaluationStore.hydrate(plan.evaluations);
+  const b = abEvaluationStore.hydrate(plan.ab_evaluations);
+  return a || b;
 }

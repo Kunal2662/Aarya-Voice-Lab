@@ -66,6 +66,7 @@ export class AvlWorkspaceSettings extends AvlElement {
     storageNotice.setAttribute("tone", "info");
     storageNotice.textContent = "Local-first only. No cloud storage, cloud dataset, cloud model storage, or cloud audio processing is configured or configurable here.";
     storage.appendChild(storageNotice);
+    storage.appendChild(this._buildSessionSection());
     wrapper.appendChild(storage);
 
     const runtime = document.createElement("avl-panel");
@@ -104,6 +105,72 @@ export class AvlWorkspaceSettings extends AvlElement {
     wrapper.appendChild(claude);
 
     this.shadowRoot.appendChild(wrapper);
+  }
+
+  /** VL-D9 -- the explicit "Clear session data" control (Task #190).
+   * Requires two distinct clicks (never a single accidental click, never
+   * an automatic trigger): the first reveals exactly what will be
+   * cleared and a "Confirm clear" button; only that second, explicit
+   * click actually calls services.session.clear(). Clears only this
+   * app's own namespaced localStorage keys (see clearAllSessionData())
+   * -- never anything else in the browser's storage. */
+  _buildSessionSection() {
+    const section = document.createElement("div");
+    section.style.marginTop = "var(--avl-space-3)";
+
+    const session = this._services.session || {};
+
+    const statusRow = document.createElement("div");
+    statusRow.className = "row";
+    const statusLabel = document.createElement("span");
+    statusLabel.textContent = "Local session persistence";
+    const statusBadge = document.createElement("avl-status-badge");
+    statusBadge.setAttribute("domain", "core");
+    statusBadge.setAttribute("state", session.available ? "ready" : "offline");
+    statusRow.append(statusLabel, statusBadge);
+    section.appendChild(statusRow);
+
+    const explanation = document.createElement("p");
+    explanation.className = "avl-type-caption";
+    explanation.textContent = session.available
+      ? "Your Import/Review/Processing/Preview/Feedback/Calibration state is saved to this browser only, so it survives a reload. It is never uploaded anywhere."
+      : "Persistence is unavailable in this browser (private browsing or storage disabled) -- your session will not be saved locally.";
+    section.appendChild(explanation);
+
+    const clearButton = document.createElement("button");
+    clearButton.type = "button";
+    clearButton.textContent = "Clear session data";
+    clearButton.disabled = !session.available;
+
+    const warning = document.createElement("div");
+    warning.hidden = true;
+    const warningText = document.createElement("p");
+    warningText.className = "avl-type-caption";
+    warningText.textContent =
+      "This removes all locally saved Import/Review/Processing/Preview/Feedback/Calibration state from this browser and cannot be undone. Nothing outside this app's own local storage is touched.";
+    const confirmButton = document.createElement("button");
+    confirmButton.type = "button";
+    confirmButton.textContent = "Confirm clear";
+    const cancelButton = document.createElement("button");
+    cancelButton.type = "button";
+    cancelButton.textContent = "Cancel";
+    warning.append(warningText, confirmButton, cancelButton);
+
+    clearButton.addEventListener("click", () => {
+      warning.hidden = false;
+    });
+    cancelButton.addEventListener("click", () => {
+      warning.hidden = true;
+    });
+    confirmButton.addEventListener("click", () => {
+      if (typeof session.clear === "function") session.clear();
+      warning.hidden = true;
+      this._announce("Session data cleared");
+      this._render();
+    });
+
+    section.append(clearButton, warning);
+    return section;
   }
 }
 
