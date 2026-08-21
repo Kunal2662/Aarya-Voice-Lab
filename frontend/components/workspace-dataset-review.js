@@ -22,6 +22,11 @@ import { summarizeQuality } from "../state/quality-summary.js";
 import "./workspace-state.js";
 import "./status-badge.js";
 import "./dataset-quality-summary.js";
+import "./stat-tile.js";
+
+// FE-2.3 -- see workspace-batches.js's identical constant; the same 5
+// categorical tones cycled across every dashboard in the app.
+const TILE_TONES = ["blue", "teal", "green", "violet", "pink"];
 
 const QUALITY_RANK = { NOT_ANALYZED: 0, FAIL: 1, REVIEW: 2, WARNING: 3, PASS: 4 };
 
@@ -202,10 +207,7 @@ export class AvlWorkspaceDatasetReview extends AvlElement {
     style.textContent = `
       h2 { margin: 0 0 var(--avl-space-3) 0; }
       h3 { margin: var(--avl-space-4) 0 var(--avl-space-2) 0; font: var(--avl-type-subheading-weight) var(--avl-type-subheading-size) / var(--avl-type-subheading-line-height) var(--avl-type-subheading-family); }
-      .dashboard { display: grid; grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); gap: var(--avl-space-2); margin-bottom: var(--avl-space-4); }
-      .metric { border: 1px solid var(--avl-color-border-subtle); border-radius: var(--avl-radius-sm); padding: var(--avl-space-2); }
-      .metric .value { font: var(--avl-type-heading-weight) var(--avl-type-heading-size) / 1 var(--avl-type-heading-family); }
-      .metric .label { color: var(--avl-color-text-secondary); font: var(--avl-type-caption-weight) var(--avl-type-caption-size) / 1 var(--avl-type-caption-family); text-transform: uppercase; letter-spacing: 0.04em; }
+      .dashboard { display: grid; grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); gap: var(--avl-space-3); margin-bottom: var(--avl-space-4); }
       .controls { display: flex; gap: var(--avl-space-2); flex-wrap: wrap; margin-bottom: var(--avl-space-3); align-items: center; }
       input, select { padding: var(--avl-space-1) var(--avl-space-2); border-radius: var(--avl-radius-sm); border: 1px solid var(--avl-color-border-default); background: var(--avl-color-surface-raised); color: var(--avl-color-text-primary); font: var(--avl-type-body-small-weight) var(--avl-type-body-small-size) / 1 var(--avl-type-body-small-family); }
       label.check { display: flex; align-items: center; gap: var(--avl-space-1); font: var(--avl-type-caption-weight) var(--avl-type-caption-size) / 1 var(--avl-type-caption-family); color: var(--avl-color-text-secondary); }
@@ -244,12 +246,14 @@ export class AvlWorkspaceDatasetReview extends AvlElement {
         ["Segments", counts.segments],
         ["Candidates", counts.candidates],
       ];
-      for (const [label, value] of metrics) {
-        const metric = document.createElement("div");
-        metric.className = "metric";
-        metric.innerHTML = `<div class="value">${value}</div><div class="label">${label}</div>`;
-        dashboard.appendChild(metric);
-      }
+      metrics.forEach(([label, value], i) => {
+        const tile = document.createElement("avl-stat-tile");
+        tile.setAttribute("label", label);
+        tile.setAttribute("value", String(value));
+        tile.setAttribute("tone", TILE_TONES[i % TILE_TONES.length]);
+        tile.setAttribute("icon", "review");
+        dashboard.appendChild(tile);
+      });
       wrapper.appendChild(dashboard);
 
       const summary = document.createElement("avl-dataset-quality-summary");

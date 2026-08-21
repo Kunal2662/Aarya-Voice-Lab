@@ -51,7 +51,7 @@ output `css/variables.css` is never hand-edited):
   custom properties are the one thing that crosses shadow boundaries
   by inheritance).
 
-Verified via `tests/token-application.test.mjs` (new): real
+Verified via `tests/css-variable-application.test.mjs` (new): real
 `getComputedStyle()` measurements for color (static and dark-toggle
 reactivity), spacing, border-radius, typography, layout grid, motion
 duration, reduced-motion collapse, a multi-workspace token consumer,
@@ -245,7 +245,7 @@ rather than only being asserted.
 cd frontend && node --test tests/*.test.mjs
 ```
 
-New test files added in FE-1: `token-application.test.mjs`,
+New test files added in FE-1: `css-variable-application.test.mjs`,
 `confirm-action.test.mjs`, `icon.test.mjs`, `responsive-shell.test.mjs`,
 `css-utilities.test.mjs`, `visual-identity.test.mjs`,
 `visual-regression.test.mjs`. One existing file

@@ -13,6 +13,8 @@ import "./status-badge.js";
 import "./metric-placeholder.js";
 import "./job-list.js";
 import "./activity-timeline.js";
+import "./stat-tile.js";
+import "./meter.js";
 import { summarizeCalibrationSignals, outputsWithDisagreement } from "../state/evaluation-model.js";
 import { hasAnySessionData } from "../state/session-persistence.js";
 
@@ -81,7 +83,11 @@ export class AvlWorkspaceCommandCenter extends AvlElement {
 
     const style = document.createElement("style");
     style.textContent = `
-      h2 { margin: 0 0 var(--avl-space-3) 0; }
+      h2 { margin: 0 0 var(--avl-space-1) 0; }
+      /* FE-2.2 -- a real (non-"live") subtitle: this screen never
+         polls, so it never claims to be real-time. */
+      .subtitle { margin: 0 0 var(--avl-space-4) 0; color: var(--avl-color-text-secondary); font: var(--avl-type-body-small-weight) var(--avl-type-body-small-size) / var(--avl-type-body-small-line-height) var(--avl-type-body-small-family); }
+      .headline-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: var(--avl-space-3); margin-bottom: var(--avl-space-4); }
       .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--avl-space-4); }
       .grid > avl-panel { min-height: 10rem; border: 1px solid var(--avl-color-border-default); border-radius: var(--avl-radius-md); }
       .row { display: flex; justify-content: space-between; align-items: center; padding: var(--avl-space-1) 0; }
@@ -96,6 +102,61 @@ export class AvlWorkspaceCommandCenter extends AvlElement {
     heading.className = "avl-type-heading";
     heading.textContent = "Command Center";
     wrapper.appendChild(heading);
+
+    const subtitle = document.createElement("p");
+    subtitle.className = "subtitle";
+    subtitle.textContent = "Overview of Aarya Voice Lab — session state, pipeline, and workspace summaries.";
+    wrapper.appendChild(subtitle);
+
+    // FE-2.2 -- headline stat tiles. Every value here reads an
+    // already-real, already-wired store the same way the panels below
+    // do (jobStore, pipelineStageContract, generationModelStore,
+    // voiceProfileStore) -- nothing new is fetched or invented. Counts
+    // that are genuinely absent (no CPU/GPU/RAM/disk measurement
+    // exists anywhere in this codebase, no dataset/recording service is
+    // wired into Command Center) are simply not tiled here rather than
+    // filled with a placeholder number -- see FE2_VISUAL_REDESIGN.md.
+    const headlineTiles = document.createElement("div");
+    headlineTiles.className = "headline-tiles";
+
+    const runningJobs = this._services.jobStore ? this._services.jobStore.current().length : null;
+    const failedJobs = this._services.jobStore ? this._services.jobStore.failed().length : null;
+    const jobsTile = document.createElement("avl-stat-tile");
+    jobsTile.setAttribute("label", "Jobs running");
+    jobsTile.setAttribute("tone", "blue");
+    jobsTile.setAttribute("icon", "activity");
+    if (runningJobs != null) jobsTile.setAttribute("value", String(runningJobs));
+    if (failedJobs != null) jobsTile.textContent = `${failedJobs} failed`;
+    headlineTiles.appendChild(jobsTile);
+
+    const stagesTotal = this._pipeline?.stages?.length ?? null;
+    const stagesDone = this._pipeline?.phase_2_stages?.length ?? null;
+    const pipelineTile = document.createElement("avl-stat-tile");
+    pipelineTile.setAttribute("label", "Pipeline stages");
+    pipelineTile.setAttribute("tone", "teal");
+    pipelineTile.setAttribute("icon", "pipeline");
+    if (stagesDone != null) pipelineTile.setAttribute("value", String(stagesDone));
+    if (stagesTotal != null) pipelineTile.setAttribute("unit", `of ${stagesTotal}`);
+    if (stagesTotal != null) pipelineTile.textContent = "Stages implemented";
+    headlineTiles.appendChild(pipelineTile);
+
+    const modelCount = this._services.generationModelStore ? this._services.generationModelStore.list().length : null;
+    const modelsTile = document.createElement("avl-stat-tile");
+    modelsTile.setAttribute("label", "Models");
+    modelsTile.setAttribute("tone", "green");
+    modelsTile.setAttribute("icon", "models");
+    if (modelCount != null) modelsTile.setAttribute("value", String(modelCount));
+    headlineTiles.appendChild(modelsTile);
+
+    const voiceCount = this._services.voiceProfileStore ? this._services.voiceProfileStore.names().length : null;
+    const voicesTile = document.createElement("avl-stat-tile");
+    voicesTile.setAttribute("label", "Voice profiles");
+    voicesTile.setAttribute("tone", "pink");
+    voicesTile.setAttribute("icon", "voices");
+    if (voiceCount != null) voicesTile.setAttribute("value", String(voiceCount));
+    headlineTiles.appendChild(voicesTile);
+
+    wrapper.appendChild(headlineTiles);
 
     const grid = document.createElement("div");
     grid.className = "grid";
@@ -142,6 +203,16 @@ export class AvlWorkspaceCommandCenter extends AvlElement {
       if (value != null) metric.setAttribute("value", String(value));
       pipelinePanel.appendChild(metric);
     }
+    // FE-2.2 -- a real progress bar for "stages implemented / total
+    // stages" (both already-real numbers above), the one legitimate
+    // percentage this screen can honestly show; see the headline
+    // tiles' own comment for what does NOT get this treatment.
+    const pipelineMeter = document.createElement("avl-meter");
+    pipelineMeter.setAttribute("label", "Stages implemented");
+    pipelineMeter.setAttribute("tone", "teal");
+    if (implementedCount != null) pipelineMeter.setAttribute("value", String(implementedCount));
+    if (totalCount != null) pipelineMeter.setAttribute("max", String(totalCount));
+    pipelinePanel.appendChild(pipelineMeter);
 
     // JOBS
     const jobsPanel = document.createElement("avl-panel");

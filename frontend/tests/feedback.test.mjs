@@ -129,7 +129,7 @@ test("open workspace: navigating to Feedback mounts avl-workspace-feedback with 
     assert.equal(workspaceTag, "avl-workspace-feedback");
     const metrics = await page.evaluate(() => {
       const ws = document.querySelector("avl-workspace-feedback");
-      return [...ws.shadowRoot.querySelectorAll(".metric .label")].map((m) => m.textContent);
+      return [...ws.shadowRoot.querySelectorAll(".dashboard avl-stat-tile")].map((m) => m.getAttribute("label"));
     });
     assert.deepEqual(metrics, ["Outputs available", "Unevaluated", "Evaluated", "Disagreement", "Total evaluations", "Reviewers"]);
   });

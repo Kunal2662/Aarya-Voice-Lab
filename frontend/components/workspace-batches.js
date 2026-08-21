@@ -9,7 +9,12 @@ import { syntheticBatches, syntheticRecordings } from "../state/synthetic-fixtur
 import "./workspace-state.js";
 import "./batch-card.js";
 import "./panel.js";
-import "./metric-placeholder.js";
+import "./stat-tile.js";
+
+// FE-2.3 -- cycled across the dashboard's stat tiles for visual variety;
+// same 5 categorical tones every other dashboard in the app uses, no
+// per-workspace color meaning invented.
+const TILE_TONES = ["blue", "teal", "green", "violet", "pink"];
 
 export class AvlWorkspaceBatches extends AvlElement {
   set selectionModel(value) {
@@ -59,7 +64,7 @@ export class AvlWorkspaceBatches extends AvlElement {
     style.textContent = `
       h2 { margin: 0 0 var(--avl-space-3) 0; }
       .list { display: flex; flex-direction: column; gap: var(--avl-space-3); margin-top: var(--avl-space-4); }
-      .dashboard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: var(--avl-space-1) var(--avl-space-4); }
+      .dashboard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: var(--avl-space-3); }
     `;
     this.shadowRoot.appendChild(style);
 
@@ -77,12 +82,14 @@ export class AvlWorkspaceBatches extends AvlElement {
       dashboard.setAttribute("title", "Dataset dashboard");
       const grid = document.createElement("div");
       grid.className = "dashboard-grid";
-      for (const [label, value] of Object.entries(this._dashboardCounts())) {
-        const metric = document.createElement("avl-metric-placeholder");
-        metric.setAttribute("label", label);
-        metric.setAttribute("value", String(value));
-        grid.appendChild(metric);
-      }
+      Object.entries(this._dashboardCounts()).forEach(([label, value], i) => {
+        const tile = document.createElement("avl-stat-tile");
+        tile.setAttribute("label", label);
+        tile.setAttribute("value", String(value));
+        tile.setAttribute("tone", TILE_TONES[i % TILE_TONES.length]);
+        tile.setAttribute("icon", "batches");
+        grid.appendChild(tile);
+      });
       dashboard.appendChild(grid);
       wrapper.appendChild(dashboard);
     }

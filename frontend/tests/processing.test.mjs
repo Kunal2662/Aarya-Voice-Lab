@@ -84,7 +84,7 @@ test("navigate to Processing: the workspace mounts with a real dashboard", { tim
     assert.equal(workspaceTag, "avl-workspace-processing");
     const metrics = await page.evaluate(() => {
       const ws = document.querySelector("avl-workspace-processing");
-      return [...ws.shadowRoot.querySelectorAll(".metric .label")].map((m) => m.textContent);
+      return [...ws.shadowRoot.querySelectorAll(".dashboard avl-stat-tile")].map((m) => m.getAttribute("label"));
     });
     assert.deepEqual(metrics, [
       "Total selected",

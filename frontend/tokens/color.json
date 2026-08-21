@@ -56,6 +56,18 @@
         "primary": "#2d5be3",
         "secondary": "#7a4fd6",
         "highlight": "#ffb000"
+      },
+      "category": {
+        "violet": "#6d3fc4",
+        "violet-subtle": "#ece3fb",
+        "blue": "#2d5be3",
+        "blue-subtle": "#e1e8fb",
+        "green": "#1a7f4b",
+        "green-subtle": "#e0f3e8",
+        "pink": "#a8296b",
+        "pink-subtle": "#f7e0ee",
+        "teal": "#0f766e",
+        "teal-subtle": "#dcf5f2"
       }
     },
     "dark": {
@@ -112,6 +124,18 @@
         "primary": "#6d93ff",
         "secondary": "#c3a6ff",
         "highlight": "#ffcf5c"
+      },
+      "category": {
+        "violet": "#a685e0",
+        "violet-subtle": "#2a2147",
+        "blue": "#6d93ff",
+        "blue-subtle": "#1e2947",
+        "green": "#4fd18b",
+        "green-subtle": "#123222",
+        "pink": "#ff8fc9",
+        "pink-subtle": "#3a1f30",
+        "teal": "#5eead4",
+        "teal-subtle": "#0f2e2b"
       }
     }
   }

@@ -24,6 +24,10 @@ import "./disagreement-view.js";
 import "./aggregated-results-panel.js";
 import "./calibration-panel.js";
 import "./claude-evaluation-context.js";
+import "./stat-tile.js";
+
+// FE-2.3 -- see workspace-batches.js's identical constant.
+const TILE_TONES = ["blue", "teal", "green", "violet", "pink"];
 
 export class AvlWorkspaceFeedback extends AvlElement {
   set selectionModel(value) {
@@ -87,10 +91,7 @@ export class AvlWorkspaceFeedback extends AvlElement {
     style.textContent = `
       h2 { margin: 0 0 var(--avl-space-3) 0; }
       h3 { margin: var(--avl-space-4) 0 var(--avl-space-2) 0; font: var(--avl-type-subheading-weight) var(--avl-type-subheading-size) / var(--avl-type-subheading-line-height) var(--avl-type-subheading-family); }
-      .dashboard { display: grid; grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); gap: var(--avl-space-2); margin-bottom: var(--avl-space-4); }
-      .metric { border: 1px solid var(--avl-color-border-subtle); border-radius: var(--avl-radius-sm); padding: var(--avl-space-2); }
-      .metric .value { font: var(--avl-type-heading-weight) var(--avl-type-heading-size) / 1 var(--avl-type-heading-family); }
-      .metric .label { color: var(--avl-color-text-secondary); font: var(--avl-type-caption-weight) var(--avl-type-caption-size) / 1 var(--avl-type-caption-family); text-transform: uppercase; letter-spacing: 0.04em; }
+      .dashboard { display: grid; grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); gap: var(--avl-space-3); margin-bottom: var(--avl-space-4); }
       /* FE-1.5 -- .row replaced by the shared avl-row avl-row--bordered utilities (css/base.css). */
       .rows { display: flex; flex-direction: column; }
       .label { color: var(--avl-color-text-secondary); font: var(--avl-type-caption-weight) var(--avl-type-caption-size) / 1 var(--avl-type-caption-family); }
@@ -111,19 +112,21 @@ export class AvlWorkspaceFeedback extends AvlElement {
     const stats = this._dashboardCounts();
     const dashboard = document.createElement("div");
     dashboard.className = "dashboard";
-    for (const [label, value] of [
+    [
       ["Outputs available", stats.totalOutputs],
       ["Unevaluated", stats.unevaluated],
       ["Evaluated", stats.evaluated],
       ["Disagreement", stats.disagreementCount],
       ["Total evaluations", stats.calibration ? stats.calibration.total_evaluations : 0],
       ["Reviewers", stats.calibration ? stats.calibration.total_reviewers : 0],
-    ]) {
-      const metric = document.createElement("div");
-      metric.className = "metric";
-      metric.innerHTML = `<div class="value">${value}</div><div class="label">${label}</div>`;
-      dashboard.appendChild(metric);
-    }
+    ].forEach(([label, value], i) => {
+      const tile = document.createElement("avl-stat-tile");
+      tile.setAttribute("label", label);
+      tile.setAttribute("value", String(value));
+      tile.setAttribute("tone", TILE_TONES[i % TILE_TONES.length]);
+      tile.setAttribute("icon", "feedback");
+      dashboard.appendChild(tile);
+    });
     wrapper.appendChild(dashboard);
 
     const queueHeading = document.createElement("h3");

@@ -24,9 +24,12 @@ import "./notice-banner.js";
 import "./import-drop-zone.js";
 import "./import-queue.js";
 import "./status-badge.js";
-import "./metric-placeholder.js";
+import "./stat-tile.js";
 import "./button.js";
 import "./claude-fix-flow.js";
+
+// FE-2.3 -- see workspace-batches.js's identical constant.
+const TILE_TONES = ["blue", "teal", "green", "violet", "pink"];
 
 const TERMINAL = new Set([
   ImportItemStatus.ACCEPTED,
@@ -191,7 +194,7 @@ export class AvlWorkspaceImport extends AvlElement {
 
       const progress = document.createElement("div");
       progress.className = "progress";
-      for (const [label, value] of [
+      [
         ["Importing", `${processed} / ${total}`],
         ["Accepted", counts.accepted],
         ["Warnings", counts.warning],
@@ -199,12 +202,14 @@ export class AvlWorkspaceImport extends AvlElement {
         ["Blocked", counts.blocked],
         ["Duplicates", counts.duplicate],
         ["Failed", counts.failed],
-      ]) {
-        const metric = document.createElement("avl-metric-placeholder");
-        metric.setAttribute("label", label);
-        metric.setAttribute("value", String(value));
-        progress.appendChild(metric);
-      }
+      ].forEach(([label, value], i) => {
+        const tile = document.createElement("avl-stat-tile");
+        tile.setAttribute("label", label);
+        tile.setAttribute("value", String(value));
+        tile.setAttribute("tone", TILE_TONES[i % TILE_TONES.length]);
+        tile.setAttribute("icon", "import");
+        progress.appendChild(tile);
+      });
       wrapper.appendChild(progress);
 
       const actions = document.createElement("div");

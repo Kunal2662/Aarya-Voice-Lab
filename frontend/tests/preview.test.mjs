@@ -96,7 +96,7 @@ test("open workspace: navigating to Preview mounts avl-workspace-preview with a 
     assert.equal(workspaceTag, "avl-workspace-preview");
     const metrics = await page.evaluate(() => {
       const ws = document.querySelector("avl-workspace-preview");
-      return [...ws.shadowRoot.querySelectorAll(".metric .label")].map((m) => m.textContent);
+      return [...ws.shadowRoot.querySelectorAll(".dashboard avl-stat-tile")].map((m) => m.getAttribute("label"));
     });
     assert.deepEqual(metrics, ["Total requested", "Queued", "Generating", "Ready", "Warning", "Failed", "Blocked", "Cancelled", "Avg duration"]);
   });
