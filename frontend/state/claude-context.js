@@ -70,7 +70,21 @@ export function buildClaudeContext(input) {
     error_summary: input.errorSummary || null,
     permissions: { max_risk_tier: "read_only" },
   };
-  return redactDeep(context);
+  const redacted = redactDeep(context);
+  // VL-D10 -- git_state is real, developer-chosen, already-public
+  // repository metadata (branch/head_short/working_tree_clean) --
+  // identical to what identity/command_center.py's own docstring calls
+  // "safe to display" and to what claude-command-shell.js already
+  // renders in plaintext right above this JSON preview. The generic
+  // opaque-value heuristic in redactDeep() exists to catch base64/hex-
+  // shaped secrets; a real kebab-case branch name (e.g.
+  // "claude/phase3-speaker-verification") can innocently exceed its
+  // length threshold and get masked, which would make this preview
+  // *less* honest without protecting anything -- so git_state bypasses
+  // that generic scan and is copied through exactly as constructed
+  // above, unredacted.
+  redacted.git_state = context.git_state;
+  return redacted;
 }
 
 /**

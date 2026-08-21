@@ -182,7 +182,7 @@ Shadow DOM (`base-element.js`'s `_linkSharedStyles()`).
   `avl-claude-task-status`.
 - **Calibration / Hardware / Accent**: `avl-calibration-panel` (tied to
   `identity/calibration.py`), `avl-hardware-profile-card` (tied to
-  `core/capability.py`), `avl-accent-panel` (VL-D21, concepts only).
+  `core/capability.py`), `avl-accent-panel` (concepts only, no engine exists).
 - **Error/recovery**: `avl-error-panel` (progressive disclosure — plain
   summary always visible, technical detail behind `<details>`, an
   optional "Ask Claude" action that dispatches an event rather than
@@ -253,7 +253,7 @@ structurally incapable of showing a number it wasn't given:
 or any other value that could be mistaken for a measurement when no
 `value` attribute is set.
 
-## Hardware UI foundation (VL-D19 / VL-D20)
+## Hardware UI foundation
 
 `avl-hardware-profile-card` renders a list of generic capability rows —
 name, state (through the `hardware` domain / `CapabilityState`), and
@@ -263,7 +263,7 @@ or otherwise) is hardcoded anywhere in this component or its tokens;
 whatever the backend names is shown verbatim, consistent with
 `identity/runtime.py`'s already-vendor-neutral `ComputeBackend` model.
 
-## Accent/Pronunciation UI foundation (VL-D21)
+## Accent/Pronunciation UI foundation
 
 `avl-accent-panel` — concepts only. No pronunciation/accent engine
 exists; the panel shows three placeholder metrics (accent region,

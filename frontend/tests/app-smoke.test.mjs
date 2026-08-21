@@ -112,7 +112,8 @@ test("app navigates through all 11 VL-D1 workspaces with no console errors", { t
         assert.equal(activeSidebarDestination, destination, "sidebar active state did not follow navigation");
       }
 
-      const unexpectedBadResponses = badResponseUrls.filter((url) => !url.endsWith("/contracts/live/dataset_gate_status.json"));
+      const LIVE_SNAPSHOT_SUFFIXES = ["/contracts/live/dataset_gate_status.json", "/contracts/live/command_center_snapshot.json"];
+    const unexpectedBadResponses = badResponseUrls.filter((url) => !LIVE_SNAPSHOT_SUFFIXES.some((suffix) => url.endsWith(suffix)));
       assert.deepEqual(unexpectedBadResponses, [], `unexpected failed requests: ${unexpectedBadResponses.join("; ")}`);
 
       const expected404Count = badResponseUrls.length - unexpectedBadResponses.length;

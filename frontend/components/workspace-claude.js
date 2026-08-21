@@ -1,13 +1,25 @@
-// <avl-workspace-claude> — VL-D1 §14-§16 made operational. Set
-// `.services = { activityStore, executor, contextInput }`. Composes:
-//   - avl-claude-command-shell (VL-D0's visual shell, now fed real
-//     activity + a real, honestly-NOT_AVAILABLE connection state)
+// <avl-workspace-claude> — VL-D1 §14-§16 made operational, live-wired in
+// VL-D10. Set `.services = { activityStore, executor, contextInput }`.
+// Composes:
+//   - avl-claude-command-shell, now fed a REAL
+//     identity.command_center.command_center_snapshot() payload (real
+//     branch/HEAD/working-tree state, real activity, real diagnostics,
+//     real command catalogue, real verification descriptors), fetched
+//     from frontend/contracts/live/command_center_snapshot.json — the
+//     same "live snapshot, gitignored, honestly-missing-if-not-fetched"
+//     pattern workspace-import.js's dataset-gate fetch already
+//     established. Still a real, honestly-NOT_AVAILABLE connection state
+//     for command *execution* (see the executor badge below) — D10 is a
+//     read-only bridge, not an execution transport.
 //   - a Claude context preview (state/claude-context.js's
 //     buildClaudeContext(), rendered read-only so the operator can see
-//     exactly what would be sent — bounded and redacted)
+//     exactly what would be sent — bounded and redacted), now carrying
+//     the real git_state instead of the null every prior phase left it
+//     at
 //   - avl-claude-fix-flow, entered from a real failed synthetic job
 import { AvlElement, defineComponent } from "./base-element.js";
 import { buildClaudeContext } from "../state/claude-context.js";
+import { fetchCommandCenterSnapshot } from "../state/command-center-snapshot.js";
 import "./workspace-state.js";
 import "./panel.js";
 import "./status-badge.js";
@@ -27,6 +39,15 @@ export class AvlWorkspaceClaude extends AvlElement {
   async _load() {
     this._state = "loading";
     this._render();
+    // VL-D10 -- honest fetch: a missing file (script never run this
+    // session), a non-OK response, malformed JSON, or a wrong-contract
+    // payload all resolve to `null` inside fetchCommandCenterSnapshot()
+    // (state/command-center-snapshot.js). Never thrown, never
+    // fabricated — the UI renders "snapshot not fetched" rather than
+    // guessing at a branch name or an empty-but-present activity feed.
+    this._snapshot = await fetchCommandCenterSnapshot(
+      new URL("../contracts/live/command_center_snapshot.json", import.meta.url),
+    );
     this._state = "ready";
     this._render();
   }
@@ -67,10 +88,12 @@ export class AvlWorkspaceClaude extends AvlElement {
     wrapper.appendChild(connection);
 
     const shell = document.createElement("avl-claude-command-shell");
-    shell.snapshot = {
-      repository: { payload: { branch: "(not fetched)", head_short: "-------", working_tree_clean: true, changed_file_count: 0 } },
-      activity: { payload: { entries: [] } },
-    };
+    // VL-D10 -- the real snapshot fetched in _load(), or null if it was
+    // never fetched (script not run this session) or came back
+    // malformed. avl-claude-command-shell already renders a "not
+    // fetched" state honestly for a null snapshot -- no fallback object
+    // is ever fabricated here.
+    shell.snapshot = this._snapshot;
     wrapper.appendChild(shell);
 
     const contextSection = document.createElement("div");
@@ -78,11 +101,18 @@ export class AvlWorkspaceClaude extends AvlElement {
     const contextPanel = document.createElement("avl-panel");
     contextPanel.setAttribute("title", "Context sent to Claude (preview)");
     const pre = document.createElement("pre");
+    // VL-D10 -- git_state is real when the snapshot fetched (branch/
+    // head_short/working_tree_clean straight off repository_context()),
+    // and honestly null when it didn't -- buildClaudeContext() already
+    // renders `git_state: null` rather than guessing.
+    const repo = this._snapshot?.repository;
     const context = buildClaudeContext({
       destination: "claude",
       selection: null,
       recentActivity: this._services.activityStore ? this._services.activityStore.list({ limit: 5 }) : [],
-      gitState: null,
+      gitState: repo
+        ? { branch: repo.branch, head_short: repo.head_short, working_tree_clean: repo.working_tree_clean }
+        : null,
       taskId: null,
     });
     pre.textContent = JSON.stringify(context, null, 2);

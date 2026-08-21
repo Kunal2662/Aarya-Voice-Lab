@@ -42,7 +42,8 @@ async function withPage(fn) {
     page.on("pageerror", (err) => consoleErrors.push(String(err)));
     await page.goto(`http://127.0.0.1:${port}/app/index.html`, { waitUntil: "networkidle" });
     await fn(page, consoleErrors);
-    const unexpectedBadResponses = badResponseUrls.filter((url) => !url.endsWith("/contracts/live/dataset_gate_status.json"));
+    const LIVE_SNAPSHOT_SUFFIXES = ["/contracts/live/dataset_gate_status.json", "/contracts/live/command_center_snapshot.json"];
+    const unexpectedBadResponses = badResponseUrls.filter((url) => !LIVE_SNAPSHOT_SUFFIXES.some((suffix) => url.endsWith(suffix)));
     assert.deepEqual(unexpectedBadResponses, [], `unexpected failed requests: ${unexpectedBadResponses.join("; ")}`);
     const expectedErrorCount = badResponseUrls.length - unexpectedBadResponses.length;
     assert.equal(

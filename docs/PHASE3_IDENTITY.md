@@ -277,7 +277,7 @@ the local `DataRoot`, asserted directly. `EmbeddingStore` is checked for
 export-like methods (`export`, `upload`, `sync`, `push`) and has none by
 construction — there is no code path that can send a vector anywhere.
 
-## Hardware independence (VL-D19 / VL-D20)
+## Hardware independence
 
 Core interfaces name **no vendor, no product, and no specific GPU**. Any
 one development machine — whatever it contains — is a test host, never a
