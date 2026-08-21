@@ -344,6 +344,24 @@ export class AvlWorkspaceCommandCenter extends AvlElement {
       ],
       ["Profile runs", this._services.calibrationStore ? this._services.calibrationStore.history().length : 0],
       ["Adjustments proposed", currentCalibrationProfile ? currentCalibrationProfile.adjustments.length : 0],
+      [
+        "Proposed",
+        this._services.calibrationStore
+          ? this._services.calibrationStore.history().filter((r) => r.application_state === "PROPOSED").length
+          : 0,
+      ],
+      [
+        "Applied",
+        this._services.calibrationStore
+          ? this._services.calibrationStore.history().filter((r) => r.application_state === "APPLIED").length
+          : 0,
+      ],
+      [
+        "Validated",
+        this._services.calibrationStore
+          ? this._services.calibrationStore.history().filter((r) => r.application_state === "VALIDATED").length
+          : 0,
+      ],
     ]) {
       const metric = document.createElement("avl-metric-placeholder");
       metric.setAttribute("label", label);

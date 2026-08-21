@@ -1,14 +1,15 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://aarya-voice-lab/schemas/calibration_profile.schema.json",
-  "title": "AARYA Voice Lab Calibration Engine Profile (VL-D7)",
-  "description": "One versioned, append-only calibration engine run. `run_state` (process/lifecycle: did the engine finish?) and `calibration_state` (evidence/trust: aarya_voice_lab.identity.calibration.CalibrationState, reused unchanged) are deliberately independent fields -- a CALIBRATED run_state with UNCALIBRATED or PROVISIONAL calibration_state is the expected outcome whenever evaluation evidence is thin. Never records a target-speaker-identity field, an embedding, or training data.",
+  "title": "AARYA Voice Lab Calibration Engine Profile (VL-D7, extended VL-D8)",
+  "description": "One versioned, append-only calibration engine run. `run_state` (process/lifecycle: did the engine finish?) and `calibration_state` (evidence/trust: aarya_voice_lab.identity.calibration.CalibrationState, reused unchanged) are deliberately independent fields -- a CALIBRATED run_state with UNCALIBRATED or PROVISIONAL calibration_state is the expected outcome whenever evaluation evidence is thin. VL-D8 adds `application_state` (PROPOSED/APPLIED/VALIDATED) as a THIRD independent axis: whether a proposed adjustment was actually applied to the generation pipeline and whether its runtime effect was measured. Never records a target-speaker-identity field, an embedding, or training data.",
   "type": "object",
   "required": [
     "profile_id", "profile_version", "run_state", "calibration_state", "evidence",
     "strategy", "hardware_snapshot", "adjustments", "agreement_rate", "evidence_counts",
     "limitations", "supersedes", "is_rollback", "created_at", "engine_version",
-    "processing_version", "schema_version"
+    "processing_version", "schema_version", "application_state", "applied_from_profile_id",
+    "applied_parameter_name", "applied_value", "applied_at", "validation"
   ],
   "additionalProperties": false,
   "properties": {
@@ -83,6 +84,35 @@
     "created_at": { "type": "string" },
     "engine_version": { "type": "string" },
     "processing_version": { "type": "string" },
-    "schema_version": { "type": "string" }
+    "schema_version": { "type": "string" },
+    "application_state": {
+      "type": "string",
+      "enum": ["PROPOSED", "APPLIED", "VALIDATED"],
+      "description": "VL-D8. A third axis, independent of run_state and calibration_state: has a proposed adjustment on this profile lineage actually been applied to the generation pipeline, and has its runtime effect been measured?"
+    },
+    "applied_from_profile_id": {
+      "type": ["string", "null"],
+      "description": "Provenance only -- which profile's proposed adjustment this APPLIED/VALIDATED record came from. Distinct from `supersedes`, which always names the log's previously-active record."
+    },
+    "applied_parameter_name": { "type": ["string", "null"] },
+    "applied_value": { "type": ["number", "null"] },
+    "applied_at": { "type": ["string", "null"] },
+    "validation": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["validated", "before_batch_count", "after_batch_count", "measured_delta", "not_measurable", "note", "validated_at"],
+      "properties": {
+        "validated": { "type": "boolean" },
+        "before_batch_count": { "type": ["integer", "null"], "minimum": 0 },
+        "after_batch_count": { "type": ["integer", "null"], "minimum": 0 },
+        "measured_delta": {
+          "type": ["integer", "null"],
+          "description": "before_batch_count - after_batch_count, a real measured queue-batching effect. Null whenever not_measurable is true -- never fabricated."
+        },
+        "not_measurable": { "type": "boolean" },
+        "note": { "type": "string" },
+        "validated_at": { "type": "string" }
+      }
+    }
   }
 }

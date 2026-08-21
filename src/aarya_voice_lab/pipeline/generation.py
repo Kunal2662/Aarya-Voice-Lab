@@ -366,15 +366,51 @@ def build_artifact_fingerprint(*, request: PreviewRequest, tool: str, tool_versi
     )
 
 
+class InvalidConcurrencyError(ValueError):
+    """Raised when `max_concurrent_generations` is not a positive integer
+    or `None` (VL-D8). Never silently clamped -- a bad value is a bug in
+    the caller, not something to paper over."""
+
+
 class GenerationQueue:
     """Mirrors `pipeline.processing.ProcessingQueue`'s shape: sequential
     processing, one broad `except Exception` per item so a single failed
-    generation can never stop the rest of the queue (§13)."""
+    generation can never stop the rest of the queue (§13).
 
-    def __init__(self, *, generator: VoiceGenerator) -> None:
+    `max_concurrent_generations` (VL-D8) is opt-in and defaults to
+    `None`, which preserves the exact pre-VL-D8 behaviour: every queued
+    item processed in a single batch, in enqueue order. Items are always
+    processed one at a time in this process -- "concurrency" here means
+    *batch size* for `last_run_stats()`'s bookkeeping, a deterministic,
+    honestly-measurable proxy for the setting having taken effect. It is
+    not real parallel execution: no threading, no subprocess, no
+    additional execution surface is introduced.
+    """
+
+    def __init__(self, *, generator: VoiceGenerator, max_concurrent_generations: int | None = None) -> None:
         self._generator = generator
         self._items: dict[str, GenerationItem] = {}
         self._order: list[str] = []
+        self._max_concurrent_generations: int | None = None
+        self._last_run_stats: dict[str, Any] | None = None
+        self.set_max_concurrent_generations(max_concurrent_generations)
+
+    @property
+    def max_concurrent_generations(self) -> int | None:
+        return self._max_concurrent_generations
+
+    def set_max_concurrent_generations(self, value: int | None) -> None:
+        if value is not None and (not isinstance(value, int) or isinstance(value, bool) or value < 1):
+            raise InvalidConcurrencyError(
+                f"max_concurrent_generations must be a positive integer or None, got {value!r}"
+            )
+        self._max_concurrent_generations = value
+
+    def last_run_stats(self) -> dict[str, Any] | None:
+        """Real counts from the most recent `process_all()` call, or
+        `None` if it has not run yet. Never fabricated: absent until a
+        real run has happened."""
+        return dict(self._last_run_stats) if self._last_run_stats is not None else None
 
     def enqueue(self, request: PreviewRequest) -> GenerationItem:
         item_id = f"gen-{len(self._order):04d}-{request.request_id}"
@@ -443,11 +479,31 @@ class GenerationQueue:
         return item
 
     def process_all(self) -> list[GenerationItem]:
-        return [
-            self.process_one(item_id)
-            for item_id in self._order
-            if self._items[item_id].status == GenerationStatus.QUEUED
-        ]
+        """Process every QUEUED item, in enqueue order.
+
+        `max_concurrent_generations=None` (the default) processes
+        everything as one batch -- byte-for-byte the same observable
+        result (same items, same order, same statuses) as before VL-D8.
+        A set value processes the same items in the same order, batched
+        for `last_run_stats()`'s bookkeeping only; no item's outcome
+        depends on batch size.
+        """
+        queued_ids = [item_id for item_id in self._order if self._items[item_id].status == GenerationStatus.QUEUED]
+        batch_size = self._max_concurrent_generations or len(queued_ids) or 1
+
+        processed: list[GenerationItem] = []
+        batch_count = 0
+        for start in range(0, len(queued_ids), batch_size):
+            batch_count += 1
+            for item_id in queued_ids[start : start + batch_size]:
+                processed.append(self.process_one(item_id))
+
+        self._last_run_stats = {
+            "item_count": len(queued_ids),
+            "batch_count": batch_count if queued_ids else 0,
+            "max_concurrent_generations": self._max_concurrent_generations,
+        }
+        return processed
 
     def list(self) -> list[GenerationItem]:
         return [self._items[item_id] for item_id in self._order]

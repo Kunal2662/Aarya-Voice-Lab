@@ -25,6 +25,7 @@ import "./calibration-panel.js";
 import "./calibration-run-panel.js";
 import "./calibration-readiness-panel.js";
 import "./calibration-parameter-adjustments.js";
+import "./calibration-application-panel.js";
 import "./calibration-profile-history.js";
 import "./claude-calibration-context.js";
 import { assessReadiness } from "../state/calibration-engine-model.js";
@@ -41,6 +42,11 @@ function buildPreviewSummary(previewFeedbackStore) {
 }
 
 export class AvlWorkspaceCalibration extends AvlElement {
+  set selectionModel(value) {
+    this._selectionModel = value || null;
+    if (this.isConnected) this._render();
+  }
+
   set services(value) {
     this._services = value || {};
     if (this._services.calibrationStore) {
@@ -120,12 +126,24 @@ export class AvlWorkspaceCalibration extends AvlElement {
       adjustments.adjustments = current ? current.adjustments : [];
       enginePanel.appendChild(adjustments);
 
+      // VL-D8 -- Apply/Validate + before/after, a third axis
+      // (application_state) alongside run_state/calibration_state above.
+      const applicationHeading = document.createElement("h4");
+      applicationHeading.className = "avl-type-subheading";
+      applicationHeading.textContent = "Application & validation";
+      enginePanel.appendChild(applicationHeading);
+      const applicationPanel = document.createElement("avl-calibration-application-panel");
+      applicationPanel.calibrationStore = services.calibrationStore;
+      applicationPanel.generationQueueStore = services.generationQueueStore || null;
+      enginePanel.appendChild(applicationPanel);
+
       const historyHeading = document.createElement("h4");
       historyHeading.className = "avl-type-subheading";
       historyHeading.textContent = "Profile history";
       enginePanel.appendChild(historyHeading);
       const history = document.createElement("avl-calibration-profile-history");
       history.calibrationStore = services.calibrationStore;
+      history.selectionModel = this._selectionModel;
       enginePanel.appendChild(history);
 
       const claudeHeading = document.createElement("h4");

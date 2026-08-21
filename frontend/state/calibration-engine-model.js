@@ -68,6 +68,43 @@ export class ParameterBoundsError extends Error {}
 /** Mirrors pipeline.calibration_engine.RollbackTargetNotFound. */
 export class RollbackTargetNotFound extends Error {}
 
+// ---------------------------------------------------------------------
+// VL-D8 -- Calibration Application & Validation Loop. Mirrors
+// pipeline.calibration_engine's apply_adjustment()/validate_calibration()
+// exactly in record shape and honesty rules. application_state
+// (PROPOSED/APPLIED/VALIDATED) is a third axis, independent of
+// run_state and calibration_state -- see calibration-run-panel.js.
+// ---------------------------------------------------------------------
+
+export const ApplicationState = Object.freeze({
+  PROPOSED: "PROPOSED",
+  APPLIED: "APPLIED",
+  VALIDATED: "VALIDATED",
+});
+
+/** Mirrors pipeline.calibration_engine.CalibrationProfileNotFound. */
+export class CalibrationProfileNotFound extends Error {}
+
+/** Mirrors pipeline.calibration_engine.AdjustmentNotFound. */
+export class AdjustmentNotFound extends Error {}
+
+/** Mirrors pipeline.calibration_engine.ValidationWithoutApplicationError. */
+export class ValidationWithoutApplicationError extends Error {}
+
+const APPLICATION_TARGETS = new Set(["max_concurrent_generations"]);
+
+/** Deterministic queue-batching formula -- exactly
+ * pipeline.generation.GenerationQueue.process_all()'s batch-count math,
+ * so the frontend measures the same real effect the backend does
+ * without needing to drive the async, UI-progress-animated
+ * GenerationQueueStore. A queue-batching measurement only -- never a
+ * voice-quality claim. */
+export function computeBatchCount(itemCount, maxConcurrent) {
+  if (itemCount <= 0) return 0;
+  const batchSize = maxConcurrent || itemCount;
+  return Math.ceil(itemCount / batchSize);
+}
+
 /** Mirrors pipeline.calibration_engine.CalibrationParameterAdjustment --
  * refuses a proposal outside its own declared bounds rather than
  * clamping it silently. */
@@ -282,6 +319,131 @@ export class CalibrationProfileStore extends EventTarget {
       supersedes: null,
       is_rollback: false,
       created_at: new Date().toISOString(),
+      application_state: ApplicationState.PROPOSED,
+      applied_from_profile_id: null,
+      applied_parameter_name: null,
+      applied_value: null,
+      applied_at: null,
+      validation: null,
+    };
+    this._records.push(record);
+    this._announce(record);
+    return record;
+  }
+
+  /** Apply one of `profileId`'s proposed adjustments (VL-D8).
+   * Re-validates bounds *now* by reconstructing the adjustment via
+   * buildParameterAdjustment (never trusts the earlier proposal
+   * blindly). For `max_concurrent_generations`, sets that value on
+   * `queue` when supplied (a real state/generation-model.js
+   * GenerationQueueStore-shaped object exposing
+   * `setMaxConcurrentGenerations`). Never edits the source record --
+   * appends a new APPLIED profile version. */
+  applyAdjustment({ profileId, parameterName, queue = null }) {
+    const source = this._records.find((r) => r.profile_id === profileId);
+    if (!source) throw new CalibrationProfileNotFound(profileId);
+
+    const match = (source.adjustments || []).find((a) => a.parameter_name === parameterName);
+    if (!match) throw new AdjustmentNotFound(parameterName);
+
+    const adjustment = buildParameterAdjustment({
+      parameterName: match.parameter_name,
+      previousValue: match.previous_value,
+      proposedValue: match.proposed_value,
+      minBound: match.min_bound,
+      maxBound: match.max_bound,
+      rationale: match.rationale,
+      evidenceReference: match.evidence_reference,
+    });
+
+    if (queue) {
+      if (!APPLICATION_TARGETS.has(parameterName)) {
+        throw new Error(`no generation-pipeline application path exists for parameter ${parameterName}`);
+      }
+      queue.setMaxConcurrentGenerations(Math.round(adjustment.proposed_value));
+    }
+
+    const active = this.current();
+    const now = new Date().toISOString();
+    const record = {
+      ...source,
+      profile_id: this._nextProfileId(),
+      profile_version: this._records.length + 1,
+      supersedes: active ? active.profile_id : null,
+      is_rollback: false,
+      created_at: now,
+      application_state: ApplicationState.APPLIED,
+      applied_from_profile_id: source.profile_id,
+      applied_parameter_name: parameterName,
+      applied_value: adjustment.proposed_value,
+      applied_at: now,
+      validation: null,
+    };
+    this._records.push(record);
+    this._announce(record);
+    return record;
+  }
+
+  /** Measure whether an applied adjustment produced its expected
+   * runtime effect (VL-D8), and append a new VALIDATED profile version.
+   * `fixtureItemCount` (default 6) is the size of the synthetic fixture
+   * set the deterministic batch-count formula is evaluated over;
+   * `baselineMaxConcurrent` (default 1) is the "before" concurrency.
+   * Reports validation.not_measurable=true / measured_delta=null when
+   * the fixture size can't show a difference -- never fabricated. */
+  validateCalibration({ profileId, fixtureItemCount = 6, baselineMaxConcurrent = 1 }) {
+    const source = this._records.find((r) => r.profile_id === profileId);
+    if (!source) throw new CalibrationProfileNotFound(profileId);
+    if (source.application_state !== ApplicationState.APPLIED || source.applied_value == null) {
+      throw new ValidationWithoutApplicationError(
+        `${profileId} has application_state=${source.application_state}; validateCalibration requires APPLIED`,
+      );
+    }
+
+    const appliedConcurrency = Math.round(source.applied_value);
+    const beforeBatchCount = computeBatchCount(fixtureItemCount, baselineMaxConcurrent);
+    const afterBatchCount = computeBatchCount(fixtureItemCount, appliedConcurrency);
+    const now = new Date().toISOString();
+
+    const measurable = fixtureItemCount > 0 && beforeBatchCount !== afterBatchCount;
+    const validation = measurable
+      ? {
+          validated: true,
+          before_batch_count: beforeBatchCount,
+          after_batch_count: afterBatchCount,
+          measured_delta: beforeBatchCount - afterBatchCount,
+          not_measurable: false,
+          note:
+            `Measured over ${fixtureItemCount} synthetic queue item(s): baseline concurrency=` +
+            `${baselineMaxConcurrent} -> ${beforeBatchCount} batch(es); applied concurrency=` +
+            `${appliedConcurrency} -> ${afterBatchCount} batch(es). Queue-batching effect only -- ` +
+            "not a voice-quality measurement.",
+          validated_at: now,
+        }
+      : {
+          validated: false,
+          before_batch_count: beforeBatchCount || null,
+          after_batch_count: afterBatchCount || null,
+          measured_delta: null,
+          not_measurable: true,
+          note:
+            "No measurable batch-count difference: either the fixture set was empty, or the " +
+            "applied concurrency produced the same batch count as the baseline at this fixture " +
+            "size. Not a fabricated result -- an honest report that this run could not " +
+            "demonstrate the effect.",
+          validated_at: now,
+        };
+
+    const active = this.current();
+    const record = {
+      ...source,
+      profile_id: this._nextProfileId(),
+      profile_version: this._records.length + 1,
+      supersedes: active ? active.profile_id : null,
+      is_rollback: false,
+      created_at: now,
+      application_state: ApplicationState.VALIDATED,
+      validation,
     };
     this._records.push(record);
     this._announce(record);

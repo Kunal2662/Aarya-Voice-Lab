@@ -104,6 +104,29 @@ const RENDERERS = {
     ["Status", { badge: ["hardware", (data.status || "unknown").toUpperCase()] }],
     ["Calibration state", { badge: ["calibration", data.calibrationState] }],
   ],
+  // VL-D8 -- one calibration engine profile, selected from
+  // avl-calibration-profile-history. run_state/calibration_state/
+  // application_state are three deliberately independent badges, never
+  // merged. before/after values render exactly what validation
+  // measured, honestly "—" when not yet validated or not measurable.
+  "calibration-profile": (data) => [
+    ["Profile", data.profile_id],
+    ["Version", data.profile_version],
+    ["Run state", { badge: ["hardware_calibration", data.run_state] }],
+    ["Evidence state", { badge: ["calibration", data.calibration_state] }],
+    ["Application state", data.application_state],
+    ["Strategy", data.strategy],
+    ["Applied parameter", data.applied_parameter_name],
+    ["Applied value", data.applied_value],
+    ["Applied from", data.applied_from_profile_id],
+    ["Before (batches)", data.validation ? data.validation.before_batch_count : null],
+    ["After (batches)", data.validation ? data.validation.after_batch_count : null],
+    ["Measured delta", data.validation ? data.validation.measured_delta : null],
+    ["Not measurable", data.validation ? String(data.validation.not_measurable) : null],
+    ["Supersedes", data.supersedes],
+    ["Is rollback", String(data.is_rollback)],
+    ["Created", data.created_at],
+  ],
   "voice-profile": (data) => [
     ["Profile", data.name],
     ["Version", data.version],

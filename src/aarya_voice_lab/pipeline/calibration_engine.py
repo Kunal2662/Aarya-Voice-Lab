@@ -26,6 +26,29 @@ A successful run (`run_state=CALIBRATED`) paired with `PROVISIONAL` or
 even `UNCALIBRATED` evidence is not a bug — it is the honest, expected
 outcome whenever human-evaluation evidence is thin or absent.
 
+## VL-D8 — a third independent axis: application_state
+
+VL-D7 could only *propose* a bounded adjustment; nothing consumed it.
+VL-D8 adds `ApplicationState` (`PROPOSED`/`APPLIED`/`VALIDATED`) as a
+third axis, independent of both `run_state` and `calibration_state`:
+
+* **`apply_adjustment()`** re-checks bounds at application time — it
+  never trusts an earlier proposal blindly — and, for
+  `max_concurrent_generations`, sets that value on a real
+  `pipeline.generation.GenerationQueue`. It never edits the source
+  profile: it appends a new `APPLIED` profile version, provenance-linked
+  via `applied_from_profile_id` (distinct from `supersedes`, which keeps
+  its existing "previously active record" meaning).
+* **`validate_calibration()`** measures a real, deterministic runtime
+  effect — queue *batch count* over a small synthetic fixture set,
+  before (baseline concurrency) vs after (the applied value) — and
+  appends a new `VALIDATED` profile version. This is explicitly a
+  **queue-batching measurement, not a voice-quality measurement**: the
+  synthetic tone generator cannot measure voice quality, and this module
+  never claims it does. When the fixture set is too small to show a
+  difference, `validation.not_measurable=True` and `measured_delta` is
+  `None` — never a fabricated number.
+
 ## Parameter scope, deliberately narrow
 
 This phase's bounded parameter adjustments are **hardware/runtime
@@ -83,6 +106,7 @@ from aarya_voice_lab.pipeline.calibration_prep import (
 )
 from aarya_voice_lab.pipeline.evaluation import EvaluationLog
 from aarya_voice_lab.pipeline.evaluation_aggregation import outputs_with_disagreement
+from aarya_voice_lab.pipeline.generation import GenerationQueue
 from aarya_voice_lab.registry.json_registry import JsonLinesRegistry
 from aarya_voice_lab.schemas.base import SchemaName
 from aarya_voice_lab.system_info import SystemReport, collect_system_report
@@ -125,6 +149,17 @@ class CalibrationRunState(StrEnum):
     UNKNOWN = "UNKNOWN"
 
 
+class ApplicationState(StrEnum):
+    """VL-D8's third independent axis: has a proposed adjustment been
+    applied to the generation pipeline, and has its runtime effect been
+    measured? Independent of `CalibrationRunState` and
+    `identity.calibration.CalibrationState` -- see the module docstring."""
+
+    PROPOSED = "PROPOSED"
+    APPLIED = "APPLIED"
+    VALIDATED = "VALIDATED"
+
+
 class CalibrationStrategy(StrEnum):
     """Which class of calibration action the engine took, and why."""
 
@@ -145,6 +180,22 @@ class ParameterBoundsError(ValueError):
 
 class CalibrationEngineError(RuntimeError):
     """Raised for a calibration-engine operation that cannot proceed."""
+
+
+class CalibrationProfileNotFound(KeyError):
+    """Raised when `apply_adjustment()`/`validate_calibration()` is given
+    a `profile_id` that does not exist in the log."""
+
+
+class AdjustmentNotFound(KeyError):
+    """Raised when `apply_adjustment()` is asked for a `parameter_name`
+    that is not among the source profile's proposed adjustments."""
+
+
+class ValidationWithoutApplicationError(CalibrationEngineError):
+    """Raised when `validate_calibration()` is given a profile whose
+    `application_state` is not `APPLIED` -- validating a proposal that
+    was never applied would not measure anything real."""
 
 
 @dataclass(frozen=True)
@@ -385,6 +436,12 @@ class CalibrationProfile:
     engine_version: str = CALIBRATION_ENGINE_VERSION
     processing_version: str = __version__
     schema_version: str = "1.0.0"
+    application_state: ApplicationState = ApplicationState.PROPOSED
+    applied_from_profile_id: str | None = None
+    applied_parameter_name: str | None = None
+    applied_value: float | None = None
+    applied_at: str | None = None
+    validation: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -405,6 +462,12 @@ class CalibrationProfile:
             "engine_version": self.engine_version,
             "processing_version": self.processing_version,
             "schema_version": self.schema_version,
+            "application_state": self.application_state.value,
+            "applied_from_profile_id": self.applied_from_profile_id,
+            "applied_parameter_name": self.applied_parameter_name,
+            "applied_value": self.applied_value,
+            "applied_at": self.applied_at,
+            "validation": self.validation,
         }
 
 
@@ -506,6 +569,172 @@ def run_calibration(
         limitations=evidence_limitations,
     )
     payload = profile.to_dict()
+    log.add(payload)
+    return payload
+
+
+#: Parameters this engine knows how to apply, and where. Adding a new
+#: entry here is the only change needed to support applying a future
+#: adjustment -- nothing else in `apply_adjustment` names a parameter.
+_APPLICATION_TARGETS = frozenset({"max_concurrent_generations"})
+
+
+def apply_adjustment(
+    log: CalibrationProfileLog,
+    *,
+    profile_id: str,
+    parameter_name: str,
+    queue: GenerationQueue | None = None,
+) -> dict[str, Any]:
+    """Apply one of `profile_id`'s proposed adjustments (VL-D8).
+
+    Re-validates bounds *now*, from the stored proposal, rather than
+    trusting the value the earlier `run_calibration()` call computed --
+    `CalibrationParameterAdjustment.__post_init__` raises
+    `ParameterBoundsError` if the stored proposal is somehow no longer
+    self-consistent. Never edits `profile_id`'s record: appends a new
+    `APPLIED` profile version, provenance-linked via
+    `applied_from_profile_id` (distinct from `supersedes`, which keeps
+    its usual "record this displaces as active" meaning).
+
+    `queue`, when given, is the live `GenerationQueue` the value is
+    actually applied to. Omitting it re-validates the proposal and
+    records an `APPLIED` profile without touching any queue -- useful
+    when no generation queue exists yet in the caller's session.
+    """
+    source = log.get(profile_id)
+    if source is None:
+        raise CalibrationProfileNotFound(profile_id)
+
+    matches = [a for a in source["adjustments"] if a["parameter_name"] == parameter_name]
+    if not matches:
+        raise AdjustmentNotFound(parameter_name)
+
+    # Reconstructing re-runs __post_init__'s bounds check -- this is the
+    # "never trust an earlier proposal blindly" re-validation.
+    adjustment = CalibrationParameterAdjustment(**matches[0])
+
+    if queue is not None:
+        if parameter_name not in _APPLICATION_TARGETS:
+            raise CalibrationEngineError(
+                f"no generation-pipeline application path exists for parameter {parameter_name!r}"
+            )
+        queue.set_max_concurrent_generations(int(adjustment.proposed_value))
+
+    active = current_profile(log)
+    now = datetime.now(UTC).isoformat()
+    payload = dict(source)
+    payload["profile_id"] = _next_profile_id(log)
+    payload["profile_version"] = len(log.list()) + 1
+    payload["supersedes"] = active["profile_id"] if active else None
+    payload["is_rollback"] = False
+    payload["created_at"] = now
+    payload["application_state"] = ApplicationState.APPLIED.value
+    payload["applied_from_profile_id"] = source["profile_id"]
+    payload["applied_parameter_name"] = parameter_name
+    payload["applied_value"] = adjustment.proposed_value
+    payload["applied_at"] = now
+    payload["validation"] = None
+    log.add(payload)
+    return payload
+
+
+def validate_calibration(
+    log: CalibrationProfileLog,
+    *,
+    profile_id: str,
+    queue_factory: Any,
+    baseline_max_concurrent: int = 1,
+) -> dict[str, Any]:
+    """Measure whether an applied calibration adjustment produced its
+    expected runtime effect (VL-D8), and append a new `VALIDATED`
+    profile version recording it.
+
+    `queue_factory` is a zero-argument callable returning a fresh
+    `GenerationQueue` with the *same* synthetic fixture requests already
+    enqueued each time it is called -- callers build it from
+    `pipeline.generation.SyntheticVoiceGenerator`/`build_preview_request`
+    exactly as VL-D5's own tests do. This module never constructs a
+    `DataRoot` or a generator itself, so it never gains a path to real
+    recordings.
+
+    Measures queue **batch count** (a real, deterministic effect of
+    `max_concurrent_generations`) before (`baseline_max_concurrent`,
+    default 1) vs after (the profile's `applied_value`). This is a
+    runtime-behaviour measurement only -- it says nothing about voice
+    quality, and never claims to. When the fixture set is too small to
+    show a difference, `validation.not_measurable=True` and
+    `measured_delta` is `None`, never fabricated.
+    """
+    source = log.get(profile_id)
+    if source is None:
+        raise CalibrationProfileNotFound(profile_id)
+    if source.get("application_state") != ApplicationState.APPLIED.value or source.get("applied_value") is None:
+        raise ValidationWithoutApplicationError(
+            f"{profile_id} has application_state={source.get('application_state')!r}; "
+            "validate_calibration requires a profile with application_state=APPLIED"
+        )
+
+    applied_value = int(source["applied_value"])
+
+    before_queue: GenerationQueue = queue_factory()
+    before_queue.set_max_concurrent_generations(baseline_max_concurrent)
+    before_queue.process_all()
+    before_stats = before_queue.last_run_stats()
+
+    after_queue: GenerationQueue = queue_factory()
+    after_queue.set_max_concurrent_generations(applied_value)
+    after_queue.process_all()
+    after_stats = after_queue.last_run_stats()
+
+    now = datetime.now(UTC).isoformat()
+    measurable = (
+        before_stats is not None
+        and after_stats is not None
+        and before_stats["item_count"] > 0
+        and before_stats["item_count"] == after_stats["item_count"]
+        and before_stats["batch_count"] != after_stats["batch_count"]
+    )
+    if measurable:
+        validation = {
+            "validated": True,
+            "before_batch_count": before_stats["batch_count"],
+            "after_batch_count": after_stats["batch_count"],
+            "measured_delta": before_stats["batch_count"] - after_stats["batch_count"],
+            "not_measurable": False,
+            "note": (
+                f"Measured over {before_stats['item_count']} synthetic queue item(s): baseline "
+                f"concurrency={baseline_max_concurrent} -> {before_stats['batch_count']} batch(es); "
+                f"applied concurrency={applied_value} -> {after_stats['batch_count']} batch(es). "
+                "Queue-batching effect only -- not a voice-quality measurement."
+            ),
+            "validated_at": now,
+        }
+    else:
+        validation = {
+            "validated": False,
+            "before_batch_count": before_stats["batch_count"] if before_stats else None,
+            "after_batch_count": after_stats["batch_count"] if after_stats else None,
+            "measured_delta": None,
+            "not_measurable": True,
+            "note": (
+                "No measurable batch-count difference: either the synthetic fixture set was "
+                "empty, or the applied concurrency produced the same batch count as the "
+                "baseline at this fixture size. Not a fabricated result -- an honest report "
+                "that this run could not demonstrate the effect."
+            ),
+            "validated_at": now,
+        }
+
+    active = current_profile(log)
+    payload = dict(source)
+    payload["profile_id"] = _next_profile_id(log)
+    payload["profile_version"] = len(log.list()) + 1
+    payload["supersedes"] = active["profile_id"] if active else None
+    payload["is_rollback"] = False
+    payload["created_at"] = now
+    payload["application_state"] = ApplicationState.VALIDATED.value
+    payload["validation"] = validation
     log.add(payload)
     return payload
 

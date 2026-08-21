@@ -67,6 +67,26 @@ async function clickRunCalibration(page) {
   await page.waitForTimeout(80);
 }
 
+async function clickApply(page) {
+  await page.evaluate(() => {
+    const ws = document.querySelector("avl-workspace-calibration");
+    const appPanel = ws.shadowRoot.querySelector("avl-calibration-application-panel");
+    const button = [...appPanel.shadowRoot.querySelectorAll("avl-button")].find((b) => b.textContent === "Apply");
+    button.shadowRoot.querySelector("button").click();
+  });
+  await page.waitForTimeout(80);
+}
+
+async function clickValidate(page) {
+  await page.evaluate(() => {
+    const ws = document.querySelector("avl-workspace-calibration");
+    const appPanel = ws.shadowRoot.querySelector("avl-calibration-application-panel");
+    const button = [...appPanel.shadowRoot.querySelectorAll("avl-button")].find((b) => b.textContent === "Validate");
+    button.shadowRoot.querySelector("button").click();
+  });
+  await page.waitForTimeout(80);
+}
+
 async function generateOutput(page, text) {
   await page.evaluate(() => {
     location.hash = "#/preview";
@@ -350,3 +370,248 @@ test("dark theme: the Calibration workspace renders cleanly with data-theme=dark
     assert.equal(rendered, true);
   });
 });
+
+// =============================================================================
+// VL-D8 -- Calibration Application & Validation Loop
+// =============================================================================
+
+test("1. calibration proposal is visible after a run", { timeout: 30_000 }, async () => {
+  await withPage(async (page) => {
+    await goToCalibration(page);
+    await clickRunCalibration(page);
+    const row = await page.evaluate(() => {
+      const ws = document.querySelector("avl-workspace-calibration");
+      const table = ws.shadowRoot.querySelector("avl-calibration-parameter-adjustments");
+      return table.shadowRoot.querySelector("tbody tr").textContent;
+    });
+    assert.match(row, /max_concurrent_generations/);
+  });
+});
+
+test("2. Apply action works: application state becomes APPLIED", { timeout: 30_000 }, async () => {
+  await withPage(async (page) => {
+    await goToCalibration(page);
+    await clickRunCalibration(page);
+    await clickApply(page);
+    const text = await page.evaluate(() => {
+      const ws = document.querySelector("avl-workspace-calibration");
+      const appPanel = ws.shadowRoot.querySelector("avl-calibration-application-panel");
+      return appPanel.shadowRoot.textContent;
+    });
+    assert.match(text, /APPLIED/);
+  });
+});
+
+test("3. bounds rejection is visible: the same production code path apply_adjustment uses rejects an out-of-bounds proposal", { timeout: 30_000 }, async () => {
+  await withPage(async (page) => {
+    await goToCalibration(page);
+    await clickRunCalibration(page);
+    const rejected = await page.evaluate(async () => {
+      const mod = await import("/state/calibration-engine-model.js");
+      try {
+        mod.buildParameterAdjustment({
+          parameterName: "max_concurrent_generations",
+          previousValue: 1,
+          proposedValue: 999,
+          minBound: 1,
+          maxBound: 8,
+          rationale: "test",
+          evidenceReference: "test",
+        });
+        return false;
+      } catch (e) {
+        return e instanceof mod.ParameterBoundsError;
+      }
+    });
+    assert.equal(rejected, true);
+  });
+});
+
+test("4. applied state appears with the applied parameter and value shown", { timeout: 30_000 }, async () => {
+  await withPage(async (page) => {
+    await goToCalibration(page);
+    await clickRunCalibration(page);
+    await clickApply(page);
+    const metrics = await page.evaluate(() => {
+      const ws = document.querySelector("avl-workspace-calibration");
+      const appPanel = ws.shadowRoot.querySelector("avl-calibration-application-panel");
+      return [...appPanel.shadowRoot.querySelectorAll("avl-metric-placeholder")].map(
+        (m) => `${m.getAttribute("label")}=${m.getAttribute("value")}`,
+      );
+    });
+    assert.ok(metrics.some((m) => m.startsWith("Applied parameter=max_concurrent_generations")));
+    assert.ok(metrics.some((m) => m.startsWith("Applied value=")));
+  });
+});
+
+test("5. before/after panel renders after Validate", { timeout: 30_000 }, async () => {
+  await withPage(async (page) => {
+    await goToCalibration(page);
+    await clickRunCalibration(page);
+    await clickApply(page);
+    await clickValidate(page);
+    const metrics = await page.evaluate(() => {
+      const ws = document.querySelector("avl-workspace-calibration");
+      const appPanel = ws.shadowRoot.querySelector("avl-calibration-application-panel");
+      return [...appPanel.shadowRoot.querySelectorAll("avl-metric-placeholder")].map((m) => m.getAttribute("label"));
+    });
+    assert.ok(metrics.includes("Before (batches)"));
+    assert.ok(metrics.includes("After (batches)"));
+  });
+});
+
+test("6. measured result renders a real, non-null delta", { timeout: 30_000 }, async () => {
+  await withPage(async (page) => {
+    await goToCalibration(page);
+    await clickRunCalibration(page);
+    await clickApply(page);
+    await clickValidate(page);
+    const text = await page.evaluate(() => {
+      const ws = document.querySelector("avl-workspace-calibration");
+      const appPanel = ws.shadowRoot.querySelector("avl-calibration-application-panel");
+      return appPanel.shadowRoot.textContent;
+    });
+    assert.match(text, /Measured/);
+    assert.doesNotMatch(text, /NOT_MEASURABLE/);
+  });
+});
+
+test("7. NOT_MEASURABLE renders honestly for a too-small fixture", { timeout: 30_000 }, async () => {
+  await withPage(async (page) => {
+    await goToCalibration(page);
+    await clickRunCalibration(page);
+    await clickApply(page);
+    // Drive the store directly with a too-small fixture count -- the same
+    // production validateCalibration() path, just not through the
+    // default-6 Validate button, to exercise the honest-failure branch.
+    await page.evaluate(() => {
+      const ws = document.querySelector("avl-workspace-calibration");
+      const store = ws._services.calibrationStore;
+      const current = store.current();
+      store.validateCalibration({ profileId: current.profile_id, fixtureItemCount: 1 });
+    });
+    await page.waitForTimeout(80);
+    const text = await page.evaluate(() => {
+      const ws = document.querySelector("avl-workspace-calibration");
+      const appPanel = ws.shadowRoot.querySelector("avl-calibration-application-panel");
+      return appPanel.shadowRoot.textContent;
+    });
+    assert.match(text, /NOT_MEASURABLE/);
+  });
+});
+
+test("8. history preserves the prior (PROPOSED) version after apply/validate", { timeout: 30_000 }, async () => {
+  await withPage(async (page) => {
+    await goToCalibration(page);
+    await clickRunCalibration(page);
+    await clickApply(page);
+    await clickValidate(page);
+    const rows = await page.evaluate(() => {
+      const ws = document.querySelector("avl-workspace-calibration");
+      const history = ws.shadowRoot.querySelector("avl-calibration-profile-history");
+      return [...history.shadowRoot.querySelectorAll("li")].map((li) => li.textContent);
+    });
+    assert.equal(rows.length, 3);
+    assert.ok(rows.some((r) => r.includes("PROPOSED")));
+    assert.ok(rows.some((r) => r.includes("APPLIED")));
+    assert.ok(rows.some((r) => r.includes("VALIDATED")));
+  });
+});
+
+test("9. Inspector updates when a calibration profile is selected from history", { timeout: 30_000 }, async () => {
+  await withPage(async (page) => {
+    await goToCalibration(page);
+    await clickRunCalibration(page);
+    await page.evaluate(() => {
+      const ws = document.querySelector("avl-workspace-calibration");
+      const history = ws.shadowRoot.querySelector("avl-calibration-profile-history");
+      history.shadowRoot.querySelector("li span").click();
+    });
+    await page.waitForTimeout(80);
+    const inspectorText = await page.evaluate(() => {
+      const inspector = document.querySelector("avl-inspector-router");
+      return inspector.shadowRoot.textContent;
+    });
+    assert.match(inspectorText, /Application state/);
+    assert.match(inspectorText, /PROPOSED/);
+  });
+});
+
+test("10. Activity updates with calibration_applied and calibration_validated events", { timeout: 30_000 }, async () => {
+  await withPage(async (page) => {
+    await goToCalibration(page);
+    await clickRunCalibration(page);
+    await clickApply(page);
+    await clickValidate(page);
+    await page.evaluate(() => {
+      location.hash = "#/activity";
+    });
+    await page.waitForTimeout(150);
+    const text = await page.evaluate(() => {
+      const ws = document.querySelector("avl-workspace-activity");
+      const timeline = ws.shadowRoot.querySelector("avl-activity-timeline");
+      return [...timeline.shadowRoot.querySelectorAll("li, tr")].map((r) => r.textContent).join(" | ");
+    });
+    assert.match(text, /Calibration applied/);
+    assert.match(text, /Calibration validated/);
+  });
+});
+
+test("11. Command Center shows real Applied/Validated counts", { timeout: 30_000 }, async () => {
+  await withPage(async (page) => {
+    await goToCalibration(page);
+    await clickRunCalibration(page);
+    await clickApply(page);
+    await clickValidate(page);
+    await page.evaluate(() => {
+      location.hash = "#/command-center";
+    });
+    await page.waitForTimeout(200);
+    const metrics = await page.evaluate(() => {
+      const ws = document.querySelector("avl-workspace-command-center");
+      const panels = [...ws.shadowRoot.querySelectorAll("avl-panel")];
+      const calibration = panels.find((p) => p.getAttribute("title") === "Calibration engine");
+      return [...calibration.querySelectorAll("avl-metric-placeholder")].map((m) => `${m.getAttribute("label")}=${m.getAttribute("value")}`);
+    });
+    assert.ok(metrics.includes("Applied=1"));
+    assert.ok(metrics.includes("Validated=1"));
+  });
+});
+
+test("12. Claude calibration context stays bounded and includes applied/validation fields, never a speaker field", { timeout: 30_000 }, async () => {
+  await withPage(async (page) => {
+    await goToCalibration(page);
+    await clickRunCalibration(page);
+    await clickApply(page);
+    await clickValidate(page);
+    const contextText = await page.evaluate(() => {
+      const ws = document.querySelector("avl-workspace-calibration");
+      const el = ws.shadowRoot.querySelector("avl-claude-calibration-context");
+      return el.shadowRoot.querySelector("pre").textContent;
+    });
+    const context = JSON.parse(contextText);
+    assert.match(context.warning, /application_state=VALIDATED/);
+    assert.ok("applied_value" in context.config);
+    assert.ok("validation" in context.config);
+    assert.equal(context.permissions.max_risk_tier, "read_only");
+    assert.doesNotMatch(contextText, /\/home\//);
+    assert.doesNotMatch(contextText, /speaker/i);
+  });
+});
+
+test("13. existing calibration workspace navigation remains clean after VL-D8 wiring", { timeout: 30_000 }, async () => {
+  await withPage(async (page) => {
+    await goToCalibration(page);
+    const panelTitles = await page.evaluate(() => {
+      const ws = document.querySelector("avl-workspace-calibration");
+      return [...ws.shadowRoot.querySelectorAll("avl-panel")].map((p) => p.getAttribute("title"));
+    });
+    assert.deepEqual(panelTitles, [
+      "AI Calibration Engine",
+      "Hardware capabilities",
+      "Target-speaker verification calibration",
+    ]);
+  });
+});
+
+// 14. "no console errors" is enforced globally by every withPage() call above.

@@ -1,8 +1,10 @@
 // <avl-calibration-profile-history> -- VL-D7. Set `.calibrationStore` (a
-// state/calibration-engine-model.js CalibrationProfileStore). Lists
-// every calibration run, oldest first, with a "Roll back to this"
-// action on any non-current profile -- rollback never deletes or edits,
-// it appends a new record, so every prior entry stays listed here
+// state/calibration-engine-model.js CalibrationProfileStore) and
+// optionally `.selectionModel` (VL-D8 -- clicking a row selects that
+// profile into the Inspector, kind "calibration-profile"). Lists every
+// calibration run, oldest first, with a "Roll back to this" action on
+// any non-current profile -- rollback never deletes or edits, it
+// appends a new record, so every prior entry stays listed here
 // afterward. Mirrors avl-processing-history-panel's exact pattern.
 import { AvlElement, defineComponent } from "./base-element.js";
 import "./status-badge.js";
@@ -17,6 +19,10 @@ export class AvlCalibrationProfileHistory extends AvlElement {
       value.addEventListener("change", this._onChange);
     }
     if (this.isConnected) this._render();
+  }
+
+  set selectionModel(value) {
+    this._selectionModel = value || null;
   }
 
   connectedCallback() {
@@ -62,6 +68,11 @@ export class AvlCalibrationProfileHistory extends AvlElement {
       row.className = "row";
       const label = document.createElement("span");
       label.textContent = `${record.profile_id} (v${record.profile_version})${record.is_rollback ? " — rollback" : ""}`;
+      if (this._selectionModel) {
+        label.style.cursor = "pointer";
+        label.style.textDecoration = "underline";
+        label.addEventListener("click", () => this._selectionModel.select("calibration-profile", record.profile_id, record));
+      }
       row.appendChild(label);
 
       const badges = document.createElement("div");
@@ -80,7 +91,8 @@ export class AvlCalibrationProfileHistory extends AvlElement {
       const meta = document.createElement("div");
       meta.className = "meta";
       meta.textContent =
-        `strategy ${record.strategy} — ${record.created_at}` +
+        `strategy ${record.strategy} — application ${record.application_state || "PROPOSED"} — ${record.created_at}` +
+        (record.applied_from_profile_id ? ` — applied from ${record.applied_from_profile_id}` : "") +
         (record.supersedes ? ` — supersedes ${record.supersedes}` : "") +
         (isCurrent ? " — active" : "");
       item.appendChild(meta);

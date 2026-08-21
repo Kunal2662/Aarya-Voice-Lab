@@ -112,6 +112,9 @@ export class UnlistenedFeedbackError extends Error {}
  * could not be generated at all, distinct from an unexpected failure. */
 export class GenerationBlockedError extends Error {}
 
+/** Mirrors pipeline.generation.InvalidConcurrencyError (VL-D8). */
+export class InvalidConcurrencyError extends Error {}
+
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -411,6 +414,25 @@ export class GenerationQueueStore extends EventTarget {
     this._modelStore = modelStore;
     /** @type {object[]} */
     this._items = [];
+    /** @type {number|null} */
+    this._maxConcurrentGenerations = null;
+  }
+
+  /** VL-D8 -- mirrors pipeline.generation.GenerationQueue's setting
+   * exactly: opt-in, bounded, affects future processing bookkeeping
+   * only (this store's own item-by-item async processing model is
+   * unchanged -- see state/calibration-engine-model.js's
+   * computeBatchCount() for where the real before/after measurement
+   * actually happens). */
+  get maxConcurrentGenerations() {
+    return this._maxConcurrentGenerations;
+  }
+
+  setMaxConcurrentGenerations(value) {
+    if (value !== null && (!Number.isInteger(value) || value < 1)) {
+      throw new InvalidConcurrencyError(`max_concurrent_generations must be a positive integer or null, got ${value}`);
+    }
+    this._maxConcurrentGenerations = value;
   }
 
   enqueue(request) {

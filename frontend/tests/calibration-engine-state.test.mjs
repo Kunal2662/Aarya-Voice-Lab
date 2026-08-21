@@ -1,11 +1,15 @@
 // Pure-logic tests for VL-D7's client-side calibration engine state
-// (state/calibration-engine-model.js). Mirrors tests/test_calibration_engine.py's
-// scenarios: zero/insufficient/sufficient evidence, strategy selection,
-// hardware snapshot honesty, run-state/evidence-state independence,
-// bounded parameter enforcement, append-only rollback, and provenance.
+// (state/calibration-engine-model.js), extended in VL-D8. Mirrors
+// tests/test_calibration_engine.py's scenarios: zero/insufficient/
+// sufficient evidence, strategy selection, hardware snapshot honesty,
+// run-state/evidence-state independence, bounded parameter enforcement,
+// append-only rollback, provenance, and (VL-D8) application/validation.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  ApplicationState,
+  AdjustmentNotFound,
+  CalibrationProfileNotFound,
   CalibrationProfileStore,
   CalibrationRunState,
   CalibrationStrategy,
@@ -13,15 +17,18 @@ import {
   MIN_EVIDENCE_FOR_PROVISIONAL,
   ParameterBoundsError,
   RollbackTargetNotFound,
+  ValidationWithoutApplicationError,
   buildParameterAdjustment,
   captureHardwareSnapshot,
+  computeBatchCount,
   proposeHardwareAdjustments,
   assessReadiness,
   selectStrategy,
   agreementRate,
 } from "../state/calibration-engine-model.js";
 import { EvaluationStore, EvaluationCompletionState, outputsWithDisagreement } from "../state/evaluation-model.js";
-import { syntheticHardwareCapabilities } from "../state/synthetic-fixtures.js";
+import { GenerationQueueStore, GenerationModelStore, InvalidConcurrencyError } from "../state/generation-model.js";
+import { syntheticHardwareCapabilities, syntheticGenerationModels } from "../state/synthetic-fixtures.js";
 
 const LISTENING = { listened: true, first_listened_at: null, replay_count: 0, furthest_position_seconds: 3, completed_playback: true };
 
@@ -199,4 +206,177 @@ test("calibration profile has no speaker-identity fields", () => {
   for (const forbidden of ["speaker_id", "target_speaker", "voice_id", "embedding", "speaker_name"]) {
     assert.equal(Object.prototype.hasOwnProperty.call(profile, forbidden), false);
   }
+});
+
+// =============================================================================
+// VL-D8 -- Calibration Application & Validation Loop
+// =============================================================================
+
+function makeQueue() {
+  const modelStore = new GenerationModelStore();
+  for (const model of syntheticGenerationModels()) modelStore.register(model);
+  return new GenerationQueueStore({ modelStore });
+}
+
+test("GenerationQueueStore defaults to null concurrency and rejects invalid values", () => {
+  const queue = makeQueue();
+  assert.equal(queue.maxConcurrentGenerations, null);
+  for (const invalid of [0, -1, 2.5, "3"]) {
+    assert.throws(() => queue.setMaxConcurrentGenerations(invalid), InvalidConcurrencyError);
+  }
+  queue.setMaxConcurrentGenerations(4);
+  assert.equal(queue.maxConcurrentGenerations, 4);
+});
+
+test("computeBatchCount matches the backend's ceiling-division formula", () => {
+  assert.equal(computeBatchCount(6, 2), 3);
+  assert.equal(computeBatchCount(6, 1), 6);
+  assert.equal(computeBatchCount(5, null), 1);
+  assert.equal(computeBatchCount(0, 2), 0);
+});
+
+test("applyAdjustment creates a new APPLIED profile and never edits the source", () => {
+  const store = new CalibrationProfileStore();
+  const proposed = store.run({ capabilities: syntheticHardwareCapabilities() });
+
+  const applied = store.applyAdjustment({ profileId: proposed.profile_id, parameterName: "max_concurrent_generations" });
+
+  assert.equal(applied.application_state, ApplicationState.APPLIED);
+  assert.equal(applied.applied_from_profile_id, proposed.profile_id);
+  assert.notEqual(applied.profile_id, proposed.profile_id);
+  assert.deepEqual(store.history()[0], proposed);
+  assert.equal(proposed.application_state, ApplicationState.PROPOSED);
+});
+
+test("applyAdjustment actually sets the real queue value when a queue is supplied", () => {
+  const store = new CalibrationProfileStore();
+  const proposed = store.run({ capabilities: syntheticHardwareCapabilities() });
+  const queue = makeQueue();
+
+  const applied = store.applyAdjustment({
+    profileId: proposed.profile_id,
+    parameterName: "max_concurrent_generations",
+    queue,
+  });
+
+  assert.equal(queue.maxConcurrentGenerations, Math.round(applied.applied_value));
+});
+
+test("applyAdjustment works without a queue, still recording APPLIED state", () => {
+  const store = new CalibrationProfileStore();
+  const proposed = store.run({ capabilities: syntheticHardwareCapabilities() });
+  const applied = store.applyAdjustment({ profileId: proposed.profile_id, parameterName: "max_concurrent_generations" });
+  assert.equal(applied.application_state, ApplicationState.APPLIED);
+});
+
+test("applyAdjustment rejects an unknown parameter name", () => {
+  const store = new CalibrationProfileStore();
+  const proposed = store.run({ capabilities: syntheticHardwareCapabilities() });
+  assert.throws(
+    () => store.applyAdjustment({ profileId: proposed.profile_id, parameterName: "nope" }),
+    AdjustmentNotFound,
+  );
+});
+
+test("applyAdjustment rejects an unknown profile id", () => {
+  const store = new CalibrationProfileStore();
+  assert.throws(
+    () => store.applyAdjustment({ profileId: "cal-profile-nope", parameterName: "max_concurrent_generations" }),
+    CalibrationProfileNotFound,
+  );
+});
+
+test("applyAdjustment can be repeated, appending a new profile each time", () => {
+  const store = new CalibrationProfileStore();
+  const proposed = store.run({ capabilities: syntheticHardwareCapabilities() });
+  const first = store.applyAdjustment({ profileId: proposed.profile_id, parameterName: "max_concurrent_generations" });
+  const second = store.applyAdjustment({ profileId: proposed.profile_id, parameterName: "max_concurrent_generations" });
+
+  assert.notEqual(first.profile_id, second.profile_id);
+  assert.equal(second.supersedes, first.profile_id);
+  assert.equal(store.history().length, 3);
+});
+
+test("validateCalibration rejects a profile that was never applied", () => {
+  const store = new CalibrationProfileStore();
+  const proposed = store.run({ capabilities: syntheticHardwareCapabilities() });
+  assert.throws(
+    () => store.validateCalibration({ profileId: proposed.profile_id }),
+    ValidationWithoutApplicationError,
+  );
+});
+
+test("validateCalibration rejects an unknown profile id", () => {
+  const store = new CalibrationProfileStore();
+  assert.throws(() => store.validateCalibration({ profileId: "cal-profile-nope" }), CalibrationProfileNotFound);
+});
+
+test("validateCalibration measures a real before/after batch-count delta", () => {
+  const store = new CalibrationProfileStore();
+  const proposed = store.run({ capabilities: syntheticHardwareCapabilities() });
+  const applied = store.applyAdjustment({ profileId: proposed.profile_id, parameterName: "max_concurrent_generations" });
+
+  const validated = store.validateCalibration({ profileId: applied.profile_id, fixtureItemCount: 6 });
+
+  assert.equal(validated.application_state, ApplicationState.VALIDATED);
+  const v = validated.validation;
+  assert.equal(v.validated, true);
+  assert.equal(v.not_measurable, false);
+  assert.equal(v.before_batch_count, 6);
+  assert.equal(v.after_batch_count, computeBatchCount(6, Math.round(applied.applied_value)));
+  assert.equal(v.measured_delta, v.before_batch_count - v.after_batch_count);
+  assert.ok(v.measured_delta > 0);
+  assert.match(v.note, /voice-quality/);
+});
+
+test("validateCalibration reports NOT_MEASURABLE honestly for a too-small fixture", () => {
+  const store = new CalibrationProfileStore();
+  const proposed = store.run({ capabilities: syntheticHardwareCapabilities() });
+  const applied = store.applyAdjustment({ profileId: proposed.profile_id, parameterName: "max_concurrent_generations" });
+
+  const validated = store.validateCalibration({ profileId: applied.profile_id, fixtureItemCount: 1 });
+
+  assert.equal(validated.validation.validated, false);
+  assert.equal(validated.validation.not_measurable, true);
+  assert.equal(validated.validation.measured_delta, null);
+});
+
+test("validateCalibration never overwrites a prior validation -- each call appends", () => {
+  const store = new CalibrationProfileStore();
+  const proposed = store.run({ capabilities: syntheticHardwareCapabilities() });
+  const applied = store.applyAdjustment({ profileId: proposed.profile_id, parameterName: "max_concurrent_generations" });
+
+  const firstValidation = store.validateCalibration({ profileId: applied.profile_id, fixtureItemCount: 6 });
+  const secondValidation = store.validateCalibration({ profileId: applied.profile_id, fixtureItemCount: 6 });
+
+  assert.notEqual(firstValidation.profile_id, secondValidation.profile_id);
+  assert.equal(store.history().length, 4);
+  assert.deepEqual(store.history()[2], firstValidation);
+});
+
+test("full propose -> apply -> validate lifecycle is append-only with independent state axes", () => {
+  const store = new CalibrationProfileStore();
+  const proposed = store.run({ capabilities: syntheticHardwareCapabilities() });
+  const applied = store.applyAdjustment({ profileId: proposed.profile_id, parameterName: "max_concurrent_generations" });
+  const validated = store.validateCalibration({ profileId: applied.profile_id, fixtureItemCount: 6 });
+
+  const history = store.history();
+  assert.deepEqual(
+    history.map((r) => r.application_state),
+    [ApplicationState.PROPOSED, ApplicationState.APPLIED, ApplicationState.VALIDATED],
+  );
+  assert.ok(history.every((r) => r.run_state === "CALIBRATED"));
+  assert.ok(history.every((r) => r.calibration_state === "UNCALIBRATED"));
+  assert.deepEqual(history[0], proposed);
+  assert.deepEqual(history[1], applied);
+  assert.deepEqual(history[2], validated);
+});
+
+test("VL-D7 default profiles default to PROPOSED application state", () => {
+  const store = new CalibrationProfileStore();
+  const profile = store.run({ capabilities: syntheticHardwareCapabilities() });
+  assert.equal(profile.application_state, ApplicationState.PROPOSED);
+  assert.equal(profile.applied_from_profile_id, null);
+  assert.equal(profile.applied_value, null);
+  assert.equal(profile.validation, null);
 });

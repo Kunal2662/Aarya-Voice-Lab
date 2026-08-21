@@ -1,10 +1,11 @@
-// <avl-claude-calibration-context> -- VL-D7. A bounded "Ask Claude"
-// affordance for the current calibration profile: reuses
+// <avl-claude-calibration-context> -- VL-D7, extended VL-D8. A bounded
+// "Ask Claude" affordance for the current calibration profile: reuses
 // state/claude-context.js's buildReviewClaudeContext() exactly as
 // avl-claude-evaluation-context.js does -- same bounded shape (a
-// profile id in place of recording id, run/evidence state as the
-// warning, evidence counts as the metric and config, provenance limited
-// to hashes/ids), same redaction pass, same routing through the shared
+// profile id in place of recording id, run/evidence/application state as
+// the warning, evidence counts plus applied value and before/after
+// measurement as the metric and config, provenance limited to hashes/
+// ids), same redaction pass, same routing through the shared
 // CommandExecutor interface (still only NullCommandExecutor). Never
 // exposes hardware capability free text beyond what the profile already
 // carries, never a filesystem path, never a secret, no unrestricted
@@ -40,7 +41,8 @@ export class AvlClaudeCalibrationContext extends AvlElement {
       stage: "calibration",
       metric: profile ? { name: "total_evaluations", value: profile.evidence_counts.total_evaluations } : null,
       warning: profile
-        ? `run_state=${profile.run_state}, calibration_state=${profile.calibration_state}, strategy=${profile.strategy}`
+        ? `run_state=${profile.run_state}, calibration_state=${profile.calibration_state}, ` +
+          `application_state=${profile.application_state}, strategy=${profile.strategy}`
         : null,
       error: null,
       config: profile
@@ -48,6 +50,9 @@ export class AvlClaudeCalibrationContext extends AvlElement {
             agreement_rate: profile.agreement_rate,
             adjustment_count: profile.adjustments.length,
             accelerator_confirmed: profile.hardware_snapshot.accelerator_confirmed,
+            applied_parameter_name: profile.applied_parameter_name,
+            applied_value: profile.applied_value,
+            validation: profile.validation,
           }
         : null,
       provenance: { sourceSha256: null, configHash: null },

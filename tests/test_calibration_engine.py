@@ -1,12 +1,20 @@
-"""VL-D7 -- AI Calibration Engine tests.
+"""VL-D7 -- AI Calibration Engine tests, extended in VL-D8 with the
+calibration Application & Validation Loop.
 
-Covers: zero/insufficient/sufficient evidence, strategy selection,
-hardware snapshot assembly, run-state/evidence-state independence,
-bounded parameter enforcement, invalid-adjustment rejection, profile
-versioning, append-only history, rollback, provenance, readiness
-assessment, provisional reviewer-feedback integration, and security
-boundaries (no real recordings, no embeddings, no training, no gate
-bypass).
+VL-D7 section covers: zero/insufficient/sufficient evidence, strategy
+selection, hardware snapshot assembly, run-state/evidence-state
+independence, bounded parameter enforcement, invalid-adjustment
+rejection, profile versioning, append-only history, rollback,
+provenance, readiness assessment, provisional reviewer-feedback
+integration, and security boundaries (no real recordings, no
+embeddings, no training, no gate bypass).
+
+VL-D8 section covers: bounded generation-queue concurrency, applying a
+proposed adjustment (with re-checked bounds), applying without a queue,
+repeated application, validating an applied profile's real before/after
+queue-batching effect, NOT_MEASURABLE honesty, validation-without-
+application rejection, and append-only/provenance guarantees across the
+new PROPOSED/APPLIED/VALIDATED axis.
 """
 
 from __future__ import annotations
@@ -15,18 +23,25 @@ import inspect
 
 import pytest
 
+from aarya_voice_lab.core.data_root import DataRoot
 from aarya_voice_lab.identity.calibration import CalibrationEvidence, CalibrationState
 from aarya_voice_lab.pipeline import calibration_engine
 from aarya_voice_lab.pipeline.calibration_engine import (
     MIN_EVIDENCE_FOR_PROVISIONAL,
+    AdjustmentNotFound,
+    ApplicationState,
+    CalibrationEngineError,
     CalibrationParameterAdjustment,
     CalibrationProfileLog,
+    CalibrationProfileNotFound,
     CalibrationReadiness,
     CalibrationRunState,
     CalibrationStrategy,
     HardwareSnapshot,
     ParameterBoundsError,
     RollbackTargetNotFound,
+    ValidationWithoutApplicationError,
+    apply_adjustment,
     assess_readiness,
     current_profile,
     profile_history,
@@ -34,6 +49,7 @@ from aarya_voice_lab.pipeline.calibration_engine import (
     rollback,
     run_calibration,
     select_strategy,
+    validate_calibration,
 )
 from aarya_voice_lab.pipeline.calibration_prep import (
     summarize_evaluation_calibration_inputs,
@@ -44,6 +60,12 @@ from aarya_voice_lab.pipeline.evaluation import (
     EvaluationLog,
     ListeningState,
     record_evaluation,
+)
+from aarya_voice_lab.pipeline.generation import (
+    GenerationQueue,
+    InvalidConcurrencyError,
+    SyntheticVoiceGenerator,
+    build_preview_request,
 )
 from aarya_voice_lab.schemas.base import SchemaName, validate
 
@@ -372,14 +394,28 @@ def test_log_reloads_from_disk(tmp_path):
 
 
 def _code_only_source() -> str:
-    """The module's source with its docstring stripped -- the docstring
-    legitimately discusses DataRoot.source, AMD/Intel, and embeddings as
-    things this module must NOT touch; checking code, not prose, is what
-    actually proves it."""
+    """The module's source with every docstring (module, class, and
+    function) stripped -- docstrings throughout this module legitimately
+    discuss DataRoot.source, AMD/Intel, and embeddings as things it must
+    NOT touch (including validate_calibration's own note that it takes a
+    queue_factory specifically so it never constructs a DataRoot itself);
+    checking code, not prose, is what actually proves the boundary."""
+    import ast
+
     full = inspect.getsource(calibration_engine)
-    first = full.index('"""')
-    second = full.index('"""', first + 3)
-    return full[second + 3 :]
+    tree = ast.parse(full)
+    lines = full.splitlines(keepends=True)
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Module | ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef):
+            continue
+        if not (node.body and isinstance(node.body[0], ast.Expr) and isinstance(node.body[0].value, ast.Constant)):
+            continue
+        doc_node = node.body[0]
+        if not isinstance(doc_node.value.value, str):
+            continue
+        for lineno in range(doc_node.lineno, doc_node.end_lineno + 1):
+            lines[lineno - 1] = "\n"
+    return "".join(lines)
 
 
 def test_module_never_imports_data_root():
@@ -423,3 +459,337 @@ def test_calibration_profile_has_no_speaker_identity_fields():
         __import__("tempfile").mkdtemp()) / "cal.jsonl"))
     forbidden = {"speaker_id", "target_speaker", "voice_id", "embedding", "speaker_name"}
     assert forbidden.isdisjoint(profile.keys())
+
+
+# =============================================================================
+# VL-D8 -- Calibration Application & Validation Loop
+# =============================================================================
+
+
+@pytest.fixture
+def data_root(tmp_path):
+    root = DataRoot(root=tmp_path / "data")
+    root.create()
+    return root
+
+
+def _fixture_queue_factory(data_root, item_count):
+    def factory():
+        queue = GenerationQueue(generator=SyntheticVoiceGenerator(data_root))
+        for i in range(item_count):
+            queue.enqueue(
+                build_preview_request(
+                    text=f"Validation fixture {i}.", voice_profile_id="vp-1", model_id="synthetic-tone-v1"
+                )
+            )
+        return queue
+
+    return factory
+
+
+# -- GenerationQueue bounded concurrency -------------------------------------
+
+
+def test_generation_queue_default_concurrency_is_unbounded_single_batch(data_root):
+    queue = GenerationQueue(generator=SyntheticVoiceGenerator(data_root))
+    for i in range(4):
+        queue.enqueue(build_preview_request(text=f"t{i}", voice_profile_id="vp-1", model_id="synthetic-tone-v1"))
+    assert queue.max_concurrent_generations is None
+    results = queue.process_all()
+    assert len(results) == 4
+    assert queue.last_run_stats() == {"item_count": 4, "batch_count": 1, "max_concurrent_generations": None}
+
+
+def test_generation_queue_accepts_valid_bounded_concurrency(data_root):
+    queue = GenerationQueue(generator=SyntheticVoiceGenerator(data_root), max_concurrent_generations=2)
+    assert queue.max_concurrent_generations == 2
+    for i in range(5):
+        queue.enqueue(build_preview_request(text=f"t{i}", voice_profile_id="vp-1", model_id="synthetic-tone-v1"))
+    queue.process_all()
+    # 5 items in batches of 2 -> 3 batches (2, 2, 1)
+    assert queue.last_run_stats()["batch_count"] == 3
+
+
+@pytest.mark.parametrize("invalid", [0, -1, -5, 2.5, "3", True, False])
+def test_generation_queue_rejects_invalid_concurrency(data_root, invalid):
+    queue = GenerationQueue(generator=SyntheticVoiceGenerator(data_root))
+    with pytest.raises(InvalidConcurrencyError):
+        queue.set_max_concurrent_generations(invalid)
+
+
+def test_generation_queue_rejects_invalid_concurrency_at_construction(data_root):
+    with pytest.raises(InvalidConcurrencyError):
+        GenerationQueue(generator=SyntheticVoiceGenerator(data_root), max_concurrent_generations=0)
+
+
+def test_generation_queue_process_all_produces_identical_items_regardless_of_batching(data_root):
+    """The set and order of processed items must never depend on
+    batch size -- only last_run_stats()'s bookkeeping does."""
+    unbatched = GenerationQueue(generator=SyntheticVoiceGenerator(data_root))
+    batched = GenerationQueue(generator=SyntheticVoiceGenerator(data_root), max_concurrent_generations=2)
+    for i in range(5):
+        text = f"deterministic {i}"
+        kwargs = {"text": text, "voice_profile_id": "vp-1", "model_id": "synthetic-tone-v1", "seed": 42}
+        unbatched.enqueue(build_preview_request(**kwargs))
+        batched.enqueue(build_preview_request(**kwargs))
+
+    unbatched_results = unbatched.process_all()
+    batched_results = batched.process_all()
+
+    assert [r.status for r in unbatched_results] == [r.status for r in batched_results]
+    assert [r.artifact["sha256"] for r in unbatched_results] == [r.artifact["sha256"] for r in batched_results]
+
+
+def test_generation_queue_last_run_stats_is_none_before_any_run(data_root):
+    queue = GenerationQueue(generator=SyntheticVoiceGenerator(data_root))
+    assert queue.last_run_stats() is None
+
+
+def test_generation_queue_zero_queued_items_produces_zero_batch_count(data_root):
+    queue = GenerationQueue(generator=SyntheticVoiceGenerator(data_root), max_concurrent_generations=2)
+    queue.process_all()
+    assert queue.last_run_stats() == {"item_count": 0, "batch_count": 0, "max_concurrent_generations": 2}
+
+
+# -- application ---------------------------------------------------------------
+
+
+def test_apply_adjustment_creates_new_applied_profile_never_edits_source(tmp_path, data_root):
+    log = CalibrationProfileLog(tmp_path / "cal.jsonl")
+    proposed = run_calibration(log)
+
+    applied = apply_adjustment(log, profile_id=proposed["profile_id"], parameter_name="max_concurrent_generations")
+
+    assert applied["application_state"] == ApplicationState.APPLIED.value
+    assert applied["applied_from_profile_id"] == proposed["profile_id"]
+    assert applied["applied_parameter_name"] == "max_concurrent_generations"
+    assert applied["applied_value"] is not None
+    assert applied["profile_id"] != proposed["profile_id"]
+    # source untouched
+    assert log.get(proposed["profile_id"]) == proposed
+    assert proposed["application_state"] == ApplicationState.PROPOSED.value
+
+
+def test_apply_adjustment_actually_sets_the_queue_value(tmp_path, data_root):
+    log = CalibrationProfileLog(tmp_path / "cal.jsonl")
+    proposed = run_calibration(log)
+    queue = GenerationQueue(generator=SyntheticVoiceGenerator(data_root))
+
+    applied = apply_adjustment(
+        log, profile_id=proposed["profile_id"], parameter_name="max_concurrent_generations", queue=queue
+    )
+
+    assert queue.max_concurrent_generations == int(applied["applied_value"])
+
+
+def test_apply_adjustment_without_a_queue_still_records_applied_state(tmp_path):
+    log = CalibrationProfileLog(tmp_path / "cal.jsonl")
+    proposed = run_calibration(log)
+
+    applied = apply_adjustment(log, profile_id=proposed["profile_id"], parameter_name="max_concurrent_generations")
+    assert applied["application_state"] == ApplicationState.APPLIED.value
+
+
+def test_apply_adjustment_rechecks_bounds_at_application_time(tmp_path):
+    """Never trust an earlier proposal blindly: apply_adjustment
+    reconstructs CalibrationParameterAdjustment from the stored record,
+    which re-runs its own bounds check."""
+    log = CalibrationProfileLog(tmp_path / "cal.jsonl")
+    proposed = run_calibration(log)
+    # Corrupt the stored proposal directly to simulate a proposal that
+    # is no longer self-consistent -- apply_adjustment must catch this,
+    # not blindly trust it.
+    corrupted = dict(proposed)
+    corrupted["adjustments"] = [
+        {**proposed["adjustments"][0], "proposed_value": 999.0},
+    ]
+    corrupted["profile_id"] = "cal-corrupted-00001"
+    log.add(corrupted)
+
+    with pytest.raises(ParameterBoundsError):
+        apply_adjustment(log, profile_id=corrupted["profile_id"], parameter_name="max_concurrent_generations")
+
+
+def test_apply_adjustment_unknown_parameter_raises_adjustment_not_found(tmp_path):
+    log = CalibrationProfileLog(tmp_path / "cal.jsonl")
+    proposed = run_calibration(log)
+    with pytest.raises(AdjustmentNotFound):
+        apply_adjustment(log, profile_id=proposed["profile_id"], parameter_name="does_not_exist")
+
+
+def test_apply_adjustment_unknown_profile_raises_profile_not_found(tmp_path):
+    log = CalibrationProfileLog(tmp_path / "cal.jsonl")
+    with pytest.raises(CalibrationProfileNotFound):
+        apply_adjustment(log, profile_id="cal-profile-nope", parameter_name="max_concurrent_generations")
+
+
+def test_apply_adjustment_unsupported_target_with_queue_raises(tmp_path, data_root):
+    """A parameter this engine has no application path for must refuse
+    to silently no-op when a queue is supplied."""
+    log = CalibrationProfileLog(tmp_path / "cal.jsonl")
+    proposed = run_calibration(log)
+    corrupted = dict(proposed)
+    corrupted["adjustments"] = [
+        {**proposed["adjustments"][0], "parameter_name": "some_future_parameter"},
+    ]
+    corrupted["profile_id"] = "cal-corrupted-00002"
+    log.add(corrupted)
+    queue = GenerationQueue(generator=SyntheticVoiceGenerator(data_root))
+
+    with pytest.raises(CalibrationEngineError):
+        apply_adjustment(log, profile_id=corrupted["profile_id"], parameter_name="some_future_parameter", queue=queue)
+
+
+def test_apply_adjustment_can_be_repeated_appending_each_time(tmp_path):
+    log = CalibrationProfileLog(tmp_path / "cal.jsonl")
+    proposed = run_calibration(log)
+
+    first = apply_adjustment(log, profile_id=proposed["profile_id"], parameter_name="max_concurrent_generations")
+    second = apply_adjustment(log, profile_id=proposed["profile_id"], parameter_name="max_concurrent_generations")
+
+    assert first["profile_id"] != second["profile_id"]
+    assert first["applied_from_profile_id"] == second["applied_from_profile_id"] == proposed["profile_id"]
+    assert second["supersedes"] == first["profile_id"]
+    assert len(profile_history(log)) == 3
+
+
+def test_apply_adjustment_validates_against_schema(tmp_path):
+    log = CalibrationProfileLog(tmp_path / "cal.jsonl")
+    proposed = run_calibration(log)
+    applied = apply_adjustment(log, profile_id=proposed["profile_id"], parameter_name="max_concurrent_generations")
+    validate(applied, SchemaName.CALIBRATION_PROFILE)
+
+
+# -- validation ------------------------------------------------------------
+
+
+def test_validate_calibration_without_application_raises(tmp_path):
+    log = CalibrationProfileLog(tmp_path / "cal.jsonl")
+    proposed = run_calibration(log)
+    with pytest.raises(ValidationWithoutApplicationError):
+        validate_calibration(log, profile_id=proposed["profile_id"], queue_factory=lambda: None)
+
+
+def test_validate_calibration_unknown_profile_raises(tmp_path):
+    log = CalibrationProfileLog(tmp_path / "cal.jsonl")
+    with pytest.raises(CalibrationProfileNotFound):
+        validate_calibration(log, profile_id="cal-profile-nope", queue_factory=lambda: None)
+
+
+def test_validate_calibration_measures_a_real_before_after_batch_count(tmp_path, data_root):
+    log = CalibrationProfileLog(tmp_path / "cal.jsonl")
+    proposed = run_calibration(log)
+    applied = apply_adjustment(log, profile_id=proposed["profile_id"], parameter_name="max_concurrent_generations")
+    factory = _fixture_queue_factory(data_root, item_count=6)
+
+    validated = validate_calibration(log, profile_id=applied["profile_id"], queue_factory=factory)
+
+    assert validated["application_state"] == ApplicationState.VALIDATED.value
+    v = validated["validation"]
+    assert v["validated"] is True
+    assert v["not_measurable"] is False
+    import math
+
+    applied_concurrency = int(applied["applied_value"])
+    assert v["before_batch_count"] == 6  # baseline concurrency=1 -> one item per batch
+    assert v["after_batch_count"] == math.ceil(6 / applied_concurrency)
+    assert v["after_batch_count"] < v["before_batch_count"]
+    assert v["measured_delta"] == v["before_batch_count"] - v["after_batch_count"]
+    assert v["measured_delta"] > 0
+    assert "voice-quality" in v["note"] or "voice quality" in v["note"]
+
+
+def test_validate_calibration_reports_not_measurable_honestly_for_a_too_small_fixture(tmp_path, data_root):
+    log = CalibrationProfileLog(tmp_path / "cal.jsonl")
+    proposed = run_calibration(log)
+    applied = apply_adjustment(log, profile_id=proposed["profile_id"], parameter_name="max_concurrent_generations")
+    factory = _fixture_queue_factory(data_root, item_count=1)
+
+    validated = validate_calibration(log, profile_id=applied["profile_id"], queue_factory=factory)
+
+    v = validated["validation"]
+    assert v["validated"] is False
+    assert v["not_measurable"] is True
+    assert v["measured_delta"] is None
+
+
+def test_validate_calibration_never_overwrites_prior_validation(tmp_path, data_root):
+    log = CalibrationProfileLog(tmp_path / "cal.jsonl")
+    proposed = run_calibration(log)
+    applied = apply_adjustment(log, profile_id=proposed["profile_id"], parameter_name="max_concurrent_generations")
+    factory = _fixture_queue_factory(data_root, item_count=6)
+
+    first_validation = validate_calibration(log, profile_id=applied["profile_id"], queue_factory=factory)
+    second_validation = validate_calibration(log, profile_id=applied["profile_id"], queue_factory=factory)
+
+    assert first_validation["profile_id"] != second_validation["profile_id"]
+    assert log.get(first_validation["profile_id"]) == first_validation  # untouched
+    assert len(profile_history(log)) == 4  # proposed, applied, validated x2
+
+
+def test_validate_calibration_preserves_provenance_chain(tmp_path, data_root):
+    log = CalibrationProfileLog(tmp_path / "cal.jsonl")
+    proposed = run_calibration(log)
+    applied = apply_adjustment(log, profile_id=proposed["profile_id"], parameter_name="max_concurrent_generations")
+    factory = _fixture_queue_factory(data_root, item_count=6)
+    validated = validate_calibration(log, profile_id=applied["profile_id"], queue_factory=factory)
+
+    assert validated["applied_from_profile_id"] == proposed["profile_id"]
+    assert validated["applied_parameter_name"] == "max_concurrent_generations"
+    assert validated["supersedes"] == applied["profile_id"]
+
+
+def test_validate_calibration_validates_against_schema(tmp_path, data_root):
+    log = CalibrationProfileLog(tmp_path / "cal.jsonl")
+    proposed = run_calibration(log)
+    applied = apply_adjustment(log, profile_id=proposed["profile_id"], parameter_name="max_concurrent_generations")
+    factory = _fixture_queue_factory(data_root, item_count=6)
+    validated = validate_calibration(log, profile_id=applied["profile_id"], queue_factory=factory)
+    validate(validated, SchemaName.CALIBRATION_PROFILE)
+
+
+def test_validate_calibration_after_rollback_of_application_state_raises(tmp_path):
+    """Rolling back to a PROPOSED profile makes it the active record
+    again; validating that (unapplied) record must still be refused."""
+    log = CalibrationProfileLog(tmp_path / "cal.jsonl")
+    proposed = run_calibration(log)
+    apply_adjustment(log, profile_id=proposed["profile_id"], parameter_name="max_concurrent_generations")
+    rolled_back = rollback(log, to_profile_id=proposed["profile_id"])
+
+    assert rolled_back["application_state"] == ApplicationState.PROPOSED.value
+    with pytest.raises(ValidationWithoutApplicationError):
+        validate_calibration(log, profile_id=rolled_back["profile_id"], queue_factory=lambda: None)
+
+
+# -- full lifecycle / regression ------------------------------------------
+
+
+def test_full_propose_apply_validate_lifecycle_is_append_only(tmp_path, data_root):
+    log = CalibrationProfileLog(tmp_path / "cal.jsonl")
+    proposed = run_calibration(log)
+    applied = apply_adjustment(log, profile_id=proposed["profile_id"], parameter_name="max_concurrent_generations")
+    factory = _fixture_queue_factory(data_root, item_count=6)
+    validated = validate_calibration(log, profile_id=applied["profile_id"], queue_factory=factory)
+
+    history = profile_history(log)
+    assert [r["application_state"] for r in history] == ["PROPOSED", "APPLIED", "VALIDATED"]
+    assert [r["profile_version"] for r in history] == [1, 2, 3]
+    # run_state/calibration_state independence preserved throughout
+    assert all(r["run_state"] == "CALIBRATED" for r in history)
+    assert all(r["calibration_state"] == "UNCALIBRATED" for r in history)
+    # nothing mutated
+    assert history[0] == proposed
+    assert history[1] == applied
+    assert history[2] == validated
+
+
+def test_vl_d7_default_profiles_default_to_proposed_application_state(tmp_path):
+    """Existing VL-D7 callers that never touch application logic still
+    get a well-formed, schema-valid record."""
+    log = CalibrationProfileLog(tmp_path / "cal.jsonl")
+    profile = run_calibration(log)
+    assert profile["application_state"] == "PROPOSED"
+    assert profile["applied_from_profile_id"] is None
+    assert profile["applied_value"] is None
+    assert profile["validation"] is None
+    validate(profile, SchemaName.CALIBRATION_PROFILE)

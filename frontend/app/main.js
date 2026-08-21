@@ -412,17 +412,35 @@ async function main() {
   // VL-D7 -- one activity event per calibration engine run/rollback.
   // run_state and calibration_state are both real fields off the record,
   // never a fabricated score -- see state/calibration-engine-model.js.
+  // VL-D8 -- extended with distinct calibration_applied/
+  // calibration_validated events, driven by the record's own
+  // application_state (never inferred or fabricated).
   calibrationStore.addEventListener("change", (event) => {
     const record = event.detail.record;
+    let status;
+    let summary;
+    if (record.is_rollback) {
+      status = "calibration_rolled_back";
+      summary = `Calibration rolled back to ${record.profile_id} (supersedes ${record.supersedes})`;
+    } else if (record.application_state === "APPLIED") {
+      status = "calibration_applied";
+      summary = `Calibration applied: ${record.applied_parameter_name}=${record.applied_value} (from ${record.applied_from_profile_id})`;
+    } else if (record.application_state === "VALIDATED") {
+      status = "calibration_validated";
+      summary = record.validation.not_measurable
+        ? `Calibration validated: NOT_MEASURABLE (${record.profile_id})`
+        : `Calibration validated: measured_delta=${record.validation.measured_delta} batch(es) (${record.profile_id})`;
+    } else {
+      status = "calibration_run_completed";
+      summary = `Calibration run completed: run_state=${record.run_state}, calibration_state=${record.calibration_state}`;
+    }
     activityStore.append(
       createActivityEvent({
         id: `calibration-activity-${record.profile_id}`,
         severity: record.run_state === "FAILED" ? ActivitySeverity.DANGER : ActivitySeverity.INFO,
         source: ActivitySource.CALIBRATION,
-        status: record.is_rollback ? "calibration_rolled_back" : "calibration_run_completed",
-        summary: record.is_rollback
-          ? `Calibration rolled back to ${record.profile_id} (supersedes ${record.supersedes})`
-          : `Calibration run completed: run_state=${record.run_state}, calibration_state=${record.calibration_state}`,
+        status,
+        summary,
       }),
     );
   });
