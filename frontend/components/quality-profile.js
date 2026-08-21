@@ -32,7 +32,7 @@ export class AvlQualityProfile extends AvlElement {
       section { margin-top: var(--avl-space-3); }
       section h4 { margin: 0 0 var(--avl-space-1) 0; font: var(--avl-type-caption-weight) var(--avl-type-caption-size) / 1 var(--avl-type-caption-family); text-transform: uppercase; letter-spacing: 0.04em; color: var(--avl-color-text-secondary); }
       .flags { display: flex; flex-wrap: wrap; gap: var(--avl-space-1); }
-      .flag { font: var(--avl-type-caption-weight) var(--avl-type-caption-size) / 1 var(--avl-type-caption-family); padding: 0.15rem var(--avl-space-2); border-radius: var(--avl-radius-pill); border: 1px solid var(--avl-color-state-warning); color: var(--avl-color-state-warning); }
+      .flag { font: var(--avl-type-caption-weight) var(--avl-type-caption-size) / 1 var(--avl-type-caption-family); padding: var(--avl-space-1) var(--avl-space-2); border-radius: var(--avl-radius-pill); border: 1px solid var(--avl-color-state-warning); color: var(--avl-color-state-warning); }
       .characteristic { font: var(--avl-type-body-small-weight) var(--avl-type-body-small-size) / var(--avl-type-body-small-line-height) var(--avl-type-body-small-family); color: var(--avl-color-text-secondary); }
     `;
     this.shadowRoot.appendChild(style);

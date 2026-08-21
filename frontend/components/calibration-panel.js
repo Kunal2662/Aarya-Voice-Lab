@@ -26,7 +26,7 @@ export class AvlCalibrationPanel extends AvlElement {
     const style = document.createElement("style");
     style.textContent = `
       .panel { display: flex; flex-direction: column; gap: var(--avl-space-2); }
-      .row { display: flex; align-items: center; gap: var(--avl-space-2); }
+      /* FE-3 -- .row replaced by the shared avl-cluster utility (css/base.css). */
       .note { color: var(--avl-color-text-muted); font: var(--avl-type-caption-weight) var(--avl-type-caption-size) / var(--avl-type-caption-line-height) var(--avl-type-caption-family); }
     `;
     this.shadowRoot.appendChild(style);
@@ -37,7 +37,7 @@ export class AvlCalibrationPanel extends AvlElement {
     panel.className = "panel";
 
     const row = document.createElement("div");
-    row.className = "row";
+    row.className = "avl-cluster";
     const badge = document.createElement("avl-status-badge");
     badge.setAttribute("domain", "calibration");
     badge.setAttribute("state", record.state || "UNCALIBRATED");

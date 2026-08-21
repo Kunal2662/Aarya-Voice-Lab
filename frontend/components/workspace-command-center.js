@@ -89,7 +89,8 @@ export class AvlWorkspaceCommandCenter extends AvlElement {
       .subtitle { margin: 0 0 var(--avl-space-4) 0; color: var(--avl-color-text-secondary); font: var(--avl-type-body-small-weight) var(--avl-type-body-small-size) / var(--avl-type-body-small-line-height) var(--avl-type-body-small-family); }
       .headline-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: var(--avl-space-3); margin-bottom: var(--avl-space-4); }
       .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--avl-space-4); }
-      .grid > avl-panel { min-height: 10rem; border: 1px solid var(--avl-color-border-default); border-radius: var(--avl-radius-md); }
+      /* FE-3 -- border/radius now come from avl-panel's own glass-surface styling. */
+      .grid > avl-panel { min-height: 10rem; }
       .row { display: flex; justify-content: space-between; align-items: center; padding: var(--avl-space-1) 0; }
     `;
     this.shadowRoot.appendChild(style);

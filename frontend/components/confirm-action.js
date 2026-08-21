@@ -154,15 +154,22 @@ export class AvlConfirmAction extends AvlElement {
         z-index: 1000;
       }
       .panel {
-        background: var(--avl-color-surface-raised);
-        border: 1px solid ${danger ? "var(--avl-color-state-danger)" : "var(--avl-color-border-default)"};
+        background: var(--avl-color-glass-surface-elevated);
+        border: 1px solid ${danger ? "var(--avl-color-state-danger)" : "var(--avl-color-glass-border)"};
         border-radius: var(--avl-radius-lg);
         padding: var(--avl-space-4);
         max-width: 26rem;
         width: 100%;
-        box-shadow: 0 var(--avl-space-2) var(--avl-space-6) rgba(0, 0, 0, 0.3);
+        box-shadow: 0 var(--avl-space-2) var(--avl-space-6) var(--avl-color-shadow-elevated);
       }
-      .panel:focus { outline: 2px solid var(--avl-color-border-focus); outline-offset: 2px; }
+      /* FE-3 -- the dialog panel is the app's highest glass surface, so
+         its own focus state (always present the instant it opens) is
+         where the reserved accent-tinted glow belongs. */
+      .panel:focus {
+        outline: 2px solid var(--avl-color-border-focus);
+        outline-offset: 2px;
+        box-shadow: 0 var(--avl-space-2) var(--avl-space-6) var(--avl-color-shadow-elevated), 0 0 0 3px var(--avl-color-shadow-glow);
+      }
       h2 {
         margin: 0 0 var(--avl-space-2) 0;
         font: var(--avl-type-heading-weight) var(--avl-type-heading-size) / var(--avl-type-heading-line-height) var(--avl-type-heading-family);

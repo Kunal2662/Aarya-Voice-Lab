@@ -45,12 +45,13 @@ export class AvlClaudeCommandShell extends AvlElement {
     style.textContent = `
       .shell { display: flex; flex-direction: column; gap: var(--avl-space-3); }
       .context { display: flex; gap: var(--avl-space-3); font: var(--avl-type-caption-weight) var(--avl-type-caption-size) / 1 var(--avl-type-caption-family); color: var(--avl-color-text-secondary); }
-      .diagnostics { display: flex; align-items: center; gap: var(--avl-space-2); }
+      /* FE-3 -- .diagnostics/.catalogue-row replaced by the shared
+         avl-cluster (+ avl-row--bordered for the bordered list-row
+         shape) utilities from css/base.css; only flex-wrap stays local. */
       .diagnostics .problems { color: var(--avl-color-state-danger); font: var(--avl-type-caption-weight) var(--avl-type-caption-size) / var(--avl-type-caption-line-height) var(--avl-type-caption-family); }
       .section-title { margin: 0; font: var(--avl-type-caption-weight) var(--avl-type-caption-size) / 1 var(--avl-type-caption-family); text-transform: uppercase; letter-spacing: 0.04em; color: var(--avl-color-text-secondary); }
       .catalogue { display: flex; flex-direction: column; gap: var(--avl-space-1); max-height: 14rem; overflow-y: auto; }
-      .catalogue-row { display: flex; align-items: center; gap: var(--avl-space-2); flex-wrap: wrap; padding: var(--avl-space-1) 0; border-bottom: 1px solid var(--avl-color-border-subtle); }
-      .catalogue-row:last-child { border-bottom: none; }
+      .catalogue-row { flex-wrap: wrap; }
       .catalogue-row .command { font: var(--avl-type-code-weight) var(--avl-type-code-size) / 1 var(--avl-type-code-family); flex: none; }
       .catalogue-row .summary { color: var(--avl-color-text-secondary); font: var(--avl-type-body-small-weight) var(--avl-type-body-small-size) / var(--avl-type-body-small-line-height) var(--avl-type-body-small-family); }
       .catalogue-row .risk { font: var(--avl-type-caption-weight) var(--avl-type-caption-size) / 1 var(--avl-type-caption-family); padding: 0.1rem var(--avl-space-1); border-radius: var(--avl-radius-sm); border: 1px solid var(--avl-color-border-default); flex: none; }
@@ -89,7 +90,7 @@ export class AvlClaudeCommandShell extends AvlElement {
     // unavailable (no snapshot). Never silently shown as healthy when
     // it isn't, never computed here.
     const diagnosticsRow = document.createElement("div");
-    diagnosticsRow.className = "diagnostics";
+    diagnosticsRow.className = "avl-cluster diagnostics";
     const diagnostics = snapshot?.diagnostics;
     const diagnosticsBadge = document.createElement("avl-status-badge");
     diagnosticsBadge.setAttribute("domain", "core");
@@ -128,7 +129,7 @@ export class AvlClaudeCommandShell extends AvlElement {
       catalogue.className = "catalogue";
       for (const descriptor of commands) {
         const row = document.createElement("div");
-        row.className = "catalogue-row";
+        row.className = "avl-cluster avl-row--bordered catalogue-row";
         const command = document.createElement("span");
         command.className = "command";
         command.textContent = descriptor.command;

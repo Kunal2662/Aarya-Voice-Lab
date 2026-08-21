@@ -14,9 +14,14 @@ import "./voice-preview-card.js";
 import "./voice-version.js";
 import "./status-badge.js";
 import "./notice-banner.js";
+import "./panel.js";
+import "./stat-tile.js";
 
 const LIFECYCLE = ["Generate", "Preview", "Listen", "Feedback", "Regenerate", "Compare", "Accept"];
 const IMPLEMENTED = new Set(["Generate", "Preview", "Listen", "Feedback", "Regenerate", "Compare"]);
+
+// FE-3 -- same 5-tone cycle every other workspace dashboard uses.
+const TILE_TONES = ["blue", "teal", "green", "violet", "pink"];
 
 export class AvlWorkspaceVoices extends AvlElement {
   set selectionModel(value) {
@@ -45,11 +50,13 @@ export class AvlWorkspaceVoices extends AvlElement {
       .lifecycle { display: flex; flex-wrap: wrap; gap: var(--avl-space-1); margin: var(--avl-space-2) 0 var(--avl-space-4) 0; }
       .step {
         font: var(--avl-type-caption-weight) var(--avl-type-caption-size) / 1 var(--avl-type-caption-family);
-        padding: 0.2rem var(--avl-space-2); border-radius: var(--avl-radius-pill); border: 1px solid var(--avl-color-border-default);
+        padding: var(--avl-space-1) var(--avl-space-2); border-radius: var(--avl-radius-pill); border: 1px solid var(--avl-color-border-default);
         color: var(--avl-color-text-muted);
       }
       .step[data-implemented="true"] { color: var(--avl-color-text-primary); border-color: var(--avl-color-state-success); }
-      .voice-header { display: flex; justify-content: space-between; align-items: center; margin: var(--avl-space-3) 0 var(--avl-space-2) 0; }
+      /* FE-3 -- .voice-header replaced by the shared avl-row avl-row--center utilities (css/base.css); only the local margin stays here. */
+      .voice-header { margin: var(--avl-space-3) 0 var(--avl-space-2) 0; }
+      .dashboard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: var(--avl-space-3); margin-bottom: var(--avl-space-4); }
     `;
     this.shadowRoot.appendChild(style);
 
@@ -61,6 +68,29 @@ export class AvlWorkspaceVoices extends AvlElement {
     heading.className = "avl-type-heading";
     heading.textContent = "Voices";
     wrapper.appendChild(heading);
+
+    if (this._state === "ready" && this._voices?.length) {
+      const dashboard = document.createElement("avl-panel");
+      dashboard.setAttribute("title", "Voice dashboard");
+      const grid = document.createElement("div");
+      grid.className = "dashboard-grid";
+      const counts = {
+        Total: this._voices.length,
+        Calibrated: this._voices.filter((v) => v.calibrationState === "CALIBRATED").length,
+        Provisional: this._voices.filter((v) => v.calibrationState === "PROVISIONAL").length,
+        Uncalibrated: this._voices.filter((v) => v.calibrationState === "UNCALIBRATED").length,
+      };
+      Object.entries(counts).forEach(([label, value], i) => {
+        const tile = document.createElement("avl-stat-tile");
+        tile.setAttribute("label", label);
+        tile.setAttribute("value", String(value));
+        tile.setAttribute("tone", TILE_TONES[i % TILE_TONES.length]);
+        tile.setAttribute("icon", "voices");
+        grid.appendChild(tile);
+      });
+      dashboard.appendChild(grid);
+      wrapper.appendChild(dashboard);
+    }
 
     const lifecycle = document.createElement("div");
     lifecycle.className = "lifecycle";
@@ -77,7 +107,7 @@ export class AvlWorkspaceVoices extends AvlElement {
 
     for (const voice of this._voices || []) {
       const header = document.createElement("div");
-      header.className = "voice-header";
+      header.className = "avl-row avl-row--center voice-header";
       const name = document.createElement("span");
       name.className = "avl-type-subheading";
       name.textContent = voice.name;

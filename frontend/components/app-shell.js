@@ -54,11 +54,22 @@ export class AvlAppShell extends AvlElement {
         background: var(--avl-color-surface-canvas);
         color: var(--avl-color-text-primary);
       }
-      .sidebar { grid-area: sidebar; border-right: 1px solid var(--avl-color-border-default); overflow: auto; }
+      /* FE-3 -- sidebar/inspector are the shell's persistent chrome,
+         sitting above the plain workspace canvas -- a subtle glass
+         tint (background + border only, no shadow/blur) distinguishes
+         them from the canvas without competing with the glass panels
+         inside the workspace itself. */
+      .sidebar {
+        grid-area: sidebar;
+        background: var(--avl-color-glass-surface);
+        border-right: 1px solid var(--avl-color-glass-border);
+        overflow: auto;
+      }
       .workspace { grid-area: workspace; overflow: auto; padding: var(--avl-space-4); }
       .inspector {
         grid-area: inspector; width: var(--avl-layout-inspector-width);
-        border-left: 1px solid var(--avl-color-border-default); overflow: auto;
+        background: var(--avl-color-glass-surface);
+        border-left: 1px solid var(--avl-color-glass-border); overflow: auto;
       }
       .inspector[data-collapsed="true"] { width: 0; overflow: hidden; border-left: none; }
       .activity-bar { grid-area: activity-bar; }

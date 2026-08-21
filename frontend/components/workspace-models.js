@@ -8,6 +8,10 @@ import { syntheticModels } from "../state/synthetic-fixtures.js";
 import "./workspace-state.js";
 import "./model-card.js";
 import "./panel.js";
+import "./stat-tile.js";
+
+// FE-3 -- same 5-tone cycle every other workspace dashboard uses.
+const TILE_TONES = ["blue", "teal", "green", "violet", "pink"];
 
 export class AvlWorkspaceModels extends AvlElement {
   set selectionModel(value) {
@@ -42,7 +46,8 @@ export class AvlWorkspaceModels extends AvlElement {
       h2 { margin: 0 0 var(--avl-space-3) 0; }
       .list { display: flex; flex-direction: column; gap: var(--avl-space-3); }
       .backend-list { display: flex; flex-wrap: wrap; gap: var(--avl-space-1); }
-      .backend { font: var(--avl-type-caption-weight) var(--avl-type-caption-size) / 1 var(--avl-type-caption-family); padding: 0.15rem var(--avl-space-2); border: 1px solid var(--avl-color-border-default); border-radius: var(--avl-radius-pill); color: var(--avl-color-text-secondary); }
+      .backend { font: var(--avl-type-caption-weight) var(--avl-type-caption-size) / 1 var(--avl-type-caption-family); padding: var(--avl-space-1) var(--avl-space-2); border: 1px solid var(--avl-color-border-default); border-radius: var(--avl-radius-pill); color: var(--avl-color-text-secondary); }
+      .dashboard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: var(--avl-space-3); margin-bottom: var(--avl-space-4); }
     `;
     this.shadowRoot.appendChild(style);
 
@@ -54,6 +59,29 @@ export class AvlWorkspaceModels extends AvlElement {
     heading.className = "avl-type-heading";
     heading.textContent = "Models";
     wrapper.appendChild(heading);
+
+    if (this._state === "ready" && this._models) {
+      const dashboard = document.createElement("avl-panel");
+      dashboard.setAttribute("title", "Model dashboard");
+      const grid = document.createElement("div");
+      grid.className = "dashboard-grid";
+      const counts = {
+        "Total models": this._models.length,
+        "Backends supported": (this._backends || []).length,
+        Installed: this._models.filter((m) => m.runtime === "installed").length,
+        "Not installed": this._models.filter((m) => m.runtime !== "installed").length,
+      };
+      Object.entries(counts).forEach(([label, value], i) => {
+        const tile = document.createElement("avl-stat-tile");
+        tile.setAttribute("label", label);
+        tile.setAttribute("value", String(value));
+        tile.setAttribute("tone", TILE_TONES[i % TILE_TONES.length]);
+        tile.setAttribute("icon", "models");
+        grid.appendChild(tile);
+      });
+      dashboard.appendChild(grid);
+      wrapper.appendChild(dashboard);
+    }
 
     if (this._backends) {
       const panel = document.createElement("avl-panel");

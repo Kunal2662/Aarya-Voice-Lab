@@ -76,10 +76,10 @@ export class AvlAudioPlayer extends AvlElement {
     style.textContent = `
       .player { display: flex; align-items: center; gap: var(--avl-space-2); flex-wrap: wrap; }
       .controls { display: flex; gap: var(--avl-space-1); }
-      input[type="range"] { flex: 1; min-width: 8rem; }
-      .time { font: var(--avl-type-caption-weight) var(--avl-type-caption-size) / 1 var(--avl-type-caption-family); color: var(--avl-color-text-secondary); min-width: 5.5em; text-align: right; }
+      input[type="range"] { flex: 1; min-width: var(--avl-space-32); }
+      .time { font: var(--avl-type-caption-weight) var(--avl-type-caption-size) / 1 var(--avl-type-caption-family); color: var(--avl-color-text-secondary); min-width: 5.5rem; text-align: right; }
       .volume { display: flex; align-items: center; gap: var(--avl-space-1); }
-      .volume input { width: 4rem; }
+      .volume input { width: var(--avl-space-16); }
       .speed { display: flex; align-items: center; gap: var(--avl-space-1); }
       .speed select { font: var(--avl-type-caption-weight) var(--avl-type-caption-size) / 1 var(--avl-type-caption-family); border: 1px solid var(--avl-color-border-default); border-radius: var(--avl-radius-sm); background: var(--avl-color-surface-raised); color: var(--avl-color-text-primary); padding: 0.1rem var(--avl-space-1); }
       .note { color: var(--avl-color-text-muted); font: var(--avl-type-caption-weight) var(--avl-type-caption-size) / var(--avl-type-caption-line-height) var(--avl-type-caption-family); }

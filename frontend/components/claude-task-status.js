@@ -28,7 +28,8 @@ export class AvlClaudeTaskStatus extends AvlElement {
 
     const style = document.createElement("style");
     style.textContent = `
-      .row { display: flex; align-items: center; gap: var(--avl-space-2); flex-wrap: wrap; }
+      /* FE-3 -- .row replaced by the shared avl-cluster utility (css/base.css); only the wrap behavior stays local. */
+      .row { flex-wrap: wrap; }
       .command { font: var(--avl-type-code-weight) var(--avl-type-code-size) / 1 var(--avl-type-code-family); }
       .risk { font: var(--avl-type-caption-weight) var(--avl-type-caption-size) / 1 var(--avl-type-caption-family); padding: 0.1rem var(--avl-space-1); border-radius: var(--avl-radius-sm); border: 1px solid var(--avl-color-border-default); }
       .gate-reason { color: var(--avl-color-state-warning); font: var(--avl-type-caption-weight) var(--avl-type-caption-size) / var(--avl-type-caption-line-height) var(--avl-type-caption-family); }
@@ -45,7 +46,7 @@ export class AvlClaudeTaskStatus extends AvlElement {
     }
 
     const row = document.createElement("div");
-    row.className = "row";
+    row.className = "avl-cluster row";
 
     const command = document.createElement("span");
     command.className = "command";

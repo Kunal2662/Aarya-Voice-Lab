@@ -54,6 +54,12 @@
   --avl-color-category-pink-subtle: #f7e0ee;
   --avl-color-category-teal: #0f766e;
   --avl-color-category-teal-subtle: #dcf5f2;
+  --avl-color-glass-surface: color-mix(in srgb, var(--avl-color-surface-raised) 90%, transparent);
+  --avl-color-glass-surface-elevated: color-mix(in srgb, var(--avl-color-surface-overlay) 94%, transparent);
+  --avl-color-glass-border: color-mix(in srgb, var(--avl-color-border-default) 65%, transparent);
+  --avl-color-shadow-ambient: color-mix(in srgb, #000000 8%, transparent);
+  --avl-color-shadow-elevated: color-mix(in srgb, #000000 14%, transparent);
+  --avl-color-shadow-glow: color-mix(in srgb, var(--avl-color-brand-accent) 22%, transparent);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -108,6 +114,12 @@
     --avl-color-category-pink-subtle: #3a1f30;
     --avl-color-category-teal: #5eead4;
     --avl-color-category-teal-subtle: #0f2e2b;
+    --avl-color-glass-surface: color-mix(in srgb, var(--avl-color-surface-raised) 82%, transparent);
+    --avl-color-glass-surface-elevated: color-mix(in srgb, var(--avl-color-surface-overlay) 88%, transparent);
+    --avl-color-glass-border: color-mix(in srgb, var(--avl-color-border-default) 70%, transparent);
+    --avl-color-shadow-ambient: color-mix(in srgb, #000000 30%, transparent);
+    --avl-color-shadow-elevated: color-mix(in srgb, #000000 45%, transparent);
+    --avl-color-shadow-glow: color-mix(in srgb, var(--avl-color-brand-accent) 30%, transparent);
   }
 }
 
@@ -162,6 +174,12 @@
   --avl-color-category-pink-subtle: #3a1f30;
   --avl-color-category-teal: #5eead4;
   --avl-color-category-teal-subtle: #0f2e2b;
+  --avl-color-glass-surface: color-mix(in srgb, var(--avl-color-surface-raised) 82%, transparent);
+  --avl-color-glass-surface-elevated: color-mix(in srgb, var(--avl-color-surface-overlay) 88%, transparent);
+  --avl-color-glass-border: color-mix(in srgb, var(--avl-color-border-default) 70%, transparent);
+  --avl-color-shadow-ambient: color-mix(in srgb, #000000 30%, transparent);
+  --avl-color-shadow-elevated: color-mix(in srgb, #000000 45%, transparent);
+  --avl-color-shadow-glow: color-mix(in srgb, var(--avl-color-brand-accent) 30%, transparent);
 }
 
 :host, :root {

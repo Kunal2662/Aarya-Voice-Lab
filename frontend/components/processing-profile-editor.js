@@ -41,7 +41,7 @@ export class AvlProcessingProfileEditor extends AvlElement {
       .actions { display: flex; gap: var(--avl-space-1); flex-wrap: wrap; }
       form { display: flex; gap: var(--avl-space-2); align-items: flex-end; flex-wrap: wrap; }
       label { display: flex; flex-direction: column; gap: var(--avl-space-1); font: var(--avl-type-caption-weight) var(--avl-type-caption-size) / 1 var(--avl-type-caption-family); color: var(--avl-color-text-secondary); }
-      input, select { padding: var(--avl-space-1) var(--avl-space-2); border-radius: var(--avl-radius-sm); border: 1px solid var(--avl-color-border-default); background: var(--avl-color-surface-raised); color: var(--avl-color-text-primary); font: var(--avl-type-body-small-weight) var(--avl-type-body-small-size) / 1 var(--avl-type-body-small-family); }
+      /* FE-3 -- input/select styling now comes from css/base.css's shared baseline. */
       .empty { color: var(--avl-color-text-muted); font: var(--avl-type-body-small-weight) var(--avl-type-body-small-size) / var(--avl-type-body-small-line-height) var(--avl-type-body-small-family); }
       .default-marker { color: var(--avl-color-state-success); }
     `;

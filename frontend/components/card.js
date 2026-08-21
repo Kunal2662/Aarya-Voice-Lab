@@ -7,10 +7,16 @@ export class AvlCard extends AvlElement {
 
     const style = document.createElement("style");
     style.textContent = `
+      /* FE-3 -- avl-card now uses the same glass-surface treatment as
+         avl-panel/base.css's .avl-glass, so cards and panels read as
+         one consistent surface family instead of two different looks
+         (card was previously an opaque solid, panel had no surface
+         at all). */
       .card {
-        background: var(--avl-color-surface-raised);
-        border: 1px solid var(--avl-color-border-default);
+        background: var(--avl-color-glass-surface);
+        border: 1px solid var(--avl-color-glass-border);
         border-radius: var(--avl-radius-md);
+        box-shadow: 0 1px 3px var(--avl-color-shadow-ambient);
         overflow: hidden;
       }
       .header {

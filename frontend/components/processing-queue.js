@@ -44,7 +44,7 @@ export class AvlProcessingQueue extends AvlElement {
       table { width: 100%; border-collapse: collapse; }
       th, td { text-align: left; padding: var(--avl-space-1) var(--avl-space-2); border-bottom: 1px solid var(--avl-color-border-subtle); font: var(--avl-type-body-small-weight) var(--avl-type-body-small-size) / 1 var(--avl-type-body-small-family); }
       th { color: var(--avl-color-text-secondary); font: var(--avl-type-caption-weight) var(--avl-type-caption-size) / 1 var(--avl-type-caption-family); text-transform: uppercase; letter-spacing: 0.04em; }
-      .progress { width: 6rem; height: 0.4rem; background: var(--avl-color-surface-sunken); border-radius: var(--avl-radius-pill); overflow: hidden; }
+      .progress { width: var(--avl-space-24); height: 0.4rem; background: var(--avl-color-surface-sunken); border-radius: var(--avl-radius-pill); overflow: hidden; }
       .progress-fill { height: 100%; background: var(--avl-color-brand-accent); }
       .note { color: var(--avl-color-text-muted); font: var(--avl-type-caption-weight) var(--avl-type-caption-size) / var(--avl-type-caption-line-height) var(--avl-type-caption-family); }
       .empty { color: var(--avl-color-text-muted); font: var(--avl-type-body-small-weight) var(--avl-type-body-small-size) / var(--avl-type-body-small-line-height) var(--avl-type-body-small-family); }

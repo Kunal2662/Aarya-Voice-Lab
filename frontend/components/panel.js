@@ -25,6 +25,22 @@ export class AvlPanel extends AvlElement {
 
     const style = document.createElement("style");
     style.textContent = `
+      /* FE-3 -- avl-panel now owns its own glass-surface card
+         appearance (background/border/radius/shadow), rather than
+         relying on each caller to add its own border/radius to the
+         host from outside (previously only Command Center did this --
+         every other avl-panel in the app rendered with no visible card
+         boundary at all, a real inconsistency the FE-3 audit found).
+         See css/base.css's .avl-glass for the same token pair used
+         everywhere else this glass treatment appears. */
+      :host {
+        display: block;
+        background: var(--avl-color-glass-surface);
+        border: 1px solid var(--avl-color-glass-border);
+        border-radius: var(--avl-radius-lg);
+        box-shadow: 0 1px 3px var(--avl-color-shadow-ambient);
+        overflow: hidden;
+      }
       .panel { display: flex; flex-direction: column; height: 100%; }
       .titlebar {
         display: flex; align-items: center; justify-content: space-between;

@@ -65,7 +65,7 @@ export class AvlRatingPanel extends AvlElement {
       .row { display: grid; grid-template-columns: 12rem 1fr auto; align-items: center; gap: var(--avl-space-2); }
       .dimension-label { font: var(--avl-type-body-small-weight) var(--avl-type-body-small-size) / 1 var(--avl-type-body-small-family); color: var(--avl-color-text-primary); }
       .scores { display: flex; gap: var(--avl-space-1); }
-      .score-btn { width: 2rem; height: 2rem; border-radius: var(--avl-radius-sm); border: 1px solid var(--avl-color-border-default); background: var(--avl-color-surface-raised); color: var(--avl-color-text-primary); cursor: pointer; font: var(--avl-type-body-small-weight) var(--avl-type-body-small-size) / 1 var(--avl-type-body-small-family); }
+      .score-btn { width: var(--avl-space-8); height: var(--avl-space-8); border-radius: var(--avl-radius-sm); border: 1px solid var(--avl-color-border-default); background: var(--avl-color-surface-raised); color: var(--avl-color-text-primary); cursor: pointer; font: var(--avl-type-body-small-weight) var(--avl-type-body-small-size) / 1 var(--avl-type-body-small-family); }
       .score-btn[aria-pressed="true"] { background: var(--avl-color-brand-accent); color: var(--avl-color-text-on-accent, var(--avl-color-text-primary)); border-color: var(--avl-color-brand-accent); }
       .score-btn:disabled { opacity: 0.4; cursor: not-allowed; }
       .cannot-judge { display: flex; align-items: center; gap: var(--avl-space-1); font: var(--avl-type-caption-weight) var(--avl-type-caption-size) / 1 var(--avl-type-caption-family); color: var(--avl-color-text-secondary); white-space: nowrap; }

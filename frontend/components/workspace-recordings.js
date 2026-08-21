@@ -7,9 +7,14 @@ import { AvlElement, defineComponent } from "./base-element.js";
 import { syntheticRecordings } from "../state/synthetic-fixtures.js";
 import "./workspace-state.js";
 import "./status-badge.js";
+import "./panel.js";
+import "./stat-tile.js";
 
 const JOB_STATUS_DOMAIN = "pipeline_stage";
 const VALIDATION_TO_BADGE = { valid: "success", warning: "warning", invalid: "failed" };
+
+// FE-3 -- same 5-tone cycle every other workspace dashboard uses.
+const TILE_TONES = ["blue", "teal", "green", "violet", "pink"];
 
 const COLUMNS = [
   { key: "contentAddressedId", label: "ID" },
@@ -47,6 +52,16 @@ export class AvlWorkspaceRecordings extends AvlElement {
     this._render();
   }
 
+  _dashboardCounts() {
+    const recordings = this._recordings || [];
+    return {
+      Total: recordings.length,
+      Valid: recordings.filter((r) => r.validation === "valid").length,
+      Warning: recordings.filter((r) => r.validation === "warning").length,
+      Invalid: recordings.filter((r) => r.validation === "invalid").length,
+    };
+  }
+
   _filtered() {
     let rows = this._recordings || [];
     if (this._search) {
@@ -74,12 +89,9 @@ export class AvlWorkspaceRecordings extends AvlElement {
     const style = document.createElement("style");
     style.textContent = `
       h2 { margin: 0 0 var(--avl-space-3) 0; }
+      /* FE-3 -- input/select styling now comes from css/base.css's shared
+         baseline (the same declarations this local rule used to repeat). */
       .controls { display: flex; gap: var(--avl-space-2); flex-wrap: wrap; margin-bottom: var(--avl-space-3); }
-      input, select {
-        padding: var(--avl-space-1) var(--avl-space-2); border-radius: var(--avl-radius-sm);
-        border: 1px solid var(--avl-color-border-default); background: var(--avl-color-surface-raised); color: var(--avl-color-text-primary);
-        font: var(--avl-type-body-small-weight) var(--avl-type-body-small-size) / 1 var(--avl-type-body-small-family);
-      }
       table { width: 100%; border-collapse: collapse; }
       th, td { text-align: left; padding: var(--avl-space-1) var(--avl-space-2); border-bottom: 1px solid var(--avl-color-border-subtle); font: var(--avl-type-body-small-weight) var(--avl-type-body-small-size) / 1 var(--avl-type-body-small-family); }
       th button { background: none; border: none; cursor: pointer; color: var(--avl-color-text-secondary); font: var(--avl-type-caption-weight) var(--avl-type-caption-size) / 1 var(--avl-type-caption-family); padding: 0; }
@@ -87,6 +99,7 @@ export class AvlWorkspaceRecordings extends AvlElement {
       tr[data-selectable]:hover { background: var(--avl-color-surface-sunken); }
       .id { font: var(--avl-type-code-weight) var(--avl-type-code-size) / 1 var(--avl-type-code-family); }
       .count { color: var(--avl-color-text-muted); font: var(--avl-type-caption-weight) var(--avl-type-caption-size) / 1 var(--avl-type-caption-family); margin-bottom: var(--avl-space-2); }
+      .dashboard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: var(--avl-space-3); margin-bottom: var(--avl-space-4); }
     `;
     this.shadowRoot.appendChild(style);
 
@@ -100,6 +113,21 @@ export class AvlWorkspaceRecordings extends AvlElement {
     wrapper.appendChild(heading);
 
     if (this._state === "ready" && this._recordings) {
+      const dashboard = document.createElement("avl-panel");
+      dashboard.setAttribute("title", "Recording dashboard");
+      const grid = document.createElement("div");
+      grid.className = "dashboard-grid";
+      Object.entries(this._dashboardCounts()).forEach(([label, value], i) => {
+        const tile = document.createElement("avl-stat-tile");
+        tile.setAttribute("label", label);
+        tile.setAttribute("value", String(value));
+        tile.setAttribute("tone", TILE_TONES[i % TILE_TONES.length]);
+        tile.setAttribute("icon", "recordings");
+        grid.appendChild(tile);
+      });
+      dashboard.appendChild(grid);
+      wrapper.appendChild(dashboard);
+
       const controls = document.createElement("div");
       controls.className = "controls";
 

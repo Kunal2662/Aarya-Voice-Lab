@@ -34,7 +34,7 @@ export class AvlTextInput extends AvlElement {
     const style = document.createElement("style");
     style.textContent = `
       textarea {
-        width: 100%; min-height: 6rem; resize: vertical;
+        width: 100%; min-height: var(--avl-space-24); resize: vertical;
         font: var(--avl-type-body-small-weight) var(--avl-type-body-small-size) / var(--avl-type-body-small-line-height) var(--avl-type-body-small-family);
         border: 1px solid var(--avl-color-border-default); border-radius: var(--avl-radius-sm);
         padding: var(--avl-space-2); background: var(--avl-color-surface-raised); color: var(--avl-color-text-primary);

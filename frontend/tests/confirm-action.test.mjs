@@ -258,6 +258,10 @@ test("11. non-danger (default) variant does not use the danger token for its bor
     });
     await page.waitForTimeout(50);
     const styleText = await page.evaluate(() => document.getElementById("dialog").shadowRoot.querySelector("style").textContent);
-    assert.match(styleText, /--avl-color-border-default/);
+    // FE-3 -- the dialog panel is now the app's highest glass surface (see
+    // css/base.css's .avl-glass--elevated), so its non-danger border uses
+    // the glass border token rather than the plain default border.
+    assert.match(styleText, /--avl-color-glass-border/);
+    assert.doesNotMatch(styleText, /border:\s*1px solid var\(--avl-color-state-danger\)/, "non-danger variant must not use the danger border token");
   });
 });

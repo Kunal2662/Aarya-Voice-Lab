@@ -68,6 +68,16 @@
         "pink-subtle": "#f7e0ee",
         "teal": "#0f766e",
         "teal-subtle": "#dcf5f2"
+      },
+      "glass": {
+        "surface": "color-mix(in srgb, var(--avl-color-surface-raised) 90%, transparent)",
+        "surface-elevated": "color-mix(in srgb, var(--avl-color-surface-overlay) 94%, transparent)",
+        "border": "color-mix(in srgb, var(--avl-color-border-default) 65%, transparent)"
+      },
+      "shadow": {
+        "ambient": "color-mix(in srgb, #000000 8%, transparent)",
+        "elevated": "color-mix(in srgb, #000000 14%, transparent)",
+        "glow": "color-mix(in srgb, var(--avl-color-brand-accent) 22%, transparent)"
       }
     },
     "dark": {
@@ -136,6 +146,16 @@
         "pink-subtle": "#3a1f30",
         "teal": "#5eead4",
         "teal-subtle": "#0f2e2b"
+      },
+      "glass": {
+        "surface": "color-mix(in srgb, var(--avl-color-surface-raised) 82%, transparent)",
+        "surface-elevated": "color-mix(in srgb, var(--avl-color-surface-overlay) 88%, transparent)",
+        "border": "color-mix(in srgb, var(--avl-color-border-default) 70%, transparent)"
+      },
+      "shadow": {
+        "ambient": "color-mix(in srgb, #000000 30%, transparent)",
+        "elevated": "color-mix(in srgb, #000000 45%, transparent)",
+        "glow": "color-mix(in srgb, var(--avl-color-brand-accent) 30%, transparent)"
       }
     }
   }

@@ -28,7 +28,7 @@ export class AvlConfidenceControl extends AvlElement {
     const style = document.createElement("style");
     style.textContent = `
       .row { display: flex; align-items: center; gap: var(--avl-space-1); flex-wrap: wrap; }
-      .score-btn { width: 2rem; height: 2rem; border-radius: var(--avl-radius-sm); border: 1px solid var(--avl-color-border-default); background: var(--avl-color-surface-raised); color: var(--avl-color-text-primary); cursor: pointer; font: var(--avl-type-body-small-weight) var(--avl-type-body-small-size) / 1 var(--avl-type-body-small-family); }
+      .score-btn { width: var(--avl-space-8); height: var(--avl-space-8); border-radius: var(--avl-radius-sm); border: 1px solid var(--avl-color-border-default); background: var(--avl-color-surface-raised); color: var(--avl-color-text-primary); cursor: pointer; font: var(--avl-type-body-small-weight) var(--avl-type-body-small-size) / 1 var(--avl-type-body-small-family); }
       .score-btn[aria-pressed="true"] { background: var(--avl-color-brand-accent); color: var(--avl-color-text-on-accent, var(--avl-color-text-primary)); border-color: var(--avl-color-brand-accent); }
       .clear-btn { font: var(--avl-type-caption-weight) var(--avl-type-caption-size) / 1 var(--avl-type-caption-family); color: var(--avl-color-text-secondary); background: none; border: none; cursor: pointer; text-decoration: underline; }
     `;

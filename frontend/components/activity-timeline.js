@@ -33,7 +33,7 @@ export class AvlActivityTimeline extends AvlElement {
         padding: var(--avl-space-2) var(--avl-space-3);
         border-left: 2px solid var(--avl-color-border-default);
       }
-      .row { display: flex; align-items: center; gap: var(--avl-space-2); }
+      /* FE-3 -- .row replaced by the shared avl-cluster utility (css/base.css). */
       .source { text-transform: uppercase; letter-spacing: 0.03em; font: var(--avl-type-caption-weight) var(--avl-type-caption-size) / 1 var(--avl-type-caption-family); color: var(--avl-color-text-muted); }
       .timestamp { margin-left: auto; font: var(--avl-type-caption-weight) var(--avl-type-caption-size) / 1 var(--avl-type-caption-family); color: var(--avl-color-text-muted); }
       .summary { font: var(--avl-type-body-small-weight) var(--avl-type-body-small-size) / var(--avl-type-body-small-line-height) var(--avl-type-body-small-family); }
@@ -57,7 +57,7 @@ export class AvlActivityTimeline extends AvlElement {
       const li = document.createElement("li");
 
       const row = document.createElement("div");
-      row.className = "row";
+      row.className = "avl-cluster";
       const badge = document.createElement("avl-status-badge");
       badge.setAttribute("domain", "activity_severity");
       badge.setAttribute("state", event.severity);

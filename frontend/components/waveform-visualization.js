@@ -43,7 +43,7 @@ export class AvlWaveformVisualization extends AvlElement {
 
     const style = document.createElement("style");
     style.textContent = `
-      .frame { position: relative; height: 6rem; background: var(--avl-color-surface-sunken); border: 1px solid var(--avl-color-border-subtle); border-radius: var(--avl-radius-sm); overflow: hidden; }
+      .frame { position: relative; height: var(--avl-space-24); background: var(--avl-color-surface-sunken); border: 1px solid var(--avl-color-border-subtle); border-radius: var(--avl-radius-sm); overflow: hidden; }
       .bars { position: absolute; inset: 0; display: flex; align-items: flex-end; gap: 1px; padding: var(--avl-space-1); }
       .bar { flex: 1; background: var(--avl-color-brand-accent); min-width: 1px; border-radius: 1px; opacity: 0.7; }
       .region { position: absolute; top: 0; bottom: 0; }

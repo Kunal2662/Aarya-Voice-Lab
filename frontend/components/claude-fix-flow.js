@@ -58,7 +58,7 @@ export class AvlClaudeFixFlow extends AvlElement {
       .steps { display: flex; flex-wrap: wrap; gap: var(--avl-space-1); margin: var(--avl-space-3) 0; }
       .step {
         font: var(--avl-type-caption-weight) var(--avl-type-caption-size) / 1 var(--avl-type-caption-family);
-        padding: 0.2rem var(--avl-space-2); border-radius: var(--avl-radius-pill);
+        padding: var(--avl-space-1) var(--avl-space-2); border-radius: var(--avl-radius-pill);
         border: 1px solid var(--avl-color-border-default); color: var(--avl-color-text-muted);
       }
       .step[data-reached="true"] { color: var(--avl-color-text-primary); border-color: var(--avl-color-brand-accent); background: var(--avl-color-brand-accent-subtle); }

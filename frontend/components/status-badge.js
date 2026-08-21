@@ -32,7 +32,7 @@ export class AvlStatusBadge extends AvlElement {
       :host { display: inline-flex; }
       .badge {
         display: inline-flex; align-items: center; gap: var(--avl-space-1);
-        padding: 0.15rem var(--avl-space-2);
+        padding: var(--avl-space-1) var(--avl-space-2);
         border-radius: var(--avl-radius-pill);
         font: var(--avl-type-caption-weight) var(--avl-type-caption-size) / var(--avl-type-caption-line-height) var(--avl-type-caption-family);
         background: var(--avl-color-surface-sunken);
