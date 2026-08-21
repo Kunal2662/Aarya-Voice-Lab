@@ -54,7 +54,7 @@
       }
     },
     "hardware_calibration": {
-      "description": "VL-D1 §19 — the future AI Calibration Engine's (VL-D15) process state for profiling THIS host's hardware/runtime. Distinct from the 'calibration' domain above: that one is CalibrationState, about whether a target-speaker verification threshold has real evidence behind it. This one is about whether the machine itself has been benchmarked. No engine exists yet, so every calibration workspace view defaults to UNCALIBRATED with no fabricated numbers.",
+      "description": "VL-D1 §19, driven by real state as of VL-D7 — mirrors aarya_voice_lab.pipeline.calibration_engine.CalibrationRunState exactly (see frontend/contracts/generated/calibration_run_state.json). This is the AI Calibration Engine's PROCESS state for one calibration run on THIS host. Distinct from the 'calibration' domain above: that one is CalibrationState, about whether a target-speaker verification threshold (or, since VL-D7, a calibration profile) has real evidence behind it. This one is about whether an engine run itself completed. A run can be CALIBRATED here while the 'calibration' domain still reads UNCALIBRATED or PROVISIONAL for the same profile — that combination is expected, not a bug. Before a run has ever happened, the workspace still defaults to UNCALIBRATED / NOT_TESTED with no fabricated numbers.",
       "states": ["UNCALIBRATED", "NOT_TESTED", "CALIBRATING", "CALIBRATED", "FAILED", "UNKNOWN"],
       "color_token": {
         "UNCALIBRATED": "text.muted",

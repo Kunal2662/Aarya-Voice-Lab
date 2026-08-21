@@ -30,6 +30,10 @@ from aarya_voice_lab.identity.calibration import CalibrationState  # noqa: E402
 from aarya_voice_lab.identity.command_center import CommandRisk  # noqa: E402
 from aarya_voice_lab.identity.preview import PreviewFeedbackOutcome, PreviewKind  # noqa: E402
 from aarya_voice_lab.identity.runtime import ComputeBackend  # noqa: E402
+from aarya_voice_lab.pipeline.calibration_engine import (  # noqa: E402
+    CalibrationRunState,
+    CalibrationStrategy,
+)
 from aarya_voice_lab.pipeline.candidate_review import (  # noqa: E402
     CandidateReviewDecision,
     CandidateReviewReason,
@@ -244,6 +248,27 @@ def build_payloads() -> dict[str, dict]:
             "A reviewer's A/B comparison decision. Deliberately separate from "
             "PreviewFeedbackOutcome — a comparison between two outputs is a "
             "different judgement from a single output's accept/reject fate.",
+        ),
+        "calibration_run_state.json": _enum_payload(
+            "aarya_voice_lab.pipeline.calibration_engine.CalibrationRunState",
+            CalibrationRunState,
+            "VL-D7's calibration engine PROCESS state — mirrors the frontend's "
+            "hardware_calibration domain exactly. Deliberately independent from "
+            "calibration_state.json (identity.calibration.CalibrationState, "
+            "evidence/trust): a CALIBRATED run_state paired with UNCALIBRATED "
+            "or PROVISIONAL calibration_state is the expected, honest outcome "
+            "whenever evaluation evidence is thin. The UI must never conflate "
+            "these two badges.",
+        ),
+        "calibration_strategy.json": _enum_payload(
+            "aarya_voice_lab.pipeline.calibration_engine.CalibrationStrategy",
+            CalibrationStrategy,
+            "Which class of calibration action the VL-D7 engine took: NONE "
+            "(no run attempted / hardware capture failed), HARDWARE_ONLY "
+            "(insufficient evaluation evidence — only hardware-derived "
+            "runtime parameters considered), or HARDWARE_AND_FEEDBACK "
+            "(enough reviewer-feedback evidence to also reach PROVISIONAL "
+            "evidence state — never CALIBRATED).",
         ),
     }
 

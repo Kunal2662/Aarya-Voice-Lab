@@ -1,0 +1,88 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://aarya-voice-lab/schemas/calibration_profile.schema.json",
+  "title": "AARYA Voice Lab Calibration Engine Profile (VL-D7)",
+  "description": "One versioned, append-only calibration engine run. `run_state` (process/lifecycle: did the engine finish?) and `calibration_state` (evidence/trust: aarya_voice_lab.identity.calibration.CalibrationState, reused unchanged) are deliberately independent fields -- a CALIBRATED run_state with UNCALIBRATED or PROVISIONAL calibration_state is the expected outcome whenever evaluation evidence is thin. Never records a target-speaker-identity field, an embedding, or training data.",
+  "type": "object",
+  "required": [
+    "profile_id", "profile_version", "run_state", "calibration_state", "evidence",
+    "strategy", "hardware_snapshot", "adjustments", "agreement_rate", "evidence_counts",
+    "limitations", "supersedes", "is_rollback", "created_at", "engine_version",
+    "processing_version", "schema_version"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "profile_id": { "type": "string", "minLength": 1 },
+    "profile_version": { "type": "integer", "minimum": 1 },
+    "run_state": { "type": "string", "enum": ["UNCALIBRATED", "NOT_TESTED", "CALIBRATING", "CALIBRATED", "FAILED", "UNKNOWN"] },
+    "calibration_state": { "type": "string", "enum": ["UNCALIBRATED", "PROVISIONAL", "CALIBRATED"] },
+    "evidence": {
+      "type": "string",
+      "enum": ["none", "synthetic_fixtures", "operator_held_out", "channel_mismatch_study", "reviewer_feedback", "public_corpus", "target_held_out"]
+    },
+    "strategy": { "type": "string", "enum": ["NONE", "HARDWARE_ONLY", "HARDWARE_AND_FEEDBACK"] },
+    "hardware_snapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "captured_at": { "type": "string" },
+        "capabilities": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "name": { "type": "string" },
+              "state": { "type": "string", "enum": ["AVAILABLE", "NOT_AVAILABLE", "OPTIONAL", "INCOMPATIBLE", "UNKNOWN"] },
+              "detail": { "type": "string" },
+              "version": { "type": ["string", "null"] }
+            }
+          }
+        },
+        "logical_cores": { "type": ["integer", "null"], "minimum": 0 },
+        "total_ram_gb": { "type": ["number", "null"], "minimum": 0 },
+        "detected_backend": { "type": ["string", "null"], "enum": ["cpu", "rocm", "cuda", "metal", "opencl", "vulkan", "xpu", "other", null] },
+        "accelerator_confirmed": { "type": "boolean" },
+        "limitation": { "type": "string" }
+      }
+    },
+    "adjustments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["parameter_name", "previous_value", "proposed_value", "min_bound", "max_bound", "rationale", "evidence_reference"],
+        "properties": {
+          "parameter_name": { "type": "string", "minLength": 1 },
+          "previous_value": { "type": "number" },
+          "proposed_value": { "type": "number" },
+          "min_bound": { "type": "number" },
+          "max_bound": { "type": "number" },
+          "rationale": { "type": "string", "minLength": 1 },
+          "evidence_reference": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "agreement_rate": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+    "evidence_counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "total_evaluations": { "type": "integer", "minimum": 0 },
+        "total_outputs_evaluated": { "type": "integer", "minimum": 0 },
+        "total_preview_feedback": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "limitations": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Plain-language statement of what this profile does NOT establish. Required."
+    },
+    "supersedes": { "type": ["string", "null"] },
+    "is_rollback": { "type": "boolean" },
+    "created_at": { "type": "string" },
+    "engine_version": { "type": "string" },
+    "processing_version": { "type": "string" },
+    "schema_version": { "type": "string" }
+  }
+}

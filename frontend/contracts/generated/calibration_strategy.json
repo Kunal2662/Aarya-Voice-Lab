@@ -1,0 +1,10 @@
+{
+  "$generated_by": "scripts/export_frontend_contracts.py",
+  "$source": "aarya_voice_lab.pipeline.calibration_engine.CalibrationStrategy",
+  "description": "Which class of calibration action the VL-D7 engine took: NONE (no run attempted / hardware capture failed), HARDWARE_ONLY (insufficient evaluation evidence \u2014 only hardware-derived runtime parameters considered), or HARDWARE_AND_FEEDBACK (enough reviewer-feedback evidence to also reach PROVISIONAL evidence state \u2014 never CALIBRATED).",
+  "values": [
+    "NONE",
+    "HARDWARE_ONLY",
+    "HARDWARE_AND_FEEDBACK"
+  ]
+}

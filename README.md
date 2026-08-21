@@ -169,6 +169,7 @@ No test uses, references, or requires the real recordings.
 | [VLD4_VOICE_PROCESSING.md](docs/VLD4_VOICE_PROCESSING.md) | VL-D4 voice processing & conditioning: processing profiles, boundary trim, normalization, derived-artifact identity, rollback, Processing UI |
 | [VLD5_VOICE_PREVIEW.md](docs/VLD5_VOICE_PREVIEW.md) | VL-D5 voice preview & generation: generation backends, voice profiles, preview queue, history, listened-before-decision feedback, A/B comparison, Preview UI |
 | [VLD6_VOICE_FEEDBACK.md](docs/VLD6_VOICE_FEEDBACK.md) | VL-D6 voice feedback & human evaluation: dimension scoring, listening state, multi-reviewer disagreement, A/B evaluation, calibration-prep boundary, Feedback UI |
+| [VLD7_AI_CALIBRATION.md](docs/VLD7_AI_CALIBRATION.md) | VL-D7 AI Calibration Engine: run-state vs evidence-state, hardware snapshot, bounded parameter adjustments, versioned profiles, rollback, Calibration UI |
 | [TOOLCHAIN.md](docs/TOOLCHAIN.md) | Provider abstraction & candidate tools |
 | [MODEL_STRATEGY.md](docs/MODEL_STRATEGY.md) | Model registry, experiments, TTS candidates |
 | [BENCHMARKING.md](docs/BENCHMARKING.md) | Voice quality benchmark framework |

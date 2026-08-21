@@ -241,7 +241,7 @@ know" provider must fill (active view, selection, recent commands,
 permission tier) so later work has a stable target. Nothing implements
 it in VL-D0.
 
-## AI Calibration UI foundation (VL-D15)
+## AI Calibration UI foundation (VL-D7)
 
 `avl-calibration-panel` renders through the `calibration` status domain,
 which is checked byte-for-byte against `CalibrationState`. Given no

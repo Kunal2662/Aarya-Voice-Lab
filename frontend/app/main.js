@@ -46,6 +46,7 @@ import {
 } from "../state/generation-model.js";
 import { syntheticGenerationModels } from "../state/synthetic-fixtures.js";
 import { EvaluationStore, ABEvaluationStore, EvaluationCompletionState, ABDecision, summarizeOutputEvaluations } from "../state/evaluation-model.js";
+import { CalibrationProfileStore } from "../state/calibration-engine-model.js";
 
 const DESTINATION_META = {
   "command-center": { icon: "◆", label: "Command Center", tag: "avl-workspace-command-center" },
@@ -143,6 +144,12 @@ async function main() {
   const evaluationStore = new EvaluationStore();
   const abEvaluationStore = new ABEvaluationStore();
 
+  // Same session-only ownership as the stores above -- VL-D7's
+  // calibration profile history must survive navigating away from
+  // Calibration and back. Rollback is append-only, same as
+  // processingHistoryStore's rollback pattern.
+  const calibrationStore = new CalibrationProfileStore();
+
   const services = {
     jobStore,
     activityStore,
@@ -161,6 +168,7 @@ async function main() {
     previewFeedbackStore,
     evaluationStore,
     abEvaluationStore,
+    calibrationStore,
     router,
   };
 
@@ -397,6 +405,24 @@ async function main() {
         source: ActivitySource.EVALUATION,
         status: "ab_decision_submitted",
         summary: `A/B decision recorded: ${record.decision} (${record.output_id_a} vs ${record.output_id_b})`,
+      }),
+    );
+  });
+
+  // VL-D7 -- one activity event per calibration engine run/rollback.
+  // run_state and calibration_state are both real fields off the record,
+  // never a fabricated score -- see state/calibration-engine-model.js.
+  calibrationStore.addEventListener("change", (event) => {
+    const record = event.detail.record;
+    activityStore.append(
+      createActivityEvent({
+        id: `calibration-activity-${record.profile_id}`,
+        severity: record.run_state === "FAILED" ? ActivitySeverity.DANGER : ActivitySeverity.INFO,
+        source: ActivitySource.CALIBRATION,
+        status: record.is_rollback ? "calibration_rolled_back" : "calibration_run_completed",
+        summary: record.is_rollback
+          ? `Calibration rolled back to ${record.profile_id} (supersedes ${record.supersedes})`
+          : `Calibration run completed: run_state=${record.run_state}, calibration_state=${record.calibration_state}`,
       }),
     );
   });

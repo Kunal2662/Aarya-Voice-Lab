@@ -53,6 +53,11 @@ export class AvlWorkspaceCommandCenter extends AvlElement {
         if (this.isConnected) this._render();
       });
     }
+    if (this._services.calibrationStore) {
+      this._services.calibrationStore.addEventListener("change", () => {
+        if (this.isConnected) this._render();
+      });
+    }
     this._load();
   }
 
@@ -300,9 +305,51 @@ export class AvlWorkspaceCommandCenter extends AvlElement {
     calibrationRow.innerHTML = '<span class="label">Calibration prep</span>';
     const calibrationBadge = document.createElement("avl-status-badge");
     calibrationBadge.setAttribute("domain", "calibration");
-    calibrationBadge.setAttribute("state", "UNCALIBRATED");
+    const currentCalibrationProfile = this._services.calibrationStore ? this._services.calibrationStore.current() : null;
+    calibrationBadge.setAttribute("state", currentCalibrationProfile ? currentCalibrationProfile.calibration_state : "UNCALIBRATED");
     calibrationRow.appendChild(calibrationBadge);
     feedbackPanel.appendChild(calibrationRow);
+
+    // CALIBRATION -- overview only (VL-D7, same "overview only"
+    // convention as Preview/Feedback above; the Calibration workspace
+    // owns the detailed run/readiness/adjustments/history view). Every
+    // number here comes from calibrationStore.current() directly, or
+    // renders as "not available" if no run has happened yet -- never a
+    // fabricated score.
+    const calibrationPanel = document.createElement("avl-panel");
+    calibrationPanel.setAttribute("title", "Calibration engine");
+    const runRow = document.createElement("div");
+    runRow.className = "row";
+    runRow.innerHTML = '<span class="label">Run state</span>';
+    const runBadge = document.createElement("avl-status-badge");
+    runBadge.setAttribute("domain", "hardware_calibration");
+    runBadge.setAttribute("state", currentCalibrationProfile ? currentCalibrationProfile.run_state : "NOT_TESTED");
+    runRow.appendChild(runBadge);
+    calibrationPanel.appendChild(runRow);
+    const evidenceRow = document.createElement("div");
+    evidenceRow.className = "row";
+    evidenceRow.innerHTML = '<span class="label">Evidence state</span>';
+    const evidenceBadge = document.createElement("avl-status-badge");
+    evidenceBadge.setAttribute("domain", "calibration");
+    evidenceBadge.setAttribute("state", currentCalibrationProfile ? currentCalibrationProfile.calibration_state : "UNCALIBRATED");
+    evidenceRow.appendChild(evidenceBadge);
+    calibrationPanel.appendChild(evidenceRow);
+    for (const [label, value] of [
+      ["Strategy", currentCalibrationProfile ? currentCalibrationProfile.strategy : null],
+      [
+        "Agreement rate",
+        currentCalibrationProfile && currentCalibrationProfile.agreement_rate != null
+          ? `${(currentCalibrationProfile.agreement_rate * 100).toFixed(1)}%`
+          : null,
+      ],
+      ["Profile runs", this._services.calibrationStore ? this._services.calibrationStore.history().length : 0],
+      ["Adjustments proposed", currentCalibrationProfile ? currentCalibrationProfile.adjustments.length : 0],
+    ]) {
+      const metric = document.createElement("avl-metric-placeholder");
+      metric.setAttribute("label", label);
+      if (value != null) metric.setAttribute("value", String(value));
+      calibrationPanel.appendChild(metric);
+    }
 
     grid.append(
       systemPanel,
@@ -314,6 +361,7 @@ export class AvlWorkspaceCommandCenter extends AvlElement {
       processingPanel,
       previewPanel,
       feedbackPanel,
+      calibrationPanel,
     );
     wrapper.appendChild(grid);
     this.shadowRoot.appendChild(wrapper);

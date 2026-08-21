@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://aarya-voice-lab/schemas/feedback.schema.json",
   "title": "AARYA Voice Lab Feedback Record (VL-D3 §26, extended by VL-D4 §28)",
-  "description": "Free-text human feedback attached to a technical object (recording, segment, candidate, or processing result) or a voice preview. NOT a training label -- nothing in this project converts a feedback record into model training data. Stored so a future AI Calibration Engine (VL-D15) can read review disagreement and feedback volume as inputs; it never computes a score itself.",
+  "description": "Free-text human feedback attached to a technical object (recording, segment, candidate, or processing result) or a voice preview. NOT a training label -- nothing in this project converts a feedback record into model training data. Read by pipeline.calibration_prep and pipeline.calibration_engine (VL-D7) as review disagreement and feedback volume evidence; neither computes a score from it directly.",
   "type": "object",
   "required": ["schema_version", "feedback_id", "feedback_type", "target_id", "reviewer", "created_at"],
   "additionalProperties": false,

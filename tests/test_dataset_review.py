@@ -301,7 +301,8 @@ def test_calibration_summary_is_always_uncalibrated_with_real_counts(tmp_path):
     assert summary.calibration_state == CalibrationState.UNCALIBRATED
     assert summary.quality_feedback_count == 1
     assert summary.review_disagreement_count == 1
-    assert "no ai calibration engine" in summary.note.lower()
+    assert "calibration_engine" in summary.note.lower()
+    assert "never a computed score" in summary.note.lower()
 
 
 def test_calibration_summary_handles_no_data_honestly():

@@ -234,7 +234,7 @@ conflated:
 
 1. **Hardware/runtime calibration** — a new `hardware_calibration`
    status domain (`UNCALIBRATED/NOT_TESTED/CALIBRATING/CALIBRATED/
-   FAILED/UNKNOWN`) for the future AI Calibration Engine (VL-D15)
+   FAILED/UNKNOWN`) for the future AI Calibration Engine (VL-D7)
    profiling *this host*. No engine exists, so this always shows
    `UNCALIBRATED` with `avl-metric-placeholder`'s honest "Not available"
    for every CPU/RAM/GPU/VRAM/runtime/backend/compatibility field.

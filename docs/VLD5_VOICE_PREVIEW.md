@@ -202,7 +202,7 @@ boundary already uses elsewhere in this project. `REGENERATE`/
 extends VL-D3's existing module with real counts — total generations,
 distinct voice profiles, total regenerations, feedback counts by
 outcome/category — always `CalibrationState.UNCALIBRATED`. **No score is
-computed.** No AI Calibration Engine exists yet (VL-D15); these are raw
+computed.** No AI Calibration Engine exists yet (VL-D7); these are raw
 counts for a future engine to read.
 
 ## Frontend

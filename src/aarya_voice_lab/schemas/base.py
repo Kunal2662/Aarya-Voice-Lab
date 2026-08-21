@@ -50,6 +50,7 @@ class SchemaName(StrEnum):
     PREVIEW_FEEDBACK = "preview_feedback"
     EVALUATION = "evaluation"
     AB_EVALUATION = "ab_evaluation"
+    CALIBRATION_PROFILE = "calibration_profile"
 
 
 class ValidationError(ValueError):

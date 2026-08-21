@@ -1,0 +1,13 @@
+{
+  "$generated_by": "scripts/export_frontend_contracts.py",
+  "$source": "aarya_voice_lab.pipeline.calibration_engine.CalibrationRunState",
+  "description": "VL-D7's calibration engine PROCESS state \u2014 mirrors the frontend's hardware_calibration domain exactly. Deliberately independent from calibration_state.json (identity.calibration.CalibrationState, evidence/trust): a CALIBRATED run_state paired with UNCALIBRATED or PROVISIONAL calibration_state is the expected, honest outcome whenever evaluation evidence is thin. The UI must never conflate these two badges.",
+  "values": [
+    "UNCALIBRATED",
+    "NOT_TESTED",
+    "CALIBRATING",
+    "CALIBRATED",
+    "FAILED",
+    "UNKNOWN"
+  ]
+}

@@ -210,7 +210,7 @@ disagreement-output count, completed/cannot-judge counts — but
 deliberately does **not** call the pre-existing
 `identity.calibration.provisional_from_reviewer_feedback()` itself — that
 step, and any move toward a calibrated state, is left to a future,
-explicitly-approved phase (VL-D15, the AI Calibration Engine). These are
+explicitly-approved phase (VL-D7, the AI Calibration Engine). These are
 raw counts for that future engine to read, never a computed score, and
 VL-D6 never generates a target-speaker profile, trains a model, generates
 embeddings, identifies a real speaker, or auto-converts feedback into an
@@ -448,7 +448,7 @@ VL-D6's) and `ruff check .` remain green throughout.
   reached, not a guarantee of attentive listening. This is stated
   honestly rather than worked around, since no browser API can measure
   genuine attention.
-- No AI Calibration Engine exists yet (VL-D15) — `calibration_state` is
+- No AI Calibration Engine exists yet (VL-D7) — `calibration_state` is
   always `UNCALIBRATED`, by design, not oversight.
 - Agreement/disagreement statistics are simple mean/median/variance/
   spread-threshold checks — no fabricated confidence intervals or

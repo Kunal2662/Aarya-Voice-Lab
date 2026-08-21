@@ -14,6 +14,9 @@ Layout:
       enrollment/  Phase 3 speaker profiles.
       audit/       Phase 3 append-only identity audit log.
       previews/    VL-D5 generated preview audio (synthetic only today).
+      calibration/ VL-D7 calibration engine profiles (hardware snapshots,
+                   proposed parameters, provenance -- never audio, never
+                   embeddings, never speaker identity).
 
 Everything under `data/` is git-ignored except the README. `source/` is
 additionally protected in code: `assert_source_writable` refuses any
@@ -52,6 +55,7 @@ EMBEDDINGS_DIR = "embeddings"
 ENROLLMENT_DIR = "enrollment"
 AUDIT_DIR = "audit"
 PREVIEWS_DIR = "previews"
+CALIBRATION_DIR = "calibration"
 
 DATA_SUBDIRECTORIES: tuple[str, ...] = (
     SOURCE_DIR,
@@ -65,6 +69,7 @@ DATA_SUBDIRECTORIES: tuple[str, ...] = (
     ENROLLMENT_DIR,
     AUDIT_DIR,
     PREVIEWS_DIR,
+    CALIBRATION_DIR,
 )
 
 #: The one directory the pipeline must never write to.
@@ -137,6 +142,12 @@ class DataRoot:
         """Generated preview audio (VL-D5). Synthetic only until a real
         generation backend and the dataset access gate both exist."""
         return self.root / PREVIEWS_DIR
+
+    @property
+    def calibration(self) -> Path:
+        """VL-D7 calibration engine profiles: hardware snapshots and
+        proposed runtime parameters, never audio or biometric material."""
+        return self.root / CALIBRATION_DIR
 
     def create(self) -> DataRoot:
         """Create the writable directories. Does NOT create `source/` —

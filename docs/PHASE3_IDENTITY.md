@@ -292,7 +292,7 @@ step can ask "does this need an accelerator?" without branching on vendor
 names. `ComputeBackend` enumerates CUDA, ROCm, Metal, OpenCL, Vulkan, and
 XPU alongside CPU, plus an open `OTHER` member so an accelerator nobody
 has anticipated yet is still representable without a schema change. The
-future AI Calibration Engine (VL-D15) detects the actual hardware present
+future AI Calibration Engine (VL-D7) detects the actual hardware present
 and optimises for it; this module only supplies the vocabulary it reads.
 
 `describe_portability()` states its own limit: declarations are not

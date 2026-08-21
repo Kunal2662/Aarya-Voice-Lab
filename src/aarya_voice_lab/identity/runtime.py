@@ -16,10 +16,12 @@ systems, and future accelerators not yet named here. `ComputeBackend`
 therefore carries an `OTHER` member so an unanticipated accelerator is
 representable without a schema change.
 
-The future AI Calibration Engine (VL-D15) detects the actual hardware and
-optimises for it; this module only supplies the vocabulary it will read.
-The long-term direction remains a portable runtime that generates and
-plays audio on a CPU-only machine (VL-D19 / VL-D20).
+`pipeline.calibration_engine` (VL-D7) reads this module's vocabulary for
+its `HardwareSnapshot`, and proposes bounded runtime-performance
+parameters from what `environment.audit` already detected -- it does not
+add a second hardware probe. The long-term direction remains a portable
+runtime that generates and plays audio on a CPU-only machine
+(VL-D19 / VL-D20).
 
 Nothing here detects hardware itself — `environment.audit` already does
 that.
@@ -106,7 +108,7 @@ class RuntimeCapability:
     portability: PortabilityClass = PortabilityClass.UNKNOWN
     min_ram_gb: float | None = None
     min_vram_gb: float | None = None
-    #: Free-form notes for a future calibration engine (VL-D15) to key on.
+    #: Free-form notes `pipeline.calibration_engine` (VL-D7) can key on.
     performance_notes: tuple[str, ...] = field(default_factory=tuple)
 
     @property

@@ -1,20 +1,22 @@
-"""Calibration preparation — VL-D3 §27, extended by VL-D5 §23, VL-D6.
+"""Calibration preparation — VL-D3 §27, extended by VL-D5 §23, VL-D6, VL-D7.
 
-Structured, real counts the future AI Calibration Engine (VL-D15) will
-eventually read: how much quality feedback exists, how many segments
-have conflicting review decisions, how many recordings are narrowband,
-how many carry an overlap candidate, how many generation ratings and
-regenerations exist (VL-D5), and — new in VL-D6 — how many human
-evaluations and reviewer disagreements exist. **No score is computed
-here.** The state is always `identity.calibration.CalibrationState.UNCALIBRATED`
-— the same honesty rule `identity.calibration` already enforces for
-target-speaker verification applies here for exactly the same reason:
-there is no engine yet to have calibrated anything. VL-D6 deliberately
-does not call `identity.calibration.provisional_from_reviewer_feedback()`
-itself — that function already exists and already does confidence-aware,
-still-non-calibrating reviewer-agreement adjustment, but invoking it is
-left to a future, explicitly-approved phase rather than happening here
-as a side effect of preparing inputs.
+Structured, real counts that `pipeline.calibration_engine` (VL-D7) reads:
+how much quality feedback exists, how many segments have conflicting
+review decisions, how many recordings are narrowband, how many carry an
+overlap candidate, how many generation ratings and regenerations exist
+(VL-D5), and — new in VL-D6 — how many human evaluations and reviewer
+disagreements exist. **No score is computed here, and this module still
+never becomes calibrated itself** — the state each summary reports is
+always `identity.calibration.CalibrationState.UNCALIBRATED`, the same
+honesty rule `identity.calibration` already enforces for target-speaker
+verification. `pipeline.calibration_engine` is the module that reads
+these summaries and may reach `PROVISIONAL` (never `CALIBRATED`); this
+module's own job stays exactly what it was before VL-D7 existed --
+counting, never judging. VL-D6 deliberately did not call
+`identity.calibration.provisional_from_reviewer_feedback()` itself —
+that function already existed and already did confidence-aware,
+still-non-calibrating reviewer-agreement adjustment, but invoking it was
+left to VL-D7, which now does so in `calibration_engine.run_calibration`.
 """
 
 from __future__ import annotations
@@ -84,8 +86,8 @@ def summarize_calibration_inputs(
         total_recordings=total_recordings,
         feedback_counts_by_type=feedback_counts,
         note=(
-            "No AI Calibration Engine exists yet (VL-D15). These are raw counts "
-            "for a future engine to read, never a computed score."
+            "pipeline.calibration_engine (VL-D7) reads these as raw evidence "
+            "inputs; never a computed score."
         ),
     )
 
@@ -121,8 +123,8 @@ def summarize_preview_calibration_inputs(
     history_log: PreviewHistoryLog | None = None,
     feedback_log: PreviewFeedbackLog | None = None,
 ) -> PreviewCalibrationInputSummary:
-    """VL-D5 §23 — structured generation/feedback signals for the future
-    AI Calibration Engine. Always `UNCALIBRATED`; only real counts."""
+    """VL-D5 §23 — structured generation/feedback signals for
+    `pipeline.calibration_engine` (VL-D7). Always `UNCALIBRATED`; only real counts."""
     all_records = history_log.list() if history_log is not None else []
     voice_profile_ids = sorted({r["voice_profile_id"] for r in all_records})
     total_regenerations = (
@@ -144,8 +146,8 @@ def summarize_preview_calibration_inputs(
         accepted_count=outcome_counts.get(PreviewFeedbackOutcome.ACCEPTED.value, 0),
         rejected_count=outcome_counts.get(PreviewFeedbackOutcome.REJECTED.value, 0),
         note=(
-            "No AI Calibration Engine exists yet (VL-D15). These are raw counts "
-            "for a future engine to read, never a computed score."
+            "pipeline.calibration_engine (VL-D7) reads these as raw evidence "
+            "inputs; never a computed score."
         ),
     )
 
@@ -177,8 +179,8 @@ class EvaluationCalibrationInputSummary:
 def summarize_evaluation_calibration_inputs(
     *, evaluation_log: EvaluationLog | None = None
 ) -> EvaluationCalibrationInputSummary:
-    """VL-D6 — structured human-evaluation/disagreement signals for the
-    future AI Calibration Engine. Always `UNCALIBRATED`; only real
+    """VL-D6 — structured human-evaluation/disagreement signals for
+    `pipeline.calibration_engine` (VL-D7). Always `UNCALIBRATED`; only real
     counts, computed by `pipeline.evaluation_aggregation` (pure
     aggregation, no new judgement made here or there)."""
     signals = (
@@ -204,7 +206,7 @@ def summarize_evaluation_calibration_inputs(
         completed_count=signals.completed_count,
         cannot_judge_count=signals.cannot_judge_count,
         note=(
-            "No AI Calibration Engine exists yet (VL-D15). These are raw counts "
-            "for a future engine to read, never a computed score."
+            "pipeline.calibration_engine (VL-D7) reads these as raw evidence "
+            "inputs; never a computed score."
         ),
     )
