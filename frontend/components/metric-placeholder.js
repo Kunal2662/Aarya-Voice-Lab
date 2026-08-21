@@ -32,7 +32,12 @@ export class AvlMetricPlaceholder extends AvlElement {
     style.textContent = `
       .metric { display: flex; justify-content: space-between; gap: var(--avl-space-2); padding: var(--avl-space-1) 0; }
       .label { color: var(--avl-color-text-secondary); font: var(--avl-type-caption-weight) var(--avl-type-caption-size) / 1 var(--avl-type-caption-family); }
-      .value { font: var(--avl-type-body-small-weight) var(--avl-type-body-small-size) / 1 var(--avl-type-body-small-family); }
+      /* FE-1.6 -- tabular-nums keeps a column of metric values visually
+         aligned (digits share a fixed width) instead of each row's
+         width drifting with its digits, a small but real "precision
+         instrument" touch appropriate for a measurement display; the
+         font/size/weight/family are all still token-driven, unchanged. */
+      .value { font: var(--avl-type-body-small-weight) var(--avl-type-body-small-size) / 1 var(--avl-type-body-small-family); font-variant-numeric: tabular-nums; }
       .unavailable { color: var(--avl-color-text-disabled); font-style: italic; }
     `;
     this.shadowRoot.appendChild(style);

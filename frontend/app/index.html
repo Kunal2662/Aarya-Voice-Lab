@@ -5,6 +5,19 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Aarya Voice Lab</title>
 <link rel="icon" href="data:," />
+<!-- FE-1 token-delivery fix: every component already links these same
+     two files into its own Shadow DOM via base-element.js's
+     _linkSharedStyles(); linking them here too gives the color tokens'
+     :root/[data-theme='...']/prefers-color-scheme rules a genuine
+     document root to match against (a :host selector inside a shadow
+     tree can never react to an attribute on an ancestor element, like
+     <html data-theme>, elsewhere in the document -- only a real :root
+     match can), and the resulting values inherit automatically into
+     every shadow tree through normal CSS custom-property inheritance.
+     See tools/build-css-variables.mjs's own comment on the color block
+     for the full reasoning. -->
+<link rel="stylesheet" href="../css/variables.css" />
+<link rel="stylesheet" href="../css/base.css" />
 <style>
   html, body { margin: 0; height: 100%; }
 </style>

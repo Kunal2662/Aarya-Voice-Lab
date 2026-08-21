@@ -64,6 +64,31 @@ function buildCss() {
   // [data-theme='dark'] attribute AND under prefers-color-scheme so an
   // unset preference still resolves sensibly. See docs/VLD0_DESIGN_SYSTEM.md
   // "Theme decision" for why both paths exist.
+  //
+  // FE-1 token-delivery fix -- deliberately kept :root-scoped, NOT
+  // :host-scoped, unlike the blocks below. [data-theme='dark']/
+  // [data-theme='light'] are attributes avl-theme-toggle.js sets on the
+  // real <html> element (see app/main.js), and a :host selector can
+  // only ever match attributes on its OWN shadow host, never on an
+  // ancestor elsewhere in the document -- there is no CSS selector that
+  // lets a shadow tree react to an attribute on a *different* element up
+  // the light-DOM tree. Custom properties, uniquely, are INHERITED
+  // through shadow boundaries, so the fix for this block is on the
+  // consumption side, not here: app/index.html and shell/index.html now
+  // also link this generated file at the real document root (see their
+  // own comments), so these exact :root/[data-theme] rules finally have
+  // a genuine <html> to match against, and every shadow tree inherits
+  // the resulting values automatically -- reacting correctly to both
+  // prefers-color-scheme and the explicit toggle, exactly as before this
+  // fix was needed to matter. Each component's own per-shadow-root copy
+  // of this same block (linked via _linkSharedStyles(), unchanged)
+  // stays harmlessly unmatched for :root selectors specifically -- that
+  // is expected, not a bug, since those values now arrive by inheritance
+  // instead. Redeclaring color via :host here would be actively wrong:
+  // a value set directly via :host on a component's own host element
+  // always wins over an inherited one in the cascade, which would
+  // permanently pin every component to whichever theme's :host rule
+  // happened to load, ignoring runtime theme changes entirely.
   parts.push(renderThemeBlock(":root, [data-theme='light']", color.themes.light));
   parts.push(
     `@media (prefers-color-scheme: dark) {\n  :root:not([data-theme='light']) {\n${flatten(
@@ -88,14 +113,24 @@ function buildCss() {
     scaleLines.push(`  --avl-type-${n}-weight: ${def.weight};`);
     scaleLines.push(`  --avl-type-${n}-family: var(--avl-font-${kebab(def.family)});`);
   }
-  parts.push(`:root {\n${fontFamilyLines.join("\n")}\n${scaleLines.join("\n")}\n}\n`);
+  // FE-1 token-delivery fix -- unlike the color block above, typography/
+  // spacing/radius/layout/motion never vary by an ancestor's attribute
+  // (no theme reactivity to preserve), so :host is both safe and
+  // sufficient here: it makes these tokens available directly inside
+  // each component's own shadow root through the existing
+  // _linkSharedStyles() mechanism, with no risk of shadowing a runtime
+  // override the way redeclaring color via :host would. :root is kept
+  // alongside it (harmless duplication, same static values either way)
+  // so the same file also works correctly now that app/index.html and
+  // shell/index.html additionally link it at the real document root.
+  parts.push(`:host, :root {\n${fontFamilyLines.join("\n")}\n${scaleLines.join("\n")}\n}\n`);
 
   // Spacing / radius / layout
   const spaceLines = Object.entries(spacing.scale).map(([n, v]) => `  --avl-space-${n}: ${v};`);
   const radiusLines = Object.entries(spacing.radius).map(([n, v]) => `  --avl-radius-${kebab(n)}: ${v};`);
   const layoutLines = Object.entries(spacing.layout).map(([n, v]) => `  --avl-layout-${kebab(n)}: ${v};`);
   parts.push(
-    `:root {\n${spaceLines.join("\n")}\n${radiusLines.join("\n")}\n${layoutLines.join("\n")}\n}\n`,
+    `:host, :root {\n${spaceLines.join("\n")}\n${radiusLines.join("\n")}\n${layoutLines.join("\n")}\n}\n`,
   );
 
   // Motion
@@ -103,14 +138,18 @@ function buildCss() {
     ([n, v]) => `  --avl-duration-${kebab(n)}: ${v};`,
   );
   const easingLines = Object.entries(motion.easings).map(([n, v]) => `  --avl-easing-${kebab(n)}: ${v};`);
-  parts.push(`:root {\n${durationLines.join("\n")}\n${easingLines.join("\n")}\n}\n`);
+  parts.push(`:host, :root {\n${durationLines.join("\n")}\n${easingLines.join("\n")}\n}\n`);
 
   parts.push(
     "/* Reduced motion: collapse every duration token to effectively",
     " * instant. Components must use these custom properties for all",
-    " * durations so this single override disables motion app-wide. */",
+    " * durations so this single override disables motion app-wide.",
+    " * :host, :root for the same reason as the token blocks above --",
+    " * prefers-reduced-motion is a pure media feature (not dependent on",
+    " * a DOM attribute), so it's safe to deliver locally per shadow root",
+    " * as well as from the document root. */",
     "@media (prefers-reduced-motion: reduce) {",
-    "  :root {",
+    "  :host, :root {",
     ...Object.keys(motion.durations).map((n) => `    --avl-duration-${kebab(n)}: 1ms;`),
     "  }",
     "}",

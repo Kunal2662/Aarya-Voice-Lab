@@ -9,6 +9,7 @@ import "./theme-toggle.js";
 import "./status-badge.js";
 import "./metric-placeholder.js";
 import "./notice-banner.js";
+import "./confirm-action.js";
 
 export class AvlWorkspaceSettings extends AvlElement {
   set services(value) {
@@ -109,11 +110,23 @@ export class AvlWorkspaceSettings extends AvlElement {
 
   /** VL-D9 -- the explicit "Clear session data" control (Task #190).
    * Requires two distinct clicks (never a single accidental click, never
-   * an automatic trigger): the first reveals exactly what will be
-   * cleared and a "Confirm clear" button; only that second, explicit
-   * click actually calls services.session.clear(). Clears only this
+   * an automatic trigger): the first opens a confirmation dialog naming
+   * exactly what will be cleared; only an explicit "Confirm clear"
+   * inside it actually calls services.session.clear(). Clears only this
    * app's own namespaced localStorage keys (see clearAllSessionData())
-   * -- never anything else in the browser's storage. */
+   * -- never anything else in the browser's storage.
+   *
+   * FE-1.1 -- the confirmation step is now a real <avl-confirm-action>
+   * dialog (role="dialog", aria-modal, Escape-to-cancel, focus trap,
+   * focus returned to "Clear session data" on close) instead of the
+   * hand-built hidden-<div> warning VL-D9 shipped. Its Confirm/Cancel
+   * actions stay plain native <button> elements, not the primitive's
+   * own recommended <avl-button> default (see components/confirm-
+   * action.js's header comment), specifically so the existing,
+   * untouched session.test.mjs tests #4/#5/#6 -- which query
+   * `settings.shadowRoot.querySelectorAll("button")` and match on
+   * `.textContent` -- keep finding real <button> tags with unchanged
+   * text. */
   _buildSessionSection() {
     const section = document.createElement("div");
     section.style.marginTop = "var(--avl-space-3)";
@@ -142,34 +155,38 @@ export class AvlWorkspaceSettings extends AvlElement {
     clearButton.textContent = "Clear session data";
     clearButton.disabled = !session.available;
 
-    const warning = document.createElement("div");
-    warning.hidden = true;
-    const warningText = document.createElement("p");
-    warningText.className = "avl-type-caption";
-    warningText.textContent =
-      "This removes all locally saved Import/Review/Processing/Preview/Feedback/Calibration state from this browser and cannot be undone. Nothing outside this app's own local storage is touched.";
+    const confirmDialog = document.createElement("avl-confirm-action");
+    confirmDialog.setAttribute("dialog-title", "Clear session data?");
+    confirmDialog.setAttribute("variant", "danger");
+    confirmDialog.setAttribute(
+      "description",
+      "This removes all locally saved Import/Review/Processing/Preview/Feedback/Calibration state from this browser and cannot be undone. Nothing outside this app's own local storage is touched.",
+    );
+
     const confirmButton = document.createElement("button");
     confirmButton.type = "button";
+    confirmButton.slot = "actions";
     confirmButton.textContent = "Confirm clear";
     const cancelButton = document.createElement("button");
     cancelButton.type = "button";
+    cancelButton.slot = "actions";
     cancelButton.textContent = "Cancel";
-    warning.append(warningText, confirmButton, cancelButton);
+    confirmDialog.append(cancelButton, confirmButton);
 
+    const closeDialog = () => confirmDialog.removeAttribute("open");
     clearButton.addEventListener("click", () => {
-      warning.hidden = false;
+      confirmDialog.setAttribute("open", "");
     });
-    cancelButton.addEventListener("click", () => {
-      warning.hidden = true;
-    });
+    cancelButton.addEventListener("click", closeDialog);
+    confirmDialog.addEventListener("avl-dialog-cancel", closeDialog);
     confirmButton.addEventListener("click", () => {
       if (typeof session.clear === "function") session.clear();
-      warning.hidden = true;
+      closeDialog();
       this._announce("Session data cleared");
       this._render();
     });
 
-    section.append(clearButton, warning);
+    section.append(clearButton, confirmDialog);
     return section;
   }
 }

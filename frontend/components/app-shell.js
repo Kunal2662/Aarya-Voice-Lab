@@ -3,7 +3,23 @@
 // slot="inspector"), activity bar (bottom, slot="activity-bar"). Sidebar
 // nav content goes in slot="sidebar". This component only lays regions
 // out; it owns no navigation state and fetches nothing.
+//
+// FE-1.2 -- a "narrow desktop" media query automatically swaps the
+// sidebar column to `--avl-layout-sidebar-width-collapsed` (previously
+// a dead token, never read anywhere) instead of the full
+// `--avl-layout-sidebar-width`. This is a *desktop* adaptive behavior,
+// not a mobile breakpoint: the shell's `--avl-layout-shell-min-width`
+// floor (60rem) is unchanged and still enforced, and the narrow
+// threshold below only ever reclaims sidebar width for the workspace/
+// inspector columns -- it never restructures the grid into a stacked
+// mobile layout. CSS custom properties cannot appear inside an
+// `@media` feature value (a platform limitation, not a choice made
+// here), so the threshold itself is a plain literal, kept in sync by
+// hand with the identical value in sidebar-nav.js's own media query --
+// both must change together if this threshold is ever revisited.
 import { AvlElement, defineComponent } from "./base-element.js";
+
+const NARROW_DESKTOP_BREAKPOINT = "75rem";
 
 export class AvlAppShell extends AvlElement {
   static get observedAttributes() {
@@ -46,6 +62,15 @@ export class AvlAppShell extends AvlElement {
       }
       .inspector[data-collapsed="true"] { width: 0; overflow: hidden; border-left: none; }
       .activity-bar { grid-area: activity-bar; }
+
+      /* FE-1.2 -- below the narrow-desktop threshold, reclaim sidebar
+         width for the workspace/inspector columns by swapping to the
+         collapsed sidebar-width token; the Inspector column and the
+         60rem shell floor are both untouched, so nothing here can ever
+         cause horizontal overflow or clip the Inspector. */
+      @media (max-width: ${NARROW_DESKTOP_BREAKPOINT}) {
+        .shell { grid-template-columns: var(--avl-layout-sidebar-width-collapsed) 1fr auto; }
+      }
     `;
     this.shadowRoot.appendChild(style);
 
@@ -63,6 +88,12 @@ export class AvlAppShell extends AvlElement {
     const inspector = document.createElement("div");
     inspector.className = "inspector";
     inspector.dataset.collapsed = String(inspectorCollapsed);
+    // FE-1.8 -- matches workspace's <main> and the sidebar's own
+    // internal <nav aria-label="Primary">: gives this region a
+    // landmark screen-reader users can jump to directly, alongside
+    // avl-inspector-router's own content heading (see that file).
+    inspector.setAttribute("role", "complementary");
+    inspector.setAttribute("aria-label", "Inspector");
     inspector.appendChild(Object.assign(document.createElement("slot"), { name: "inspector" }));
 
     const activityBar = document.createElement("div");

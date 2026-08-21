@@ -34,7 +34,7 @@ export class AvlBeforeAfterComparison extends AvlElement {
       .columns { display: grid; grid-template-columns: 1fr 1fr; gap: var(--avl-space-4); }
       h4 { margin: 0 0 var(--avl-space-2) 0; font: var(--avl-type-subheading-weight) var(--avl-type-subheading-size) / var(--avl-type-subheading-line-height) var(--avl-type-subheading-family); }
       .rows { display: flex; flex-direction: column; gap: var(--avl-space-1); margin-top: var(--avl-space-2); }
-      .row { display: flex; justify-content: space-between; gap: var(--avl-space-2); padding: var(--avl-space-1) 0; border-bottom: 1px solid var(--avl-color-border-subtle); }
+      /* FE-1.5 -- .row replaced by the shared avl-row avl-row--bordered utilities (css/base.css). */
       .label { color: var(--avl-color-text-secondary); font: var(--avl-type-caption-weight) var(--avl-type-caption-size) / 1 var(--avl-type-caption-family); }
       .value { font: var(--avl-type-body-small-weight) var(--avl-type-body-small-size) / 1 var(--avl-type-body-small-family); }
       .empty { color: var(--avl-color-text-muted); font: var(--avl-type-body-small-weight) var(--avl-type-body-small-size) / var(--avl-type-body-small-line-height) var(--avl-type-body-small-family); }
@@ -108,7 +108,7 @@ export class AvlBeforeAfterComparison extends AvlElement {
     rows.className = "rows";
     for (const [label, value] of Object.entries(fields)) {
       const row = document.createElement("div");
-      row.className = "row";
+      row.className = "avl-row avl-row--bordered";
       row.innerHTML = `<span class="label">${label}</span><span class="value">${value == null || value === "" ? "—" : value}</span>`;
       rows.appendChild(row);
     }

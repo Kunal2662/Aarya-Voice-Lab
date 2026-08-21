@@ -2,6 +2,7 @@
 // Used for transient system notices; not a substitute for avl-error-panel,
 // which handles progressive-disclosure error/recovery UX specifically.
 import { AvlElement, defineComponent } from "./base-element.js";
+import "./icon.js";
 
 const TONES = ["info", "success", "warning", "danger"];
 
@@ -40,7 +41,7 @@ export class AvlNoticeBanner extends AvlElement {
       .warning { --avl-tone-bg: var(--avl-color-state-warning-subtle); --avl-tone-border: var(--avl-color-state-warning); }
       .danger  { --avl-tone-bg: var(--avl-color-state-danger-subtle);  --avl-tone-border: var(--avl-color-state-danger); }
       .body { flex: 1; font: var(--avl-type-body-small-weight) var(--avl-type-body-small-size) / var(--avl-type-body-small-line-height) var(--avl-type-body-small-family); }
-      .close { background: none; border: none; cursor: pointer; color: inherit; font: inherit; }
+      .close { background: none; border: none; cursor: pointer; color: inherit; padding: 0; display: inline-flex; }
     `;
     this.shadowRoot.appendChild(style);
 
@@ -58,7 +59,13 @@ export class AvlNoticeBanner extends AvlElement {
       close.className = "close";
       close.type = "button";
       close.setAttribute("aria-label", "Dismiss notice");
-      close.textContent = "✕";
+      // The button's own aria-label already carries the accessible
+      // name, so the icon itself stays decorative/aria-hidden -- it
+      // must never be announced a second time.
+      const closeIcon = document.createElement("avl-icon");
+      closeIcon.setAttribute("name", "close");
+      closeIcon.setAttribute("size", "0.85rem");
+      close.appendChild(closeIcon);
       close.addEventListener("click", () => {
         this.dispatchEvent(new CustomEvent("avl-dismiss", { bubbles: true, composed: true }));
         this.remove();

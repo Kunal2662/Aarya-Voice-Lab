@@ -43,7 +43,7 @@ export class AvlGenerationHistoryPanel extends AvlElement {
       ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--avl-space-2); }
       li { border: 1px solid var(--avl-color-border-subtle); border-radius: var(--avl-radius-sm); padding: var(--avl-space-2); cursor: pointer; }
       li:hover { background: var(--avl-color-surface-sunken); }
-      .row { display: flex; justify-content: space-between; align-items: center; gap: var(--avl-space-2); }
+      /* FE-1.5 -- .row replaced by the shared avl-row avl-row--center utilities (css/base.css). */
       .meta { color: var(--avl-color-text-secondary); font: var(--avl-type-caption-weight) var(--avl-type-caption-size) / var(--avl-type-caption-line-height) var(--avl-type-caption-family); margin-top: var(--avl-space-1); }
       .current { border-color: var(--avl-color-brand-accent); }
       .empty { color: var(--avl-color-text-muted); font: var(--avl-type-body-small-weight) var(--avl-type-body-small-size) / var(--avl-type-body-small-line-height) var(--avl-type-body-small-family); }
@@ -77,7 +77,7 @@ export class AvlGenerationHistoryPanel extends AvlElement {
       item.setAttribute("role", "button");
 
       const row = document.createElement("div");
-      row.className = "row";
+      row.className = "avl-row avl-row--center";
       const label = document.createElement("span");
       label.textContent = `Generation ${index + 1}`;
       const badge = document.createElement("avl-status-badge");

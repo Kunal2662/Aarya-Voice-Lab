@@ -34,6 +34,22 @@ import "./disagreement-view.js";
 import "./aggregated-results-panel.js";
 import "./claude-evaluation-context.js";
 
+// FE-1.8 -- human-readable heading text per selection.kind, so the
+// panel's content is reachable by heading-based screen-reader
+// navigation (previously jumped straight from a workspace's own <h2>
+// to an isolated <h4> subsection heading with nothing bridging them).
+const KIND_LABELS = {
+  batch: "Batch",
+  recording: "Recording",
+  "pipeline-stage": "Pipeline stage",
+  job: "Job",
+  activity: "Activity event",
+  voice: "Voice",
+  model: "Model",
+  "calibration-profile": "Calibration profile",
+  "voice-profile": "Voice profile",
+};
+
 const RENDERERS = {
   batch: (data) => [
     ["Batch", data.id],
@@ -163,8 +179,9 @@ export class AvlInspectorRouter extends AvlElement {
     const style = document.createElement("style");
     style.textContent = `
       .rows { display: flex; flex-direction: column; gap: var(--avl-space-1); }
-      .row { display: flex; justify-content: space-between; gap: var(--avl-space-2); padding: var(--avl-space-1) 0; border-bottom: 1px solid var(--avl-color-border-subtle); }
-      .row:last-child { border-bottom: none; }
+      /* FE-1.5 -- .row/.row:last-child replaced by the shared
+         avl-row/avl-row--bordered utilities (css/base.css); see every
+         className = "avl-row avl-row--bordered" call site below. */
       .label { color: var(--avl-color-text-secondary); font: var(--avl-type-caption-weight) var(--avl-type-caption-size) / 1 var(--avl-type-caption-family); }
       .value { font: var(--avl-type-body-small-weight) var(--avl-type-body-small-size) / 1 var(--avl-type-body-small-family); text-align: right; word-break: break-word; }
       .empty { color: var(--avl-color-text-muted); font: var(--avl-type-body-small-weight) var(--avl-type-body-small-size) / var(--avl-type-body-small-line-height) var(--avl-type-body-small-family); }
@@ -172,6 +189,13 @@ export class AvlInspectorRouter extends AvlElement {
       summary { cursor: pointer; font: var(--avl-type-caption-weight) var(--avl-type-caption-size) / 1 var(--avl-type-caption-family); text-transform: uppercase; letter-spacing: 0.04em; color: var(--avl-color-text-secondary); }
       details > *:not(summary) { margin-top: var(--avl-space-2); }
       h4 { margin: var(--avl-space-3) 0 var(--avl-space-1) 0; font: var(--avl-type-caption-weight) var(--avl-type-caption-size) / 1 var(--avl-type-caption-family); text-transform: uppercase; letter-spacing: 0.04em; color: var(--avl-color-text-secondary); }
+      /* FE-1.8 -- selection-kind heading, same visual treatment as the
+         h4 subsections below it (no visual redesign). Nests under the
+         wrapping <avl-panel title="Inspector">'s own <h3> (also fixed
+         in FE-1.8 -- was a plain <span> before), so heading-based
+         navigation reads Inspector (h3) -> Batch/Recording/etc (h4)
+         instead of jumping straight to an unlabelled subsection. */
+      h4.panel-heading { margin: 0 0 var(--avl-space-2) 0; }
     `;
     this.shadowRoot.appendChild(style);
 
@@ -184,11 +208,16 @@ export class AvlInspectorRouter extends AvlElement {
       return;
     }
 
+    const heading = document.createElement("h4");
+    heading.className = "panel-heading";
+    heading.textContent = KIND_LABELS[selection.kind] || "Inspector";
+    this.shadowRoot.appendChild(heading);
+
     const rows = document.createElement("div");
     rows.className = "rows";
     for (const [label, value] of RENDERERS[selection.kind](selection.data || {})) {
       const row = document.createElement("div");
-      row.className = "row";
+      row.className = "avl-row avl-row--bordered";
       const labelEl = document.createElement("span");
       labelEl.className = "label";
       labelEl.textContent = label;
@@ -272,7 +301,7 @@ export class AvlInspectorRouter extends AvlElement {
       ["Long pause count", speech.longPauseCount],
     ]) {
       const row = document.createElement("div");
-      row.className = "row";
+      row.className = "avl-row avl-row--bordered";
       row.innerHTML = `<span class="label">${label}</span><span class="value">${value == null ? "—" : value}</span>`;
       speechRows.appendChild(row);
     }
@@ -326,7 +355,7 @@ export class AvlInspectorRouter extends AvlElement {
       ["Classification", data.classification],
     ]) {
       const row = document.createElement("div");
-      row.className = "row";
+      row.className = "avl-row avl-row--bordered";
       row.innerHTML = `<span class="label">${label}</span><span class="value">${value == null || value === "" ? "—" : value}</span>`;
       provenanceRows.appendChild(row);
     }
@@ -363,7 +392,7 @@ export class AvlInspectorRouter extends AvlElement {
     const summaryRows = document.createElement("div");
     summaryRows.className = "rows";
     const statusRow = document.createElement("div");
-    statusRow.className = "row";
+    statusRow.className = "avl-row avl-row--bordered";
     const statusLabel = document.createElement("span");
     statusLabel.className = "label";
     statusLabel.textContent = "Status";
@@ -375,7 +404,7 @@ export class AvlInspectorRouter extends AvlElement {
     summaryRows.appendChild(statusRow);
 
     const decisionRow = document.createElement("div");
-    decisionRow.className = "row";
+    decisionRow.className = "avl-row avl-row--bordered";
     const decisionLabel = document.createElement("span");
     decisionLabel.className = "label";
     decisionLabel.textContent = "Decision";
@@ -402,7 +431,7 @@ export class AvlInspectorRouter extends AvlElement {
       ["Errors", item.errors.length ? item.errors.join("; ") : null],
     ]) {
       const row = document.createElement("div");
-      row.className = "row";
+      row.className = "avl-row avl-row--bordered";
       row.innerHTML = `<span class="label">${label}</span><span class="value">${value == null || value === "" ? "—" : value}</span>`;
       summaryRows.appendChild(row);
     }
@@ -480,7 +509,7 @@ export class AvlInspectorRouter extends AvlElement {
     const summaryRows = document.createElement("div");
     summaryRows.className = "rows";
     const statusRow = document.createElement("div");
-    statusRow.className = "row";
+    statusRow.className = "avl-row avl-row--bordered";
     statusRow.innerHTML = '<span class="label">Status</span>';
     const statusBadge = document.createElement("avl-status-badge");
     statusBadge.setAttribute("domain", "generation_status");
@@ -496,7 +525,7 @@ export class AvlInspectorRouter extends AvlElement {
       ["Errors", item.errors.length ? item.errors.join("; ") : null],
     ]) {
       const row = document.createElement("div");
-      row.className = "row";
+      row.className = "avl-row avl-row--bordered";
       row.innerHTML = `<span class="label">${label}</span><span class="value">${value == null || value === "" ? "—" : value}</span>`;
       summaryRows.appendChild(row);
     }

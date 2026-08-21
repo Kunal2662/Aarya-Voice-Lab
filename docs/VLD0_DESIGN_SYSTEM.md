@@ -303,6 +303,53 @@ no screen-reader software or contrast-analyzer tooling was run in VL-D0;
 that belongs to a later milestone once there's a full application to
 audit against.
 
+### FE-1.8 accessibility audit
+
+The later milestone above: with all 15 workspaces routable and real,
+this audit ran a real headless-Chromium page (Shadow-DOM-piercing)
+against every routed workspace, plus five dynamic states default
+routes can't reach — a confirmation dialog open, the Inspector holding
+a real selection, the narrow-desktop collapsed sidebar, the dark
+theme, and processing's real BLOCKED status transition. It checked
+concrete, verifiable criteria: every button/link/`role="button"` has a
+non-empty accessible name; heading levels never skip; every `<table>`
+with data rows has `<th>` headers; `[data-selectable]` rows are
+keyboard-reachable with a role; every `avl-icon` is either
+`aria-hidden` (unlabelled/decorative) or `role="img"` (labelled);
+every form control has an associated label; every `role="dialog"` has
+`aria-modal` and an accessible name; a sampled focused control shows a
+visible focus indicator.
+
+One real, in-scope gap surfaced: the Inspector panel (`avl-panel` +
+`avl-inspector-router`) had no landmark role or accessible name, and
+its content jumped straight from a workspace's `<h2>` to an isolated
+`<h4>` subsection heading (Quality Before/After, History, Feedback,
+Claude context) with nothing bridging them — a heading-level skip, and
+the panel itself undiscoverable by landmark navigation. Fixed with two
+small, non-visual changes:
+
+- `app-shell.js`'s `.inspector` region gained `role="complementary"`
+  `aria-label="Inspector"`, matching the existing pattern on
+  `.workspace` (a real `<main>`) and `avl-sidebar-nav`'s own internal
+  `<nav aria-label="Primary">`.
+- `avl-panel`'s titlebar label — used for every panel in the app
+  (System, Pipeline, Jobs, Recent Activity, Imports, Review, Inspector,
+  and more), not only the Inspector — changed from a plain `<span>` to
+  a real `<h3>` (margin/font/weight reset to zero, so this is purely
+  semantic). `avl-inspector-router` now also renders an `<h4>` naming
+  the current selection kind (Batch, Recording, Job, ...), nesting
+  correctly under the panel's own `<h3>`. Verified pixel-identical to
+  the pre-fix rendering for the default/empty state via screenshot
+  comparison; the visual-regression baselines were regenerated for the
+  states where the new `<h4>` is visible (a real selection is present).
+
+Every other check passed with zero findings across all 15 default
+routes and all 5 dynamic states — the D0-era contract above held up in
+practice, not only on paper. This was a real audit against the actual
+application, not a re-statement of intent: it is not exhaustive (no
+screen-reader software or contrast-analyzer tooling was run), but it
+is evidence-based, not assumed.
+
 ## Error/recovery UX
 
 `avl-error-panel` implements progressive disclosure: a plain-language
@@ -389,10 +436,14 @@ non-invasive, additive `scripts/export_frontend_contracts.py`.
   filenames needed changing.
 - No font files are bundled; `pixel-decorative` and `monospace` families
   fall back to system fonts until a real asset is chosen.
-- No visual regression testing (screenshot diffing) exists yet — the
-  browser smoke test checks structure/behavior, not pixel appearance.
-- No screen-reader software was used to verify the accessibility
-  contract above; it is implemented to spec but not manually audited.
+- ~~No visual regression testing (screenshot diffing) exists yet~~ —
+  addressed in FE-1.7: see
+  [FE1_FRONTEND_POLISH.md](FE1_FRONTEND_POLISH.md).
+- ~~No screen-reader software was used to verify the accessibility
+  contract above~~ — a real, evidence-based audit ran in FE-1.8 (see
+  "FE-1.8 accessibility audit" above); it still did not use actual
+  screen-reader software, only programmatic checks against the real
+  accessibility-relevant DOM/ARIA state a screen reader would consume.
 - `avl-tabs` and `avl-sidebar-nav` are the only components with full
   custom keyboard-navigation logic; other composite components (cards,
   panels) rely on native element semantics, which is sufficient for

@@ -91,7 +91,7 @@ export class AvlWorkspaceFeedback extends AvlElement {
       .metric { border: 1px solid var(--avl-color-border-subtle); border-radius: var(--avl-radius-sm); padding: var(--avl-space-2); }
       .metric .value { font: var(--avl-type-heading-weight) var(--avl-type-heading-size) / 1 var(--avl-type-heading-family); }
       .metric .label { color: var(--avl-color-text-secondary); font: var(--avl-type-caption-weight) var(--avl-type-caption-size) / 1 var(--avl-type-caption-family); text-transform: uppercase; letter-spacing: 0.04em; }
-      .row { display: flex; justify-content: space-between; gap: var(--avl-space-2); padding: var(--avl-space-1) 0; border-bottom: 1px solid var(--avl-color-border-subtle); }
+      /* FE-1.5 -- .row replaced by the shared avl-row avl-row--bordered utilities (css/base.css). */
       .rows { display: flex; flex-direction: column; }
       .label { color: var(--avl-color-text-secondary); font: var(--avl-type-caption-weight) var(--avl-type-caption-size) / 1 var(--avl-type-caption-family); }
       .value { font: var(--avl-type-body-small-weight) var(--avl-type-body-small-size) / 1 var(--avl-type-body-small-family); text-align: right; word-break: break-word; }
@@ -304,7 +304,7 @@ export class AvlWorkspaceFeedback extends AvlElement {
       ["Synthetic", String(output.is_synthetic)],
     ]) {
       const row = document.createElement("div");
-      row.className = "row";
+      row.className = "avl-row avl-row--bordered";
       row.innerHTML = `<span class="label">${label}</span><span class="value">${value == null || value === "" ? "—" : value}</span>`;
       rows.appendChild(row);
     }

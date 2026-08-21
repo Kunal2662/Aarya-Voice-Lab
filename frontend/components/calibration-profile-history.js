@@ -71,7 +71,16 @@ export class AvlCalibrationProfileHistory extends AvlElement {
       if (this._selectionModel) {
         label.style.cursor = "pointer";
         label.style.textDecoration = "underline";
-        label.addEventListener("click", () => this._selectionModel.select("calibration-profile", record.profile_id, record));
+        label.tabIndex = 0;
+        label.setAttribute("role", "button");
+        const select = () => this._selectionModel.select("calibration-profile", record.profile_id, record);
+        label.addEventListener("click", select);
+        label.addEventListener("keydown", (event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            select();
+          }
+        });
       }
       row.appendChild(label);
 

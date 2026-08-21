@@ -173,6 +173,7 @@ No test uses, references, or requires the real recordings.
 | [VLD8_CALIBRATION_APPLICATION.md](docs/VLD8_CALIBRATION_APPLICATION.md) | VL-D8 Calibration Application & Validation Loop: application_state axis, bounded generation-queue concurrency, real before/after batch-count measurement, honest NOT_MEASURABLE |
 | [VLD9_SESSION_PERSISTENCE.md](docs/VLD9_SESSION_PERSISTENCE.md) | VL-D9 Local Session Persistence: versioned localStorage envelopes, per-store hydrate()/export, excluded-field safety review, automatic save, explicit Clear session data, honest persistence indicators |
 | [VLD10_CLAUDE_COMMAND_CENTER_BRIDGE.md](docs/VLD10_CLAUDE_COMMAND_CENTER_BRIDGE.md) | VL-D10 Claude Command Center Bridge: live read-only command_center_snapshot() wiring, real repository/activity/diagnostics/command-catalogue/verification data, honest missing/malformed handling — no execution transport |
+| [FE1_FRONTEND_POLISH.md](docs/FE1_FRONTEND_POLISH.md) | FE-1 frontend polish pass: Shadow-DOM design-token delivery fix, shared confirmation dialog, responsive desktop shell, real SVG icons, shared CSS utilities, visual identity pass, zero-dependency visual regression harness, real accessibility audit |
 | [TOOLCHAIN.md](docs/TOOLCHAIN.md) | Provider abstraction & candidate tools |
 | [MODEL_STRATEGY.md](docs/MODEL_STRATEGY.md) | Model registry, experiments, TTS candidates |
 | [BENCHMARKING.md](docs/BENCHMARKING.md) | Voice quality benchmark framework |

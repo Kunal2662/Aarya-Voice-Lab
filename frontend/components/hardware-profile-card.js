@@ -27,8 +27,7 @@ export class AvlHardwareProfileCard extends AvlElement {
     const style = document.createElement("style");
     style.textContent = `
       .title { font: var(--avl-type-subheading-weight) var(--avl-type-subheading-size) / var(--avl-type-subheading-line-height) var(--avl-type-subheading-family); }
-      .row { display: flex; justify-content: space-between; align-items: center; gap: var(--avl-space-2); padding: var(--avl-space-1) 0; border-bottom: 1px solid var(--avl-color-border-subtle); }
-      .row:last-child { border-bottom: none; }
+      /* FE-1.5 -- .row/.row:last-child replaced by the shared avl-row avl-row--bordered avl-row--center utilities (css/base.css). */
       .name { font: var(--avl-type-body-small-weight) var(--avl-type-body-small-size) / 1 var(--avl-type-body-small-family); }
       .detail { color: var(--avl-color-text-muted); font: var(--avl-type-caption-weight) var(--avl-type-caption-size) / 1 var(--avl-type-caption-family); }
       .empty { color: var(--avl-color-text-muted); font: var(--avl-type-body-small-weight) var(--avl-type-body-small-size) / var(--avl-type-body-small-line-height) var(--avl-type-body-small-family); }
@@ -50,7 +49,7 @@ export class AvlHardwareProfileCard extends AvlElement {
     } else {
       for (const cap of this._capabilities) {
         const row = document.createElement("div");
-        row.className = "row";
+        row.className = "avl-row avl-row--bordered avl-row--center";
         const name = document.createElement("span");
         name.className = "name";
         name.textContent = cap.name || "unknown component";

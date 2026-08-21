@@ -41,7 +41,7 @@ export class AvlEvaluationHistoryPanel extends AvlElement {
     style.textContent = `
       ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--avl-space-2); }
       li { border: 1px solid var(--avl-color-border-subtle); border-radius: var(--avl-radius-sm); padding: var(--avl-space-2); }
-      .row { display: flex; justify-content: space-between; align-items: center; gap: var(--avl-space-2); }
+      /* FE-1.5 -- .row replaced by the shared avl-row avl-row--center utilities (css/base.css). */
       .reviewer { font: var(--avl-type-body-small-weight) var(--avl-type-body-small-size) / 1 var(--avl-type-body-small-family); color: var(--avl-color-text-primary); }
       .meta { color: var(--avl-color-text-secondary); font: var(--avl-type-caption-weight) var(--avl-type-caption-size) / var(--avl-type-caption-line-height) var(--avl-type-caption-family); margin-top: var(--avl-space-1); }
       .scores { display: flex; flex-wrap: wrap; gap: var(--avl-space-2); margin-top: var(--avl-space-1); font: var(--avl-type-caption-weight) var(--avl-type-caption-size) / 1 var(--avl-type-caption-family); color: var(--avl-color-text-secondary); }
@@ -72,7 +72,7 @@ export class AvlEvaluationHistoryPanel extends AvlElement {
       const item = document.createElement("li");
 
       const row = document.createElement("div");
-      row.className = "row";
+      row.className = "avl-row avl-row--center";
       const reviewer = document.createElement("span");
       reviewer.className = "reviewer";
       reviewer.textContent = record.reviewer;

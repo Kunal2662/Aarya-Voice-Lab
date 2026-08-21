@@ -38,6 +38,11 @@ export class AvlPanel extends AvlElement {
         background: none; border: none; cursor: pointer; color: inherit;
         font: inherit; padding: 0;
       }
+      /* FE-1.8 -- the titlebar's label is now a real <h3> (was a plain
+         <span>) so panel titles are reachable via screen-reader
+         heading navigation; margin/font/weight reset to zero so this
+         is purely a semantic change, not a visual one. */
+      .titlebar h3 { margin: 0; font: inherit; font-weight: inherit; }
       .content { padding: var(--avl-space-3); overflow: auto; flex: 1; }
       .content[hidden] { display: none; }
     `;
@@ -48,7 +53,7 @@ export class AvlPanel extends AvlElement {
 
     const titlebar = document.createElement("div");
     titlebar.className = "titlebar";
-    const heading = document.createElement("span");
+    const heading = document.createElement("h3");
     heading.textContent = title;
     titlebar.appendChild(heading);
 

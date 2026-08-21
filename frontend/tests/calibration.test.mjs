@@ -538,6 +538,36 @@ test("9. Inspector updates when a calibration profile is selected from history",
   });
 });
 
+// FE-1.4 -- calibration-profile-history's selection label must be operable
+// by keyboard (Enter), not just mouse click, matching the tabIndex=0 +
+// role="button" + keydown pattern already proven in segment-timeline.js.
+test("9b. calibration profile selection is keyboard-accessible (Enter on the focused label)", { timeout: 30_000 }, async () => {
+  await withPage(async (page) => {
+    await goToCalibration(page);
+    await clickRunCalibration(page);
+    const labelState = await page.evaluate(() => {
+      const ws = document.querySelector("avl-workspace-calibration");
+      const history = ws.shadowRoot.querySelector("avl-calibration-profile-history");
+      const label = history.shadowRoot.querySelector("li span");
+      return { tabIndex: label.tabIndex, role: label.getAttribute("role") };
+    });
+    assert.equal(labelState.tabIndex, 0, "the selection label must be keyboard-focusable");
+    assert.equal(labelState.role, "button", "the selection label must expose role=button to assistive tech");
+
+    await page.evaluate(() => {
+      const ws = document.querySelector("avl-workspace-calibration");
+      const history = ws.shadowRoot.querySelector("avl-calibration-profile-history");
+      const label = history.shadowRoot.querySelector("li span");
+      label.focus();
+      label.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, composed: true }));
+    });
+    await page.waitForTimeout(80);
+    const inspectorText = await page.evaluate(() => document.querySelector("avl-inspector-router").shadowRoot.textContent);
+    assert.match(inspectorText, /Application state/);
+    assert.match(inspectorText, /PROPOSED/);
+  });
+});
+
 test("10. Activity updates with calibration_applied and calibration_validated events", { timeout: 30_000 }, async () => {
   await withPage(async (page) => {
     await goToCalibration(page);

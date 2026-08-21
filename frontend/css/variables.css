@@ -134,7 +134,7 @@
   --avl-color-pixel-accent-highlight: #ffcf5c;
 }
 
-:root {
+:host, :root {
   --avl-font-readable: -apple-system, 'Segoe UI', Roboto, 'Inter', 'Helvetica Neue', Arial, sans-serif;
   --avl-font-monospace: 'SFMono-Regular', 'JetBrains Mono', Consolas, 'Liberation Mono', Menlo, monospace;
   --avl-font-pixel-decorative: 'Press Start 2P', 'VT323', var(--avl-font-monospace);
@@ -176,7 +176,7 @@
   --avl-type-pixel-label-family: var(--avl-font-pixel-decorative);
 }
 
-:root {
+:host, :root {
   --avl-space-0: 0;
   --avl-space-1: 0.25rem;
   --avl-space-2: 0.5rem;
@@ -200,7 +200,7 @@
   --avl-layout-shell-min-width: 60rem;
 }
 
-:root {
+:host, :root {
   --avl-duration-instant: 0ms;
   --avl-duration-fast: 100ms;
   --avl-duration-base: 180ms;
@@ -213,9 +213,13 @@
 
 /* Reduced motion: collapse every duration token to effectively
  * instant. Components must use these custom properties for all
- * durations so this single override disables motion app-wide. */
+ * durations so this single override disables motion app-wide.
+ * :host, :root for the same reason as the token blocks above --
+ * prefers-reduced-motion is a pure media feature (not dependent on
+ * a DOM attribute), so it's safe to deliver locally per shadow root
+ * as well as from the document root. */
 @media (prefers-reduced-motion: reduce) {
-  :root {
+  :host, :root {
     --avl-duration-instant: 1ms;
     --avl-duration-fast: 1ms;
     --avl-duration-base: 1ms;

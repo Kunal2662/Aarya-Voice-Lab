@@ -32,6 +32,49 @@ h3, .avl-type-heading  { font: var(--avl-type-heading-weight) var(--avl-type-hea
   letter-spacing: 0.02em;
 }
 
+/* FE-1.5 -- shared layout utilities, extracted from the highest-
+ * duplication ".row { display: flex; ... }" pattern the FE-1 audit
+ * found repeated (with minor variation) across ~20 component files.
+ * Deliberately a *small*, named set covering the two clearest, most
+ * exactly-repeated shapes -- not a generic utility-CSS framework, and
+ * not a forced fit for every component's own row-like layout (several
+ * components' local variants -- confidence-control.js's wrapping score
+ * buttons, rating-panel.js's three-column grid, the evaluation/preview
+ * feedback forms' margin-top spacing -- are different enough in real,
+ * behavior-relevant ways that reshaping them to match a shared class
+ * would risk a visual regression for no real duplication win, so they
+ * were deliberately left as their own local rules; see each migrated
+ * component's own comment for exactly what changed there. */
+.avl-row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--avl-space-2);
+}
+/* Kept as a separate modifier, not folded into .avl-row itself: the
+ * "bordered label/value row" components this class replaces never set
+ * align-items (so children default to stretch), while the plainer
+ * "row" components elsewhere always set align-items: center explicitly
+ * -- two real, different behaviors, not one pattern with a missing
+ * declaration. */
+.avl-row--center {
+  align-items: center;
+}
+.avl-row--bordered {
+  padding: var(--avl-space-1) 0;
+  border-bottom: 1px solid var(--avl-color-border-subtle);
+}
+.avl-row--bordered:last-child {
+  border-bottom: none;
+}
+.avl-stack {
+  display: flex;
+  flex-direction: column;
+}
+.avl-label {
+  color: var(--avl-color-text-secondary);
+  font: var(--avl-type-caption-weight) var(--avl-type-caption-size) / var(--avl-type-caption-line-height) var(--avl-type-caption-family);
+}
+
 /* Focus visibility — required everywhere a control can receive
  * keyboard focus. Never removed; only ever restyled. */
 :focus-visible {

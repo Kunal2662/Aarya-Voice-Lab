@@ -66,22 +66,25 @@ import {
 import { CalibrationProfileStore, exportCalibrationPlan } from "../state/calibration-engine-model.js";
 import { SessionPersistence, SessionNamespace, isPersistenceAvailable, clearAllSessionData } from "../state/session-persistence.js";
 
+// FE-1.3 -- `icon` now names a real inline-SVG icon from
+// components/icon.js's catalogue (its keys are the same names as the
+// destinations themselves) instead of a Unicode glyph.
 const DESTINATION_META = {
-  "command-center": { icon: "◆", label: "Command Center", tag: "avl-workspace-command-center" },
-  import: { icon: "⇩", label: "Import", tag: "avl-workspace-import" },
-  batches: { icon: "▤", label: "Batches", tag: "avl-workspace-batches" },
-  recordings: { icon: "♫", label: "Recordings", tag: "avl-workspace-recordings" },
-  review: { icon: "◎", label: "Dataset Review", tag: "avl-workspace-dataset-review" },
-  processing: { icon: "▶", label: "Processing", tag: "avl-workspace-processing" },
-  preview: { icon: "♬", label: "Preview", tag: "avl-workspace-preview" },
-  feedback: { icon: "★", label: "Feedback", tag: "avl-workspace-feedback" },
-  pipeline: { icon: "≋", label: "Pipeline", tag: "avl-workspace-pipeline" },
-  voices: { icon: "♪", label: "Voices", tag: "avl-workspace-voices" },
-  models: { icon: "▣", label: "Models", tag: "avl-workspace-models" },
-  calibration: { icon: "✓", label: "Calibration", tag: "avl-workspace-calibration" },
-  claude: { icon: "⌘", label: "Claude", tag: "avl-workspace-claude" },
-  activity: { icon: "☰", label: "Activity", tag: "avl-workspace-activity" },
-  settings: { icon: "⚙", label: "Settings", tag: "avl-workspace-settings" },
+  "command-center": { icon: "command-center", label: "Command Center", tag: "avl-workspace-command-center" },
+  import: { icon: "import", label: "Import", tag: "avl-workspace-import" },
+  batches: { icon: "batches", label: "Batches", tag: "avl-workspace-batches" },
+  recordings: { icon: "recordings", label: "Recordings", tag: "avl-workspace-recordings" },
+  review: { icon: "review", label: "Dataset Review", tag: "avl-workspace-dataset-review" },
+  processing: { icon: "processing", label: "Processing", tag: "avl-workspace-processing" },
+  preview: { icon: "preview", label: "Preview", tag: "avl-workspace-preview" },
+  feedback: { icon: "feedback", label: "Feedback", tag: "avl-workspace-feedback" },
+  pipeline: { icon: "pipeline", label: "Pipeline", tag: "avl-workspace-pipeline" },
+  voices: { icon: "voices", label: "Voices", tag: "avl-workspace-voices" },
+  models: { icon: "models", label: "Models", tag: "avl-workspace-models" },
+  calibration: { icon: "calibration", label: "Calibration", tag: "avl-workspace-calibration" },
+  claude: { icon: "claude", label: "Claude", tag: "avl-workspace-claude" },
+  activity: { icon: "activity", label: "Activity", tag: "avl-workspace-activity" },
+  settings: { icon: "settings", label: "Settings", tag: "avl-workspace-settings" },
 };
 
 async function loadJson(relativePath) {

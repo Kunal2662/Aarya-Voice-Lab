@@ -27,7 +27,7 @@ export class AvlOverlapReviewList extends AvlElement {
     style.textContent = `
       ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--avl-space-2); }
       li { border: 1px solid var(--avl-color-border-subtle); border-radius: var(--avl-radius-sm); padding: var(--avl-space-2); }
-      .row { display: flex; justify-content: space-between; align-items: center; gap: var(--avl-space-2); }
+      /* FE-1.5 -- .row replaced by the shared avl-row avl-row--center utilities (css/base.css). */
       .span { font: var(--avl-type-body-small-weight) var(--avl-type-body-small-size) / var(--avl-type-body-small-line-height) var(--avl-type-body-small-family); }
       .reason { color: var(--avl-color-text-secondary); font: var(--avl-type-caption-weight) var(--avl-type-caption-size) / var(--avl-type-caption-line-height) var(--avl-type-caption-family); margin-top: var(--avl-space-1); }
       .confidence { color: var(--avl-color-text-muted); font: var(--avl-type-caption-weight) var(--avl-type-caption-size) / 1 var(--avl-type-caption-family); }
@@ -49,7 +49,7 @@ export class AvlOverlapReviewList extends AvlElement {
       const item = document.createElement("li");
 
       const row = document.createElement("div");
-      row.className = "row";
+      row.className = "avl-row avl-row--center";
       const span = document.createElement("span");
       span.className = "span";
       span.textContent = `${candidate.segmentId} — ${candidate.start.toFixed(2)}s–${candidate.end.toFixed(2)}s (${candidate.duration.toFixed(2)}s)`;
