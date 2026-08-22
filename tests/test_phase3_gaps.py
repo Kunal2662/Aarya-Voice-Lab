@@ -542,7 +542,27 @@ def test_command_center_executes_nothing():
 def test_diagnostics_report_no_real_recordings(tmp_path):
     payload = command_center.diagnostics(DataRoot(root=tmp_path / "data").create())
     assert payload["real_recordings_present"] is False
+
+
+def test_diagnostics_report_no_real_provider_when_none_is_installed(tmp_path, monkeypatch):
+    """Real ML Runtime milestone follow-up (D11 audit): reproducibly
+    simulate the not-installed case -- see the matching test in
+    test_phase3_e2e.py for why this can no longer be a bare assertion."""
+    from aarya_voice_lab.identity import embeddings as embeddings_module
+
+    monkeypatch.setattr(embeddings_module, "_ENV_NEMO_PYTHON", tmp_path / "does-not-exist")
+    payload = command_center.diagnostics(DataRoot(root=tmp_path / "data").create())
     assert payload["real_provider_installed"] is False
+
+
+def test_diagnostics_report_real_provider_state_honestly(tmp_path):
+    """`diagnostics()`'s `real_provider_installed` used to be hardcoded
+    False unconditionally -- this asserts it now tracks the real,
+    current capability state instead."""
+    from aarya_voice_lab.identity.embeddings import any_real_provider_available
+
+    payload = command_center.diagnostics(DataRoot(root=tmp_path / "data").create())
+    assert payload["real_provider_installed"] == any_real_provider_available()
 
 
 def test_command_center_snapshot_is_serializable(tmp_path):

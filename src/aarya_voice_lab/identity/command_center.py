@@ -279,6 +279,7 @@ def activity_feed(data_root: DataRoot, *, limit: int = 50) -> dict[str, Any]:
 def diagnostics(data_root: DataRoot, root: Path | None = None) -> dict[str, Any]:
     """A health snapshot the panel can show when something looks wrong."""
     from aarya_voice_lab.identity.contracts import pipeline_status
+    from aarya_voice_lab.identity.embeddings import any_real_provider_available
     from aarya_voice_lab.security.source_protection import scan_git_repo
 
     root = root or PROJECT_ROOT
@@ -302,7 +303,13 @@ def diagnostics(data_root: DataRoot, root: Path | None = None) -> dict[str, Any]
             "audit_chain_intact": audit_summary["chain_intact"],
             "stages_implemented": pipeline["implemented_count"],
             "identity_boundary_stage": pipeline["identity_boundary_stage"],
-            "real_provider_installed": False,
+            # Real ML Runtime milestone follow-up (D11 audit): this used to
+            # be hardcoded False, which became an active false statement
+            # the moment a real embedding provider became genuinely
+            # installable -- see identity.embeddings.any_real_provider_available's
+            # own docstring for why "registered" is never trusted as
+            # "installed".
+            "real_provider_installed": any_real_provider_available(),
             "real_recordings_present": bool(
                 data_root.source.is_dir() and any(data_root.source.rglob("*"))
             ),

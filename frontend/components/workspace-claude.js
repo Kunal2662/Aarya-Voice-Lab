@@ -20,9 +20,11 @@
 import { AvlElement, defineComponent } from "./base-element.js";
 import { buildClaudeContext } from "../state/claude-context.js";
 import { fetchCommandCenterSnapshot } from "../state/command-center-snapshot.js";
+import { fetchIdentityStatusSnapshot } from "../state/identity-status-snapshot.js";
 import "./workspace-state.js";
 import "./panel.js";
 import "./status-badge.js";
+import "./stat-tile.js";
 import "./claude-command-shell.js";
 import "./claude-fix-flow.js";
 
@@ -48,6 +50,14 @@ export class AvlWorkspaceClaude extends AvlElement {
     this._snapshot = await fetchCommandCenterSnapshot(
       new URL("../contracts/live/command_center_snapshot.json", import.meta.url),
     );
+    // D11 audit follow-up -- identity.contracts.desktop_snapshot() has
+    // existed, been tested, and been CLI-exposed since Phase 3, but
+    // nothing in the frontend ever fetched it before now. Same honest
+    // null-on-anything-less-than-a-valid-snapshot contract as the
+    // Command Center fetch above.
+    this._identitySnapshot = await fetchIdentityStatusSnapshot(
+      new URL("../contracts/live/identity_status_snapshot.json", import.meta.url),
+    );
     this._state = "ready";
     this._render();
   }
@@ -62,6 +72,7 @@ export class AvlWorkspaceClaude extends AvlElement {
       .connection { display: flex; align-items: center; gap: var(--avl-space-2); margin-bottom: var(--avl-space-3); }
       pre { font: var(--avl-type-code-weight) var(--avl-type-code-size) / var(--avl-type-code-line-height) var(--avl-type-code-family); background: var(--avl-color-surface-sunken); padding: var(--avl-space-2); border-radius: var(--avl-radius-sm); overflow-x: auto; }
       .section { margin-top: var(--avl-space-4); }
+      .dashboard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: var(--avl-space-3); margin-bottom: var(--avl-space-2); }
     `;
     this.shadowRoot.appendChild(style);
 
@@ -95,6 +106,55 @@ export class AvlWorkspaceClaude extends AvlElement {
     // is ever fabricated here.
     shell.snapshot = this._snapshot;
     wrapper.appendChild(shell);
+
+    const identitySection = document.createElement("div");
+    identitySection.className = "section";
+    const identityPanel = document.createElement("avl-panel");
+    identityPanel.setAttribute("title", "Identity & enrollment status");
+    const snap = this._identitySnapshot;
+    if (!snap) {
+      const notice = document.createElement("p");
+      notice.className = "avl-type-caption";
+      notice.textContent =
+        "No live identity status snapshot fetched yet — run " +
+        "`python scripts/export_identity_status_snapshot.py` and reload. " +
+        "This is an honest \"not fetched\" state, never a fabricated count.";
+      identityPanel.appendChild(notice);
+    } else {
+      const grid = document.createElement("div");
+      grid.className = "dashboard-grid";
+      const counts = {
+        Profiles: snap.profiles?.count ?? 0,
+        "Usable profiles": snap.profiles?.usable_count ?? 0,
+        "Pipeline stages implemented": snap.pipeline?.implemented_count ?? 0,
+        "Audit entries": snap.audit?.entry_count ?? 0,
+      };
+      Object.entries(counts).forEach(([label, value], i) => {
+        const tile = document.createElement("avl-stat-tile");
+        tile.setAttribute("label", label);
+        tile.setAttribute("value", String(value));
+        tile.setAttribute("tone", ["blue", "teal", "green", "violet"][i % 4]);
+        tile.setAttribute("icon", "voices");
+        grid.appendChild(tile);
+      });
+      identityPanel.appendChild(grid);
+
+      const providerRow = document.createElement("div");
+      providerRow.className = "avl-row avl-row--center";
+      const providerLabel = document.createElement("span");
+      providerLabel.className = "avl-type-body-small";
+      // Real ML Runtime milestone follow-up: this used to be
+      // unconditionally False from the backend -- now it is exactly
+      // what identity.embeddings.any_real_provider_available() found on
+      // whatever machine generated this snapshot.
+      providerLabel.textContent = snap.enrollment?.real_provider_installed
+        ? "Real embedding provider installed on this machine."
+        : "No real embedding provider installed — synthetic only.";
+      providerRow.appendChild(providerLabel);
+      identityPanel.appendChild(providerRow);
+    }
+    identitySection.appendChild(identityPanel);
+    wrapper.appendChild(identitySection);
 
     const contextSection = document.createElement("div");
     contextSection.className = "section";

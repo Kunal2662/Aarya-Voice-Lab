@@ -449,6 +449,26 @@ def get_provider(name: str) -> EmbeddingProvider:
     return _PROVIDERS[name]()
 
 
+def any_real_provider_available() -> bool:
+    """True only when a real (non-synthetic) embedding provider is
+    genuinely installed and loadable on THIS interpreter right now.
+
+    Never inferred from a provider class merely being registered --
+    `LocalNeuralEmbeddingProvider` is always registered (see
+    `_PROVIDERS` above) whether or not `.envs/env-nemo` was ever built,
+    exactly so callers must ask each provider for its own real,
+    current `capability_state()` rather than assuming installation from
+    presence in this registry."""
+    for name in available_providers():
+        provider = get_provider(name)
+        if provider.is_synthetic:
+            continue
+        state = provider.capability_state() if hasattr(provider, "capability_state") else None
+        if state is not None and state.get("state") == "AVAILABLE":
+            return True
+    return False
+
+
 def cosine_similarity(a: EmbeddingVector, b: EmbeddingVector) -> float:
     """Cosine similarity, mapped to 0..1.
 

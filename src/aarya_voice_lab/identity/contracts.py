@@ -25,7 +25,7 @@ from aarya_voice_lab import __version__
 from aarya_voice_lab.core.data_root import DataRoot, list_batches
 from aarya_voice_lab.identity.audit import AuditLog
 from aarya_voice_lab.identity.calibration import CalibrationRecord, CalibrationState
-from aarya_voice_lab.identity.embeddings import EmbeddingStore, available_providers
+from aarya_voice_lab.identity.embeddings import EmbeddingStore, any_real_provider_available, available_providers
 from aarya_voice_lab.identity.enrollment import describe_strategies
 from aarya_voice_lab.identity.preview import preview_loop_state
 from aarya_voice_lab.identity.profile import ProfileStore
@@ -89,6 +89,7 @@ def enrollment_status(data_root: DataRoot) -> dict[str, Any]:
             continue
         by_state[latest.enrollment_state.value] = by_state.get(latest.enrollment_state.value, 0) + 1
         by_role[latest.role.value] = by_role.get(latest.role.value, 0) + 1
+    real_provider_installed = any_real_provider_available()
     return _envelope(
         "enrollment_status",
         {
@@ -96,9 +97,12 @@ def enrollment_status(data_root: DataRoot) -> dict[str, Any]:
             "by_role": by_role,
             "available_strategies": describe_strategies(),
             "available_providers": available_providers(),
-            "real_provider_installed": False,
+            "real_provider_installed": real_provider_installed,
             "note": (
-                "No real embedding provider is installed. Only the synthetic "
+                "A real embedding provider is installed and loaded on this "
+                "machine (see identity.embeddings.any_real_provider_available)."
+                if real_provider_installed
+                else "No real embedding provider is installed. Only the synthetic "
                 "development provider exists in this environment."
             ),
         },

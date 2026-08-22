@@ -19,6 +19,7 @@ const PLAYWRIGHT_INDEX = "/opt/node22/lib/node_modules/playwright/index.js";
 const CHROMIUM_EXECUTABLE = "/opt/pw-browsers/chromium-1194/chrome-linux/chrome";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SNAPSHOT_PATH = path.join(HERE, "..", "contracts", "live", "command_center_snapshot.json");
+const IDENTITY_SNAPSHOT_PATH = path.join(HERE, "..", "contracts", "live", "identity_status_snapshot.json");
 
 async function loadPlaywright() {
   const mod = await import(pathToFileURL(PLAYWRIGHT_INDEX).href);
@@ -76,30 +77,64 @@ function realSnapshotFixture() {
   };
 }
 
-async function withSnapshotFile(content, fn) {
+async function withFileAt(filePath, content, fn) {
   let existedBefore = false;
   let priorContent = null;
   try {
-    priorContent = await readFile(SNAPSHOT_PATH, "utf-8");
+    priorContent = await readFile(filePath, "utf-8");
     existedBefore = true;
   } catch {
     existedBefore = false;
   }
   try {
     if (content === null) {
-      await rm(SNAPSHOT_PATH, { force: true });
+      await rm(filePath, { force: true });
     } else {
-      await mkdir(path.dirname(SNAPSHOT_PATH), { recursive: true });
-      await writeFile(SNAPSHOT_PATH, content);
+      await mkdir(path.dirname(filePath), { recursive: true });
+      await writeFile(filePath, content);
     }
     await fn();
   } finally {
     if (existedBefore) {
-      await writeFile(SNAPSHOT_PATH, priorContent);
+      await writeFile(filePath, priorContent);
     } else {
-      await rm(SNAPSHOT_PATH, { force: true });
+      await rm(filePath, { force: true });
     }
   }
+}
+
+async function withSnapshotFile(content, fn) {
+  return withFileAt(SNAPSHOT_PATH, content, fn);
+}
+
+function realIdentitySnapshotFixture() {
+  return {
+    $generated_by: "scripts/export_identity_status_snapshot.py",
+    $live_snapshot: true,
+    note: "Point-in-time read of speaker-identity/enrollment/embedding state, not a frozen contract.",
+    contract: "desktop_snapshot",
+    contract_version: "1.0.0",
+    processing_version: "0.1.0",
+    profiles: { contract: "speaker_profiles", profiles: [], count: 2, usable_count: 1 },
+    enrollment: {
+      contract: "enrollment_status",
+      by_state: {},
+      by_role: {},
+      available_strategies: [],
+      available_providers: ["local-neural-embedding", "synthetic-cosine-projection"],
+      real_provider_installed: true,
+      note: "A real embedding provider is installed and loaded on this machine (see identity.embeddings.any_real_provider_available).",
+    },
+    pipeline: { contract: "pipeline_status", stages: [], identity_boundary_index: 5, identity_boundary_stage: "speaker_enrollment", batches: [], implemented_count: 9 },
+    embeddings: { contract: "embedding_inventory", entries: [], count: 0 },
+    runtime: { contract: "runtime_capabilities", components: [], portability: {} },
+    preview: { contract: "voice_preview_status" },
+    audit: { entry_count: 4, event_counts: {}, chain_intact: true, chain_problems: [], first_entry: null, last_entry: null },
+  };
+}
+
+async function withIdentitySnapshotFile(content, fn) {
+  return withFileAt(IDENTITY_SNAPSHOT_PATH, content, fn);
 }
 
 async function withPage(fn) {
@@ -121,7 +156,11 @@ async function withPage(fn) {
     page.on("pageerror", (err) => consoleErrors.push(String(err)));
     await page.goto(`http://127.0.0.1:${port}/app/index.html`, { waitUntil: "networkidle" });
     await fn(page, consoleErrors);
-    const LIVE_SNAPSHOT_SUFFIXES = ["/contracts/live/dataset_gate_status.json", "/contracts/live/command_center_snapshot.json"];
+    const LIVE_SNAPSHOT_SUFFIXES = [
+      "/contracts/live/dataset_gate_status.json",
+      "/contracts/live/command_center_snapshot.json",
+      "/contracts/live/identity_status_snapshot.json",
+    ];
     const unexpectedBadResponses = badResponseUrls.filter((url) => !LIVE_SNAPSHOT_SUFFIXES.some((suffix) => url.endsWith(suffix)));
     assert.deepEqual(unexpectedBadResponses, [], `unexpected failed requests: ${unexpectedBadResponses.join("; ")}`);
     const expectedErrorCount = badResponseUrls.length - unexpectedBadResponses.length;
@@ -314,6 +353,89 @@ test("12. the Claude context preview carries real gitState when the snapshot is 
         branch: "claude/phase3-speaker-verification",
         head_short: "1224407",
         working_tree_clean: false,
+      });
+    });
+  });
+});
+
+async function identityPanelText(page) {
+  // Stat tiles render their label/value inside their own shadow root, so
+  // plain .textContent (light DOM only) misses them -- walk shadow trees
+  // like voice-engine-status.test.mjs's collectShadowText().
+  return page.evaluate(() => {
+    function collect(root) {
+      let text = "";
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+        acceptNode(n) {
+          return n.parentElement && n.parentElement.tagName === "STYLE" ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT;
+        },
+      });
+      let n;
+      while ((n = walker.nextNode())) text += n.textContent + " ";
+      const elWalker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
+      let e;
+      while ((e = elWalker.nextNode())) {
+        if (e.shadowRoot) text += collect(e.shadowRoot);
+      }
+      return text;
+    }
+    const ws = document.querySelector("avl-workspace-claude");
+    const panels = [...ws.shadowRoot.querySelectorAll("avl-panel")];
+    const panel = panels.find((p) => p.getAttribute("title") === "Identity & enrollment status");
+    return panel ? collect(panel) : null;
+  });
+}
+
+test("14. a missing identity status snapshot renders an honest 'not fetched' state, never a fabricated count", { timeout: 30_000 }, async () => {
+  await withSnapshotFile(JSON.stringify(realSnapshotFixture()), async () => {
+    await withIdentitySnapshotFile(null, async () => {
+      await withPage(async (page) => {
+        await goToClaude(page);
+        const text = await identityPanelText(page);
+        assert.match(text, /No live identity status snapshot fetched yet/);
+      });
+    });
+  });
+});
+
+test("15. a real identity status snapshot renders real profile/pipeline counts, not zeros", { timeout: 30_000 }, async () => {
+  await withSnapshotFile(JSON.stringify(realSnapshotFixture()), async () => {
+    await withIdentitySnapshotFile(JSON.stringify(realIdentitySnapshotFixture()), async () => {
+      await withPage(async (page) => {
+        await goToClaude(page);
+        const text = await identityPanelText(page);
+        assert.doesNotMatch(text, /No live identity status snapshot fetched yet/);
+        assert.match(text, /\b2\b/); // profiles.count
+        assert.match(text, /\b9\b/); // pipeline.implemented_count
+        assert.match(text, /\b4\b/); // audit.entry_count
+      });
+    });
+  });
+});
+
+test("16. real_provider_installed=true renders honestly, matching the real embedding-provider fix", { timeout: 30_000 }, async () => {
+  const snapshot = realIdentitySnapshotFixture();
+  snapshot.enrollment.real_provider_installed = true;
+  await withSnapshotFile(JSON.stringify(realSnapshotFixture()), async () => {
+    await withIdentitySnapshotFile(JSON.stringify(snapshot), async () => {
+      await withPage(async (page) => {
+        await goToClaude(page);
+        const text = await identityPanelText(page);
+        assert.match(text, /Real embedding provider installed on this machine\./);
+      });
+    });
+  });
+});
+
+test("17. real_provider_installed=false renders honestly too -- this panel never assumes either direction", { timeout: 30_000 }, async () => {
+  const snapshot = realIdentitySnapshotFixture();
+  snapshot.enrollment.real_provider_installed = false;
+  await withSnapshotFile(JSON.stringify(realSnapshotFixture()), async () => {
+    await withIdentitySnapshotFile(JSON.stringify(snapshot), async () => {
+      await withPage(async (page) => {
+        await goToClaude(page);
+        const text = await identityPanelText(page);
+        assert.match(text, /No real embedding provider installed — synthetic only\./);
       });
     });
   });

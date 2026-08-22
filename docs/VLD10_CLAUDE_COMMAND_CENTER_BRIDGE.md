@@ -262,3 +262,10 @@ Speaker-identity expansion. Cloud sync/storage.
 **D11 audit** — not yet scoped; to be produced separately, evidence-based
 against the actual D0–D10 implementation, after D10's full
 regression/commit/bundle/publish completes.
+
+**Update:** produced. See `docs/VLD11_IDENTITY_STATUS_BRIDGE.md` —
+bridges `identity.contracts.desktop_snapshot()` (D10's sibling function,
+left unfetched by the frontend the same way `command_center_snapshot()`
+was before this milestone) and fixes a real, active
+`real_provider_installed`-hardcoded-False defect discovered live inside
+this milestone's own `command_center_snapshot.json` diagnostics payload.

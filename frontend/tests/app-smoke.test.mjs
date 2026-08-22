@@ -116,6 +116,7 @@ test("app navigates through all 11 VL-D1 workspaces with no console errors", { t
         "/contracts/live/dataset_gate_status.json",
         "/contracts/live/command_center_snapshot.json",
         "/contracts/live/voice_engine_capabilities.json",
+        "/contracts/live/identity_status_snapshot.json",
       ];
     const unexpectedBadResponses = badResponseUrls.filter((url) => !LIVE_SNAPSHOT_SUFFIXES.some((suffix) => url.endsWith(suffix)));
       assert.deepEqual(unexpectedBadResponses, [], `unexpected failed requests: ${unexpectedBadResponses.join("; ")}`);

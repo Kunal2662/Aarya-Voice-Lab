@@ -259,10 +259,31 @@ def test_contracts_are_json_serialisable(tmp_path):
     assert snapshot["contract_version"]
 
 
-def test_contracts_report_no_real_provider(tmp_path):
+def test_contracts_report_no_real_provider_when_none_is_installed(tmp_path, monkeypatch):
+    """Real ML Runtime milestone follow-up (D11 audit): reproducibly
+    simulate the not-installed case rather than assuming it -- whether a
+    real provider is actually installed now legitimately varies by
+    machine (see .envs/env-nemo)."""
+    from aarya_voice_lab.identity import embeddings as embeddings_module
+
+    monkeypatch.setattr(embeddings_module, "_ENV_NEMO_PYTHON", tmp_path / "does-not-exist")
     data_root = DataRoot(root=tmp_path / "data").create()
     status = contracts.enrollment_status(data_root)
     assert status["real_provider_installed"] is False
+    assert "No real embedding provider is installed" in status["note"]
+
+
+def test_contracts_report_real_provider_state_honestly(tmp_path):
+    """Whatever `any_real_provider_available()` says about THIS
+    interpreter, `enrollment_status()` must report exactly that -- never
+    a value hardcoded independent of the real, current capability
+    state (the defect this test replaces: `real_provider_installed` was
+    previously hardcoded False unconditionally)."""
+    from aarya_voice_lab.identity.embeddings import any_real_provider_available
+
+    data_root = DataRoot(root=tmp_path / "data").create()
+    status = contracts.enrollment_status(data_root)
+    assert status["real_provider_installed"] == any_real_provider_available()
 
 
 def test_embedding_inventory_never_exposes_vectors(tmp_path):
