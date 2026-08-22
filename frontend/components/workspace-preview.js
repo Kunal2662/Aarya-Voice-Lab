@@ -23,6 +23,7 @@ import "./voice-preview-card.js";
 import "./ab-comparison.js";
 import "./preview-feedback-form.js";
 import "./stat-tile.js";
+import "./panel.js";
 
 // FE-2.3 -- see workspace-batches.js's identical constant.
 const TILE_TONES = ["blue", "teal", "green", "violet", "pink"];
@@ -33,15 +34,31 @@ export class AvlWorkspacePreview extends AvlElement {
   }
 
   set services(value) {
+    this._teardownStoreListeners();
     this._services = value || {};
+    this._storeListeners = [];
     for (const store of [
       this._services.generationQueueStore,
       this._services.voiceProfileStore,
       this._services.generationModelStore,
       this._services.previewHistoryStore,
     ]) {
-      if (store) store.addEventListener("change", () => this._scheduleRender());
+      if (!store) continue;
+      const onChange = () => this._scheduleRender();
+      store.addEventListener("change", onChange);
+      this._storeListeners.push([store, onChange]);
     }
+  }
+
+  _teardownStoreListeners() {
+    for (const [store, onChange] of this._storeListeners || []) {
+      store.removeEventListener("change", onChange);
+    }
+    this._storeListeners = [];
+  }
+
+  disconnectedCallback() {
+    this._teardownStoreListeners();
   }
 
   // Several store "change" events can arrive in quick succession -- e.g.
@@ -90,8 +107,8 @@ export class AvlWorkspacePreview extends AvlElement {
     const style = document.createElement("style");
     style.textContent = `
       h2 { margin: 0 0 var(--avl-space-3) 0; }
-      h3 { margin: var(--avl-space-4) 0 var(--avl-space-2) 0; font: var(--avl-type-subheading-weight) var(--avl-type-subheading-size) / var(--avl-type-subheading-line-height) var(--avl-type-subheading-family); }
-      .dashboard { display: grid; grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); gap: var(--avl-space-3); margin-bottom: var(--avl-space-4); }
+      h3 { margin: var(--avl-space-4) 0 var(--avl-space-2) 0; }
+      .dashboard { display: grid; grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); gap: var(--avl-space-3); }
       table { width: 100%; border-collapse: collapse; }
       th, td { text-align: left; padding: var(--avl-space-1) var(--avl-space-2); border-bottom: 1px solid var(--avl-color-border-subtle); font: var(--avl-type-body-small-weight) var(--avl-type-body-small-size) / 1 var(--avl-type-body-small-family); }
       tr[data-selectable] { cursor: pointer; }
@@ -114,6 +131,8 @@ export class AvlWorkspacePreview extends AvlElement {
     wrapper.appendChild(heading);
 
     const stats = this._dashboardCounts();
+    const dashboardPanel = document.createElement("avl-panel");
+    dashboardPanel.setAttribute("title", "Preview dashboard");
     const dashboard = document.createElement("div");
     dashboard.className = "dashboard";
     [
@@ -139,19 +158,23 @@ export class AvlWorkspacePreview extends AvlElement {
       tile.setAttribute("icon", "preview");
       dashboard.appendChild(tile);
     });
-    wrapper.appendChild(dashboard);
+    dashboardPanel.appendChild(dashboard);
+    wrapper.appendChild(dashboardPanel);
 
     const profilesHeading = document.createElement("h3");
+    profilesHeading.className = "avl-type-subheading";
     profilesHeading.textContent = "Voice profiles";
     wrapper.appendChild(profilesHeading);
     wrapper.appendChild(this._buildVoiceProfilesTable());
 
     const generationHeading = document.createElement("h3");
+    generationHeading.className = "avl-type-subheading";
     generationHeading.textContent = "Generation";
     wrapper.appendChild(generationHeading);
     wrapper.appendChild(this._buildGenerationForm());
 
     const queueHeading = document.createElement("h3");
+    queueHeading.className = "avl-type-subheading";
     queueHeading.textContent = "Preview Queue";
     wrapper.appendChild(queueHeading);
     const queueEl = document.createElement("avl-generation-queue");
@@ -163,6 +186,7 @@ export class AvlWorkspacePreview extends AvlElement {
     wrapper.appendChild(queueEl);
 
     const outputsHeading = document.createElement("h3");
+    outputsHeading.className = "avl-type-subheading";
     outputsHeading.textContent = "Generated Outputs";
     wrapper.appendChild(outputsHeading);
     wrapper.appendChild(this._buildOutputsList());
@@ -170,6 +194,7 @@ export class AvlWorkspacePreview extends AvlElement {
     const focusedItem = this._focusedItem();
     if (focusedItem && focusedItem.artifact) {
       const feedbackHeading = document.createElement("h3");
+      feedbackHeading.className = "avl-type-subheading";
       feedbackHeading.textContent = "Feedback";
       wrapper.appendChild(feedbackHeading);
       const feedbackForm = document.createElement("avl-preview-feedback-form");
@@ -178,11 +203,13 @@ export class AvlWorkspacePreview extends AvlElement {
       wrapper.appendChild(feedbackForm);
 
       const abHeading = document.createElement("h3");
+      abHeading.className = "avl-type-subheading";
       abHeading.textContent = "A / B Comparison";
       wrapper.appendChild(abHeading);
       wrapper.appendChild(this._buildAbComparisonSection(focusedItem));
 
       const provenanceHeading = document.createElement("h3");
+      provenanceHeading.className = "avl-type-subheading";
       provenanceHeading.textContent = "Provenance";
       wrapper.appendChild(provenanceHeading);
       wrapper.appendChild(this._buildProvenanceRows(focusedItem));
@@ -322,6 +349,13 @@ export class AvlWorkspacePreview extends AvlElement {
       card.feedback = feedback.length ? feedback[feedback.length - 1] : null;
       card.style.display = "block";
       card.style.marginBottom = "var(--avl-space-2)";
+      card.setAttribute("role", "button");
+      card.tabIndex = 0;
+      card.setAttribute("aria-label", `Focus output ${item.artifact.preview_id}`);
+      const focusThisItem = () => {
+        this._focusedItemId = item.item_id;
+        this._render();
+      };
       card.addEventListener("click", (event) => {
         // A click on the card's own embedded playback controls (Play/
         // Pause/Stop/Seek/Volume/Speed) bubbles here too -- composed
@@ -333,8 +367,14 @@ export class AvlWorkspacePreview extends AvlElement {
         // itself, not on an interactive control inside it.
         const interactive = event.composedPath().some((el) => el.tagName === "BUTTON" || el.tagName === "SELECT" || el.tagName === "INPUT");
         if (interactive) return;
-        this._focusedItemId = item.item_id;
-        this._render();
+        focusThisItem();
+      });
+      card.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        const interactive = event.composedPath().some((el) => el.tagName === "BUTTON" || el.tagName === "SELECT" || el.tagName === "INPUT");
+        if (interactive) return;
+        event.preventDefault();
+        focusThisItem();
       });
       wrapper.appendChild(card);
     }

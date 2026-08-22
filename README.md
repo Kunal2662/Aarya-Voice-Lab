@@ -176,6 +176,7 @@ No test uses, references, or requires the real recordings.
 | [FE1_FRONTEND_POLISH.md](docs/FE1_FRONTEND_POLISH.md) | FE-1 frontend polish pass: Shadow-DOM design-token delivery fix, shared confirmation dialog, responsive desktop shell, real SVG icons, shared CSS utilities, visual identity pass, zero-dependency visual regression harness, real accessibility audit |
 | [FE2_VISUAL_REDESIGN.md](docs/FE2_VISUAL_REDESIGN.md) | FE-2 visual redesign pass: denser dashboard stat-tile/icon-badge/meter primitives, real-data-only headline tiles on Command Center and 6 other workspaces, no fabricated hardware gauges or user identity |
 | [FE3_VISUAL_SYSTEM.md](docs/FE3_VISUAL_SYSTEM.md) | FE-3 Aarya glass surface system: restrained translucent panel/card/dialog/shell tokens, focus-only accent glow, real-data stat tiles for 4 more workspaces, WCAG AA contrast audit, light/dark theme hardening |
+| [FE4_FINAL_COMPLETION.md](docs/FE4_FINAL_COMPLETION.md) | FE-4 through FE-10 final frontend completion: 4-agent whole-app audit, fabricated-status/hardcoded-metric fixes, 5 listener-leak fixes, 2 keyboard-accessibility fixes, dashboard/heading consistency, per-keystroke performance fixes, real Chromium + regression verification |
 | [TOOLCHAIN.md](docs/TOOLCHAIN.md) | Provider abstraction & candidate tools |
 | [MODEL_STRATEGY.md](docs/MODEL_STRATEGY.md) | Model registry, experiments, TTS candidates |
 | [BENCHMARKING.md](docs/BENCHMARKING.md) | Voice quality benchmark framework |

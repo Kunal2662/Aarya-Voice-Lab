@@ -59,11 +59,25 @@ export class AvlWorkspaceImport extends AvlElement {
   _wireQueue() {
     const queue = this._services.importQueue;
     if (!queue || queue === this._wiredQueue) return;
+    this._teardownQueueListener();
     this._wiredQueue = queue;
-    queue.addEventListener("change", ({ detail }) => {
+    this._onQueueChange = ({ detail }) => {
       this._onItemChange(detail.item);
       if (this.isConnected) this._render();
-    });
+    };
+    queue.addEventListener("change", this._onQueueChange);
+  }
+
+  _teardownQueueListener() {
+    if (this._wiredQueue && this._onQueueChange) {
+      this._wiredQueue.removeEventListener("change", this._onQueueChange);
+    }
+    this._wiredQueue = null;
+    this._onQueueChange = null;
+  }
+
+  disconnectedCallback() {
+    this._teardownQueueListener();
   }
 
   _onItemChange(item) {
@@ -192,6 +206,8 @@ export class AvlWorkspaceImport extends AvlElement {
         .filter(([status]) => status !== ImportItemStatus.QUEUED)
         .reduce((sum, [, count]) => sum + count, 0);
 
+      const progressPanel = document.createElement("avl-panel");
+      progressPanel.setAttribute("title", "Import progress");
       const progress = document.createElement("div");
       progress.className = "progress";
       [
@@ -210,7 +226,8 @@ export class AvlWorkspaceImport extends AvlElement {
         tile.setAttribute("icon", "import");
         progress.appendChild(tile);
       });
-      wrapper.appendChild(progress);
+      progressPanel.appendChild(progress);
+      wrapper.appendChild(progressPanel);
 
       const actions = document.createElement("div");
       actions.className = "actions";

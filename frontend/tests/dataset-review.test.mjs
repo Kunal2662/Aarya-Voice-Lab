@@ -309,7 +309,17 @@ test("Command Center's Review panel shows real, non-fabricated review counts", {
       const review = panels.find((p) => p.getAttribute("title") === "Review");
       return [...review.querySelectorAll("avl-metric-placeholder")].map((m) => m.getAttribute("label"));
     });
-    assert.deepEqual(metrics, ["Review queue", "Pending candidates", "Quality warnings", "Recent analyses", "Failed analyses", "Current batch review"]);
+    // FE-4 -- "Re-review disagreement" added: CandidateReviewStore.disagreementCount()
+    // was a real, already-implemented metric that no workspace surfaced.
+    assert.deepEqual(metrics, [
+      "Review queue",
+      "Pending candidates",
+      "Quality warnings",
+      "Recent analyses",
+      "Failed analyses",
+      "Re-review disagreement",
+      "Current batch review",
+    ]);
   });
 });
 

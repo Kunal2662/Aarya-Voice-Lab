@@ -13,6 +13,7 @@
 import { AvlElement, defineComponent } from "./base-element.js";
 import { syntheticRecordings } from "../state/synthetic-fixtures.js";
 import { ProcessingStatus } from "../state/processing-model.js";
+import { QUALITY_RANK } from "../state/quality-summary.js";
 import "./workspace-state.js";
 import "./status-badge.js";
 import "./button.js";
@@ -22,11 +23,10 @@ import "./before-after-comparison.js";
 import "./processing-history-panel.js";
 import "./processing-feedback-form.js";
 import "./stat-tile.js";
+import "./panel.js";
 
 // FE-2.3 -- see workspace-batches.js's identical constant.
 const TILE_TONES = ["blue", "teal", "green", "violet", "pink"];
-
-const QUALITY_RANK = { NOT_ANALYZED: 0, FAIL: 1, REVIEW: 2, WARNING: 3, PASS: 4 };
 
 export class AvlWorkspaceProcessing extends AvlElement {
   set selectionModel(value) {
@@ -34,10 +34,26 @@ export class AvlWorkspaceProcessing extends AvlElement {
   }
 
   set services(value) {
+    this._teardownStoreListeners();
     this._services = value || {};
+    this._storeListeners = [];
     for (const store of [this._services.processingQueueStore, this._services.processingProfileStore]) {
-      if (store) store.addEventListener("change", () => this._render());
+      if (!store) continue;
+      const onChange = () => this._render();
+      store.addEventListener("change", onChange);
+      this._storeListeners.push([store, onChange]);
     }
+  }
+
+  _teardownStoreListeners() {
+    for (const [store, onChange] of this._storeListeners || []) {
+      store.removeEventListener("change", onChange);
+    }
+    this._storeListeners = [];
+  }
+
+  disconnectedCallback() {
+    this._teardownStoreListeners();
   }
 
   connectedCallback() {
@@ -83,8 +99,8 @@ export class AvlWorkspaceProcessing extends AvlElement {
     const style = document.createElement("style");
     style.textContent = `
       h2 { margin: 0 0 var(--avl-space-3) 0; }
-      h3 { margin: var(--avl-space-4) 0 var(--avl-space-2) 0; font: var(--avl-type-subheading-weight) var(--avl-type-subheading-size) / var(--avl-type-subheading-line-height) var(--avl-type-subheading-family); }
-      .dashboard { display: grid; grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); gap: var(--avl-space-3); margin-bottom: var(--avl-space-4); }
+      h3 { margin: var(--avl-space-4) 0 var(--avl-space-2) 0; }
+      .dashboard { display: grid; grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); gap: var(--avl-space-3); }
       table { width: 100%; border-collapse: collapse; }
       th, td { text-align: left; padding: var(--avl-space-1) var(--avl-space-2); border-bottom: 1px solid var(--avl-color-border-subtle); font: var(--avl-type-body-small-weight) var(--avl-type-body-small-size) / 1 var(--avl-type-body-small-family); }
       tr[data-selectable] { cursor: pointer; }
@@ -102,6 +118,8 @@ export class AvlWorkspaceProcessing extends AvlElement {
     wrapper.appendChild(heading);
 
     const stats = this._dashboardCounts();
+    const dashboardPanel = document.createElement("avl-panel");
+    dashboardPanel.setAttribute("title", "Processing dashboard");
     const dashboard = document.createElement("div");
     dashboard.className = "dashboard";
     [
@@ -124,9 +142,11 @@ export class AvlWorkspaceProcessing extends AvlElement {
       tile.setAttribute("icon", "processing");
       dashboard.appendChild(tile);
     });
-    wrapper.appendChild(dashboard);
+    dashboardPanel.appendChild(dashboard);
+    wrapper.appendChild(dashboardPanel);
 
     const profilesHeading = document.createElement("h3");
+    profilesHeading.className = "avl-type-subheading";
     profilesHeading.textContent = "Processing profiles";
     wrapper.appendChild(profilesHeading);
     const profileEditor = document.createElement("avl-processing-profile-editor");
@@ -134,11 +154,13 @@ export class AvlWorkspaceProcessing extends AvlElement {
     wrapper.appendChild(profileEditor);
 
     const recordingsHeading = document.createElement("h3");
+    recordingsHeading.className = "avl-type-subheading";
     recordingsHeading.textContent = "Recordings";
     wrapper.appendChild(recordingsHeading);
     wrapper.appendChild(this._buildRecordingsTable());
 
     const queueHeading = document.createElement("h3");
+    queueHeading.className = "avl-type-subheading";
     queueHeading.textContent = "Processing queue";
     wrapper.appendChild(queueHeading);
     const queueEl = document.createElement("avl-processing-queue");
@@ -151,6 +173,7 @@ export class AvlWorkspaceProcessing extends AvlElement {
       const item = this._latestItemFor(this._selectedRecordingId);
 
       const compareHeading = document.createElement("h3");
+      compareHeading.className = "avl-type-subheading";
       compareHeading.textContent = "Before / After";
       wrapper.appendChild(compareHeading);
       const comparison = document.createElement("avl-before-after-comparison");
@@ -159,6 +182,7 @@ export class AvlWorkspaceProcessing extends AvlElement {
       wrapper.appendChild(comparison);
 
       const historyHeading = document.createElement("h3");
+      historyHeading.className = "avl-type-subheading";
       historyHeading.textContent = "Processing history";
       wrapper.appendChild(historyHeading);
       const historyPanel = document.createElement("avl-processing-history-panel");
@@ -167,6 +191,7 @@ export class AvlWorkspaceProcessing extends AvlElement {
       wrapper.appendChild(historyPanel);
 
       const feedbackHeading = document.createElement("h3");
+      feedbackHeading.className = "avl-type-subheading";
       feedbackHeading.textContent = "Processing feedback";
       wrapper.appendChild(feedbackHeading);
       const feedbackForm = document.createElement("avl-processing-feedback-form");

@@ -55,5 +55,9 @@ export function summarizeReviewState(reviewStore) {
     recentAnalysisCount: analyzedCount,
     failedAnalyses,
     currentBatchReview,
+    // FE-4 -- CandidateReviewStore.disagreementCount() (segments where a
+    // re-review produced a different decision than a prior review) was
+    // already implemented but never surfaced anywhere in the UI.
+    disagreementCount: reviewStore ? reviewStore.disagreementCount() : 0,
   };
 }

@@ -10,7 +10,6 @@ import "./status-badge.js";
 import "./panel.js";
 import "./stat-tile.js";
 
-const JOB_STATUS_DOMAIN = "pipeline_stage";
 const VALIDATION_TO_BADGE = { valid: "success", warning: "warning", invalid: "failed" };
 
 // FE-3 -- same 5-tone cycle every other workspace dashboard uses.
@@ -52,14 +51,23 @@ export class AvlWorkspaceRecordings extends AvlElement {
     this._render();
   }
 
+  // FE-4 -- memoized on this._recordings' own identity (set once in
+  // _load()): this depends only on the full unfiltered list, never on
+  // search/filter state, so it shouldn't be recomputed on every
+  // search-input keystroke the way _filtered() legitimately is.
   _dashboardCounts() {
+    if (this._dashboardCountsCache && this._dashboardCountsCacheRecordings === this._recordings) {
+      return this._dashboardCountsCache;
+    }
     const recordings = this._recordings || [];
-    return {
+    this._dashboardCountsCache = {
       Total: recordings.length,
       Valid: recordings.filter((r) => r.validation === "valid").length,
       Warning: recordings.filter((r) => r.validation === "warning").length,
       Invalid: recordings.filter((r) => r.validation === "invalid").length,
     };
+    this._dashboardCountsCacheRecordings = this._recordings;
+    return this._dashboardCountsCache;
   }
 
   _filtered() {
@@ -197,7 +205,7 @@ export class AvlWorkspaceRecordings extends AvlElement {
           null, // validation badge
           recording.quality,
           recording.batchId,
-          null, // status badge
+          recording.processingState,
         ];
         cells.forEach((value, index) => {
           const td = document.createElement("td");
@@ -208,10 +216,13 @@ export class AvlWorkspaceRecordings extends AvlElement {
             badge.setAttribute("state", VALIDATION_TO_BADGE[recording.validation] === "success" ? "ready" : VALIDATION_TO_BADGE[recording.validation] === "warning" ? "attention" : "error");
             td.appendChild(badge);
           } else if (COLUMNS[index].key === "processingState") {
-            const badge = document.createElement("avl-status-badge");
-            badge.setAttribute("domain", JOB_STATUS_DOMAIN);
-            badge.setAttribute("state", "running");
-            td.appendChild(badge);
+            // FE-4 -- recording.processingState is a real pipeline STAGE
+            // NAME (e.g. "candidate_manifest"), not a status value from
+            // the pipeline_stage domain's queued/running/success/...
+            // vocabulary -- there is no per-recording runtime status
+            // recorded anywhere to badge honestly, so this renders the
+            // real stage name as text rather than fabricating a status.
+            td.textContent = String(value).replace(/_/g, " ");
           } else {
             td.textContent = value;
           }

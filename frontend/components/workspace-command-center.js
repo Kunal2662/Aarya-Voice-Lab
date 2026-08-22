@@ -7,6 +7,7 @@
 // Dataset Workspace (Import/Batches/Recordings) owns the detailed view.
 import { AvlElement, defineComponent } from "./base-element.js";
 import { summarizeReviewState } from "../state/review-summary.js";
+import { JobStatus } from "../state/job-model.js";
 import "./workspace-state.js";
 import "./panel.js";
 import "./status-badge.js";
@@ -18,6 +19,16 @@ import "./meter.js";
 import { summarizeCalibrationSignals, outputsWithDisagreement } from "../state/evaluation-model.js";
 import { hasAnySessionData } from "../state/session-persistence.js";
 
+const STORE_KEYS = [
+  "importQueue",
+  "reviewStore",
+  "processingQueueStore",
+  "generationQueueStore",
+  "evaluationStore",
+  "abEvaluationStore",
+  "calibrationStore",
+];
+
 export class AvlWorkspaceCommandCenter extends AvlElement {
   set services(value) {
     this._services = value || {};
@@ -26,42 +37,29 @@ export class AvlWorkspaceCommandCenter extends AvlElement {
 
   connectedCallback() {
     this._services = this._services || {};
-    if (this._services.importQueue) {
-      this._services.importQueue.addEventListener("change", () => {
+    this._teardownStoreListeners();
+    this._storeListeners = [];
+    for (const key of STORE_KEYS) {
+      const store = this._services[key];
+      if (!store) continue;
+      const onChange = () => {
         if (this.isConnected) this._render();
-      });
-    }
-    if (this._services.reviewStore) {
-      this._services.reviewStore.addEventListener("change", () => {
-        if (this.isConnected) this._render();
-      });
-    }
-    if (this._services.processingQueueStore) {
-      this._services.processingQueueStore.addEventListener("change", () => {
-        if (this.isConnected) this._render();
-      });
-    }
-    if (this._services.generationQueueStore) {
-      this._services.generationQueueStore.addEventListener("change", () => {
-        if (this.isConnected) this._render();
-      });
-    }
-    if (this._services.evaluationStore) {
-      this._services.evaluationStore.addEventListener("change", () => {
-        if (this.isConnected) this._render();
-      });
-    }
-    if (this._services.abEvaluationStore) {
-      this._services.abEvaluationStore.addEventListener("change", () => {
-        if (this.isConnected) this._render();
-      });
-    }
-    if (this._services.calibrationStore) {
-      this._services.calibrationStore.addEventListener("change", () => {
-        if (this.isConnected) this._render();
-      });
+      };
+      store.addEventListener("change", onChange);
+      this._storeListeners.push([store, onChange]);
     }
     this._load();
+  }
+
+  _teardownStoreListeners() {
+    for (const [store, onChange] of this._storeListeners || []) {
+      store.removeEventListener("change", onChange);
+    }
+    this._storeListeners = [];
+  }
+
+  disconnectedCallback() {
+    this._teardownStoreListeners();
   }
 
   async _load() {
@@ -166,6 +164,10 @@ export class AvlWorkspaceCommandCenter extends AvlElement {
     const systemPanel = document.createElement("avl-panel");
     systemPanel.setAttribute("title", "System");
     for (const [label, domain, state] of [
+      // "Core" (the frontend JS runtime) is tautologically "ready"
+      // whenever this component is rendering at all -- there is no
+      // failure mode where this code runs but the core is not ready,
+      // so unlike every other row here it is never read from a store.
       ["Core", "core", "ready"],
       ["Runtime", "hardware", "UNKNOWN"],
       ["Hardware", "hardware", "UNKNOWN"],
@@ -191,12 +193,13 @@ export class AvlWorkspaceCommandCenter extends AvlElement {
     pipelinePanel.setAttribute("title", "Pipeline");
     const implementedCount = this._pipeline?.phase_2_stages?.length ?? null;
     const totalCount = this._pipeline?.stages?.length ?? null;
+    const jobsByStatus = this._services.jobStore ? this._services.jobStore.list() : null;
     for (const [label, value] of [
-      ["Queued", 0],
+      ["Queued", jobsByStatus ? jobsByStatus.filter((j) => j.status === JobStatus.QUEUED).length : null],
       ["Running", this._services.jobStore ? this._services.jobStore.current().length : null],
       ["Completed (stages implemented)", implementedCount],
       ["Total stages", totalCount],
-      ["Warnings", 0],
+      ["Warnings", jobsByStatus ? jobsByStatus.filter((j) => j.status === JobStatus.WARNING).length : null],
       ["Failed", this._services.jobStore ? this._services.jobStore.failed().length : null],
     ]) {
       const metric = document.createElement("avl-metric-placeholder");
@@ -264,6 +267,7 @@ export class AvlWorkspaceCommandCenter extends AvlElement {
       ["Quality warnings", reviewSummary.qualityWarnings],
       ["Recent analyses", reviewSummary.recentAnalysisCount],
       ["Failed analyses", reviewSummary.failedAnalyses],
+      ["Re-review disagreement", reviewSummary.disagreementCount],
     ]) {
       const metric = document.createElement("avl-metric-placeholder");
       metric.setAttribute("label", label);

@@ -25,6 +25,7 @@ import "./aggregated-results-panel.js";
 import "./calibration-panel.js";
 import "./claude-evaluation-context.js";
 import "./stat-tile.js";
+import "./panel.js";
 
 // FE-2.3 -- see workspace-batches.js's identical constant.
 const TILE_TONES = ["blue", "teal", "green", "violet", "pink"];
@@ -35,10 +36,26 @@ export class AvlWorkspaceFeedback extends AvlElement {
   }
 
   set services(value) {
+    this._teardownStoreListeners();
     this._services = value || {};
+    this._storeListeners = [];
     for (const store of [this._services.generationQueueStore, this._services.evaluationStore, this._services.abEvaluationStore]) {
-      if (store) store.addEventListener("change", () => this._scheduleRender());
+      if (!store) continue;
+      const onChange = () => this._scheduleRender();
+      store.addEventListener("change", onChange);
+      this._storeListeners.push([store, onChange]);
     }
+  }
+
+  _teardownStoreListeners() {
+    for (const [store, onChange] of this._storeListeners || []) {
+      store.removeEventListener("change", onChange);
+    }
+    this._storeListeners = [];
+  }
+
+  disconnectedCallback() {
+    this._teardownStoreListeners();
   }
 
   // Same coalescing rationale as avl-workspace-preview._scheduleRender():
@@ -90,8 +107,8 @@ export class AvlWorkspaceFeedback extends AvlElement {
     const style = document.createElement("style");
     style.textContent = `
       h2 { margin: 0 0 var(--avl-space-3) 0; }
-      h3 { margin: var(--avl-space-4) 0 var(--avl-space-2) 0; font: var(--avl-type-subheading-weight) var(--avl-type-subheading-size) / var(--avl-type-subheading-line-height) var(--avl-type-subheading-family); }
-      .dashboard { display: grid; grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); gap: var(--avl-space-3); margin-bottom: var(--avl-space-4); }
+      h3 { margin: var(--avl-space-4) 0 var(--avl-space-2) 0; }
+      .dashboard { display: grid; grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); gap: var(--avl-space-3); }
       /* FE-1.5 -- .row replaced by the shared avl-row avl-row--bordered utilities (css/base.css). */
       .rows { display: flex; flex-direction: column; }
       .label { color: var(--avl-color-text-secondary); font: var(--avl-type-caption-weight) var(--avl-type-caption-size) / 1 var(--avl-type-caption-family); }
@@ -110,6 +127,8 @@ export class AvlWorkspaceFeedback extends AvlElement {
     wrapper.appendChild(heading);
 
     const stats = this._dashboardCounts();
+    const dashboardPanel = document.createElement("avl-panel");
+    dashboardPanel.setAttribute("title", "Evaluation dashboard");
     const dashboard = document.createElement("div");
     dashboard.className = "dashboard";
     [
@@ -127,9 +146,11 @@ export class AvlWorkspaceFeedback extends AvlElement {
       tile.setAttribute("icon", "feedback");
       dashboard.appendChild(tile);
     });
-    wrapper.appendChild(dashboard);
+    dashboardPanel.appendChild(dashboard);
+    wrapper.appendChild(dashboardPanel);
 
     const queueHeading = document.createElement("h3");
+    queueHeading.className = "avl-type-subheading";
     queueHeading.textContent = "Evaluation Queue";
     wrapper.appendChild(queueHeading);
     const queueEl = document.createElement("avl-evaluation-queue");
@@ -144,6 +165,7 @@ export class AvlWorkspaceFeedback extends AvlElement {
     const focusedOutput = this._focusedOutput();
     if (focusedOutput) {
       const formHeading = document.createElement("h3");
+      formHeading.className = "avl-type-subheading";
       formHeading.textContent = "Evaluate";
       wrapper.appendChild(formHeading);
       const form = document.createElement("avl-evaluation-form");
@@ -158,11 +180,13 @@ export class AvlWorkspaceFeedback extends AvlElement {
       wrapper.appendChild(form);
 
       const abHeading = document.createElement("h3");
+      abHeading.className = "avl-type-subheading";
       abHeading.textContent = "A / B Comparison";
       wrapper.appendChild(abHeading);
       wrapper.appendChild(this._buildAbEvaluationSection(focusedOutput));
 
       const historyHeading = document.createElement("h3");
+      historyHeading.className = "avl-type-subheading";
       historyHeading.textContent = "Evaluation History";
       wrapper.appendChild(historyHeading);
       const history = document.createElement("avl-evaluation-history-panel");
@@ -174,6 +198,7 @@ export class AvlWorkspaceFeedback extends AvlElement {
       const summary = summarizeOutputEvaluations(evaluations, focusedOutput.preview_id);
 
       const disagreementHeading = document.createElement("h3");
+      disagreementHeading.className = "avl-type-subheading";
       disagreementHeading.textContent = "Disagreement";
       wrapper.appendChild(disagreementHeading);
       const disagreement = document.createElement("avl-disagreement-view");
@@ -181,6 +206,7 @@ export class AvlWorkspaceFeedback extends AvlElement {
       wrapper.appendChild(disagreement);
 
       const aggregatedHeading = document.createElement("h3");
+      aggregatedHeading.className = "avl-type-subheading";
       aggregatedHeading.textContent = "Aggregated Results";
       wrapper.appendChild(aggregatedHeading);
       const aggregated = document.createElement("avl-aggregated-results-panel");
@@ -188,16 +214,19 @@ export class AvlWorkspaceFeedback extends AvlElement {
       wrapper.appendChild(aggregated);
 
       const calibrationHeading = document.createElement("h3");
+      calibrationHeading.className = "avl-type-subheading";
       calibrationHeading.textContent = "Calibration Readiness";
       wrapper.appendChild(calibrationHeading);
       wrapper.appendChild(this._buildCalibrationPanel());
 
       const provenanceHeading = document.createElement("h3");
+      provenanceHeading.className = "avl-type-subheading";
       provenanceHeading.textContent = "Provenance";
       wrapper.appendChild(provenanceHeading);
       wrapper.appendChild(this._buildProvenanceRows(focusedOutput));
 
       const claudeHeading = document.createElement("h3");
+      claudeHeading.className = "avl-type-subheading";
       claudeHeading.textContent = "Ask Claude";
       wrapper.appendChild(claudeHeading);
       const claudeContext = document.createElement("avl-claude-evaluation-context");

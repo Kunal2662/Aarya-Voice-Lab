@@ -27,7 +27,20 @@ export class AvlImportDropZone extends AvlElement {
         transition: border-color var(--avl-duration-fast) var(--avl-easing-standard), background var(--avl-duration-fast) var(--avl-easing-standard);
       }
       .zone[data-dragover="true"] { border-color: var(--avl-color-brand-accent); background: var(--avl-color-brand-accent-subtle); }
-      input[type="file"] { display: none; }
+      /* FE-4 -- visually hidden via the same technique as base.css's
+         .avl-sr-only, not display:none: the native <input type="file">
+         stays in the tab order and keyboard-operable (Tab to focus,
+         Enter/Space opens the OS file picker) even though only the
+         <label> is visible. display:none would remove it from both the
+         tab order and the accessibility tree, leaving no keyboard path
+         to open the picker at all -- drag/drop is inherently mouse-only. */
+      input[type="file"] {
+        position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+        overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+      }
+      input[type="file"]:focus-visible ~ label {
+        outline: 2px solid var(--avl-color-border-focus); outline-offset: 2px;
+      }
       label {
         cursor: pointer; color: var(--avl-color-brand-accent);
         font: var(--avl-type-body-small-weight) var(--avl-type-body-small-size) / 1 var(--avl-type-body-small-family);

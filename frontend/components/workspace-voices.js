@@ -55,7 +55,7 @@ export class AvlWorkspaceVoices extends AvlElement {
       }
       .step[data-implemented="true"] { color: var(--avl-color-text-primary); border-color: var(--avl-color-state-success); }
       /* FE-3 -- .voice-header replaced by the shared avl-row avl-row--center utilities (css/base.css); only the local margin stays here. */
-      .voice-header { margin: var(--avl-space-3) 0 var(--avl-space-2) 0; }
+      .voice-header { margin: var(--avl-space-3) 0 var(--avl-space-2) 0; cursor: pointer; }
       .dashboard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: var(--avl-space-3); margin-bottom: var(--avl-space-4); }
     `;
     this.shadowRoot.appendChild(style);
@@ -115,7 +115,16 @@ export class AvlWorkspaceVoices extends AvlElement {
       calibration.setAttribute("domain", "calibration");
       calibration.setAttribute("state", voice.calibrationState);
       header.append(name, calibration);
+      header.setAttribute("role", "button");
+      header.tabIndex = 0;
+      header.setAttribute("aria-label", `Select voice ${voice.name}`);
       header.addEventListener("click", () => this._selectionModel?.select("voice", voice.id, voice));
+      header.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          header.click();
+        }
+      });
       wrapper.appendChild(header);
 
       const previewCard = document.createElement("avl-voice-preview-card");

@@ -18,17 +18,16 @@ import {
   syntheticSegments,
   syntheticOverlapCandidates,
 } from "../state/synthetic-fixtures.js";
-import { summarizeQuality } from "../state/quality-summary.js";
+import { summarizeQuality, QUALITY_RANK } from "../state/quality-summary.js";
 import "./workspace-state.js";
 import "./status-badge.js";
 import "./dataset-quality-summary.js";
 import "./stat-tile.js";
+import "./panel.js";
 
 // FE-2.3 -- see workspace-batches.js's identical constant; the same 5
 // categorical tones cycled across every dashboard in the app.
 const TILE_TONES = ["blue", "teal", "green", "violet", "pink"];
-
-const QUALITY_RANK = { NOT_ANALYZED: 0, FAIL: 1, REVIEW: 2, WARNING: 3, PASS: 4 };
 
 const SORT_OPTIONS = [
   ["filename", "Filename"],
@@ -116,7 +115,14 @@ export class AvlWorkspaceDatasetReview extends AvlElement {
     this._render();
   }
 
+  // FE-4 -- _counts() only depends on this._rows (set once in _load()),
+  // never on the search/filter fields that trigger most _render() calls,
+  // so it's memoized on the rows array's own identity instead of
+  // recomputing 5 filter passes + 2 reduce passes on every keystroke.
   _counts() {
+    if (this._countsCache && this._countsCacheRows === this._rows) {
+      return this._countsCache;
+    }
     const rows = this._rows || [];
     const blockedBatchIds = new Set();
     let blocked = 0;
@@ -127,7 +133,7 @@ export class AvlWorkspaceDatasetReview extends AvlElement {
         blocked += batch ? batch.blocked : 0;
       }
     }
-    return {
+    this._countsCache = {
       total: rows.length,
       analyzed: rows.filter((r) => r.assessment).length,
       notAnalyzed: rows.filter((r) => !r.assessment).length,
@@ -139,6 +145,8 @@ export class AvlWorkspaceDatasetReview extends AvlElement {
       segments: rows.reduce((sum, r) => sum + r.segments.length, 0),
       candidates: rows.reduce((sum, r) => sum + r.segments.filter((s) => s.kind === "speech").length, 0),
     };
+    this._countsCacheRows = this._rows;
+    return this._countsCache;
   }
 
   _filtered() {
@@ -206,8 +214,8 @@ export class AvlWorkspaceDatasetReview extends AvlElement {
     const style = document.createElement("style");
     style.textContent = `
       h2 { margin: 0 0 var(--avl-space-3) 0; }
-      h3 { margin: var(--avl-space-4) 0 var(--avl-space-2) 0; font: var(--avl-type-subheading-weight) var(--avl-type-subheading-size) / var(--avl-type-subheading-line-height) var(--avl-type-subheading-family); }
-      .dashboard { display: grid; grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); gap: var(--avl-space-3); margin-bottom: var(--avl-space-4); }
+      h3 { margin: var(--avl-space-4) 0 var(--avl-space-2) 0; }
+      .dashboard { display: grid; grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); gap: var(--avl-space-3); }
       .controls { display: flex; gap: var(--avl-space-2); flex-wrap: wrap; margin-bottom: var(--avl-space-3); align-items: center; }
       /* FE-3 -- input/select styling now comes from css/base.css's shared baseline. */
       label.check { display: flex; align-items: center; gap: var(--avl-space-1); font: var(--avl-type-caption-weight) var(--avl-type-caption-size) / 1 var(--avl-type-caption-family); color: var(--avl-color-text-secondary); }
@@ -232,6 +240,8 @@ export class AvlWorkspaceDatasetReview extends AvlElement {
 
     if (this._state === "ready" && this._rows) {
       const counts = this._counts();
+      const dashboardPanel = document.createElement("avl-panel");
+      dashboardPanel.setAttribute("title", "Review dashboard");
       const dashboard = document.createElement("div");
       dashboard.className = "dashboard";
       const metrics = [
@@ -254,7 +264,8 @@ export class AvlWorkspaceDatasetReview extends AvlElement {
         tile.setAttribute("icon", "review");
         dashboard.appendChild(tile);
       });
-      wrapper.appendChild(dashboard);
+      dashboardPanel.appendChild(dashboard);
+      wrapper.appendChild(dashboardPanel);
 
       const summary = document.createElement("avl-dataset-quality-summary");
       summary.summary = summarizeQuality();
@@ -414,6 +425,7 @@ export class AvlWorkspaceDatasetReview extends AvlElement {
   _buildReviewQueue() {
     const section = document.createElement("div");
     const heading = document.createElement("h3");
+    heading.className = "avl-type-subheading";
     heading.textContent = "Review queue";
     section.appendChild(heading);
 

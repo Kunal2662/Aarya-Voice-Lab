@@ -8,6 +8,14 @@
 // libraries, minimal frontend dependencies").
 import { syntheticRecordings, syntheticQualityAssessments, syntheticOverlapCandidates } from "./synthetic-fixtures.js";
 
+// FE-4 -- shared ordering for pipeline.quality.QualityDecision, used
+// wherever a workspace needs to compare two decisions (e.g. "did
+// processing improve or degrade this recording's quality tier?").
+// Previously defined identically in both workspace-dataset-review.js
+// and workspace-processing.js; centralized here so the two copies can't
+// silently drift if the decision vocabulary is ever extended.
+export const QUALITY_RANK = Object.freeze({ NOT_ANALYZED: 0, FAIL: 1, REVIEW: 2, WARNING: 3, PASS: 4 });
+
 const NOT_AVAILABLE = "not_available";
 const DURATION_BUCKETS = [
   ["<30s", 0, 30],
