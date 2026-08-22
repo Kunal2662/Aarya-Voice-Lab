@@ -38,6 +38,7 @@ from pathlib import Path
 from typing import Any
 
 from aarya_voice_lab import __version__
+from aarya_voice_lab.core.file_lock import locked
 from aarya_voice_lab.core.paths import PROJECT_ROOT
 
 DATA_ROOT_NAME = "data"
@@ -254,6 +255,32 @@ def create_batch(
         json.dumps(metadata.to_dict(), indent=2, sort_keys=True), encoding="utf-8"
     )
     return metadata
+
+
+def allocate_batch(
+    data_root: DataRoot,
+    *,
+    source_file_count: int = 0,
+    notes: str | None = None,
+) -> BatchMetadata:
+    """Atomically compute-and-reserve the next unused batch id and create
+    its metadata in one step.
+
+    Hardening milestone F-2 -- next_batch_id() is intentionally pure and
+    stateless (it just picks the next number out of a list you hand it),
+    so composing it with list_batches() and create_batch() yourself is a
+    real TOCTOU race: two concurrent callers can both list the same
+    batches, both compute the same "next" id, and both create it,
+    silently colliding. This function is the race-free way to get an
+    auto-assigned batch id -- it does not change next_batch_id(),
+    create_batch(), or list_batches() in any way, and is safe to call
+    from multiple processes or threads concurrently.
+    """
+    data_root.manifests.mkdir(parents=True, exist_ok=True)
+    lock_path = data_root.manifests / ".batch-allocation.lock"
+    with locked(lock_path):
+        batch_id = next_batch_id(list_batches(data_root))
+        return create_batch(data_root, batch_id, source_file_count=source_file_count, notes=notes)
 
 
 def read_batch(data_root: DataRoot, batch_id: str) -> BatchMetadata | None:

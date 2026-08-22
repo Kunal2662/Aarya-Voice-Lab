@@ -14,6 +14,7 @@ from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
+from aarya_voice_lab.core.file_lock import locked
 from aarya_voice_lab.schemas.base import SchemaName, validate
 
 
@@ -25,13 +26,21 @@ class JsonLinesRegistry:
 
     def add(self, record: dict[str, Any]) -> None:
         validate(record, self.schema_name)
-        existing_ids = {r[self.id_field] for r in self.list()}
-        record_id = record[self.id_field]
-        if record_id in existing_ids:
-            raise ValueError(f"{self.schema_name.value} with {self.id_field}={record_id!r} already exists")
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        with self.path.open("a", encoding="utf-8") as fh:
-            fh.write(json.dumps(record, sort_keys=True) + "\n")
+        # Hardening milestone F-2 -- the duplicate-id check and the append
+        # must happen as one atomic step, or two concurrent writers can
+        # both see the id as free and both write it (TOCTOU). The lock is
+        # scoped to this registry file only, held only for this
+        # read-check-append sequence, and never touches the append-only
+        # on-disk format.
+        lock_path = self.path.with_name(self.path.name + ".lock")
+        with locked(lock_path):
+            existing_ids = {r[self.id_field] for r in self.list()}
+            record_id = record[self.id_field]
+            if record_id in existing_ids:
+                raise ValueError(f"{self.schema_name.value} with {self.id_field}={record_id!r} already exists")
+            with self.path.open("a", encoding="utf-8") as fh:
+                fh.write(json.dumps(record, sort_keys=True) + "\n")
 
     def list(self) -> list[dict[str, Any]]:
         return list(self._iter_records())

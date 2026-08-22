@@ -339,3 +339,49 @@ test("Claude review context is bounded and never includes a filesystem path or s
     assert.doesNotMatch(contextText, /speaker/i);
   });
 });
+
+test("hardening F-1: a malicious recording filename renders as literal text, never executes", { timeout: 30_000 }, async () => {
+  await withPage(async (page) => {
+    await goToReview(page);
+    const MALICIOUS_FILENAME = '<img src=x onerror=alert(1)>';
+    const NORMAL_FILENAME = "session_report_final.wav";
+    const result = await page.evaluate(
+      ({ malicious, normal }) => {
+        window.__avlAlertFired = false;
+        const originalAlert = window.alert;
+        window.alert = () => {
+          window.__avlAlertFired = true;
+        };
+        const ws = document.querySelector("avl-workspace-dataset-review");
+        // Directly mutate the row data this component already renders from
+        // (see _buildTable() in workspace-dataset-review.js) rather than
+        // going through a real import, since the synthetic fixtures never
+        // themselves carry attacker-controlled content -- this proves the
+        // *rendering* path is safe regardless of what feeds it. Rows are
+        // sortable/filterable, so look up cells by content rather than by
+        // a fixed index once re-rendered.
+        ws._rows[0].recording.filename = malicious;
+        ws._rows[1].recording.filename = normal;
+        ws._render();
+        const table = ws.shadowRoot.querySelector("table");
+        const firstCells = [...table.querySelectorAll("tbody tr td:first-child")];
+        const cellTexts = firstCells.map((td) => td.textContent);
+        const maliciousHasImg = firstCells.some((td) => td.textContent === malicious && !!td.querySelector("img"));
+        const tableHasAnyImg = !!table.querySelector("img");
+        window.alert = originalAlert;
+        return {
+          cellTexts,
+          maliciousHasImg,
+          tableHasAnyImg,
+          alertFired: window.__avlAlertFired,
+        };
+      },
+      { malicious: MALICIOUS_FILENAME, normal: NORMAL_FILENAME },
+    );
+    assert.ok(result.cellTexts.includes(MALICIOUS_FILENAME), "the malicious filename must render as literal text");
+    assert.equal(result.maliciousHasImg, false, "no <img> element must be created from the filename");
+    assert.equal(result.tableHasAnyImg, false, "no <img> element must be created anywhere in the table");
+    assert.equal(result.alertFired, false, "no injected handler must execute");
+    assert.ok(result.cellTexts.includes(NORMAL_FILENAME), "a normal filename must continue to render correctly");
+  });
+});

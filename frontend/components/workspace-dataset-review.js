@@ -377,12 +377,25 @@ export class AvlWorkspaceDatasetReview extends AvlElement {
       tr.setAttribute("data-selectable", "");
       tr.tabIndex = 0;
       tr.setAttribute("role", "button");
-      tr.innerHTML = `
-        <td>${row.recording.filename}</td>
-        <td>${row.recording.batchId}</td>
-        <td>${row.recording.durationSeconds}s</td>
-        <td>${row.recording.sampleRate} Hz</td>
-      `;
+      // Hardening milestone F-1 -- these four cells must never be built via
+      // innerHTML interpolation: this table is fed synthetic fixtures
+      // today, but the field shape mirrors real recording metadata this
+      // workspace is meant to grow into, and a filename can originate from
+      // a user-controlled File.name elsewhere in the app (see
+      // import-queue.js's identical textContent pattern for that field).
+      const filenameCell = document.createElement("td");
+      filenameCell.textContent = row.recording.filename;
+      tr.appendChild(filenameCell);
+      const batchCell = document.createElement("td");
+      batchCell.textContent = row.recording.batchId;
+      tr.appendChild(batchCell);
+      const durationCell = document.createElement("td");
+      durationCell.textContent = `${row.recording.durationSeconds}s`;
+      tr.appendChild(durationCell);
+      const sampleRateCell = document.createElement("td");
+      sampleRateCell.textContent = `${row.recording.sampleRate} Hz`;
+      tr.appendChild(sampleRateCell);
+
       const qualityCell = document.createElement("td");
       const qualityBadge = document.createElement("avl-status-badge");
       qualityBadge.setAttribute("domain", "quality_decision");

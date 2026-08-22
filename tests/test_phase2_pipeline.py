@@ -8,6 +8,8 @@ written, or referenced anywhere in this file.
 from __future__ import annotations
 
 import json
+import threading
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
@@ -24,6 +26,7 @@ from aarya_voice_lab.core.data_root import (
     DataRoot,
     InvalidBatchIdError,
     SourceImmutabilityError,
+    allocate_batch,
     assert_source_writable,
     create_batch,
     list_batches,
@@ -572,6 +575,57 @@ def test_batch_metadata_roundtrip(tmp_path):
     assert loaded.batch_id == created.batch_id
     assert loaded.source_file_count == 3
     assert "batch-001" in list_batches(data_root)
+
+
+def test_next_batch_id_is_race_free_under_concurrent_invocation():
+    """next_batch_id() is pure and stateless (no filesystem access), so it
+    cannot race on its own -- N concurrent callers handed the identical
+    input must deterministically compute the identical output. This is
+    the literal "test next_batch_id() under concurrent invocation"
+    requirement; the real race this hardening milestone closes lives one
+    layer up, in the list-then-create sequence a caller builds around it
+    -- see test_allocate_batch_is_race_free_under_concurrent_writers."""
+    existing = ["batch-001", "batch-002", "batch-009"]
+    results = []
+    barrier = threading.Barrier(16)
+
+    def call():
+        barrier.wait()
+        results.append(next_batch_id(existing))
+
+    with ThreadPoolExecutor(max_workers=16) as pool:
+        list(pool.map(lambda _: call(), range(16)))
+
+    assert results == ["batch-010"] * 16
+
+
+def test_allocate_batch_is_race_free_under_concurrent_writers(tmp_path):
+    """Hardening milestone F-2 -- exercises the real persistence mechanism
+    (allocate_batch()'s file lock over the actual manifests/ directory),
+    not a mocked stand-in. 20 threads race to allocate a batch id at the
+    same time; every writer must succeed, every id must be unique, and
+    every batch's manifest must be independently readable afterward."""
+    data_root = DataRoot(root=tmp_path / "data").create()
+    writer_count = 20
+    barrier = threading.Barrier(writer_count)
+
+    def allocate():
+        barrier.wait()
+        return allocate_batch(data_root, source_file_count=1).batch_id
+
+    with ThreadPoolExecutor(max_workers=writer_count) as pool:
+        batch_ids = list(pool.map(lambda _: allocate(), range(writer_count)))
+
+    assert len(batch_ids) == writer_count
+    assert len(set(batch_ids)) == writer_count, f"duplicate batch id assigned: {batch_ids}"
+    assert set(batch_ids) == {f"batch-{n:03d}" for n in range(1, writer_count + 1)}
+    on_disk = list_batches(data_root)
+    assert len(on_disk) == writer_count
+    for batch_id in batch_ids:
+        loaded = read_batch(data_root, batch_id)
+        assert loaded is not None
+        assert loaded.batch_id == batch_id
+        assert loaded.source_file_count == 1
 
 
 def test_data_root_create_does_not_create_source(tmp_path):

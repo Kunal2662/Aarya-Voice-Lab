@@ -224,7 +224,18 @@ export class AvlWorkspaceProcessing extends AvlElement {
       row.setAttribute("data-selectable", "");
       row.tabIndex = 0;
       row.setAttribute("role", "button");
-      row.innerHTML = `<td>${recording.filename}</td><td>${recording.batchId}</td>`;
+      // Hardening milestone F-1 -- recording.filename/batchId must never be
+      // interpolated into innerHTML: this table is fed synthetic fixtures
+      // today, but the field shape mirrors real recording metadata this
+      // workspace is meant to grow into, and a filename can originate from
+      // a user-controlled File.name elsewhere in the app (see
+      // import-queue.js's identical textContent pattern for that field).
+      const filenameCell = document.createElement("td");
+      filenameCell.textContent = recording.filename;
+      row.appendChild(filenameCell);
+      const batchCell = document.createElement("td");
+      batchCell.textContent = recording.batchId;
+      row.appendChild(batchCell);
 
       const statusCell = document.createElement("td");
       const latest = this._latestItemFor(recording.id);

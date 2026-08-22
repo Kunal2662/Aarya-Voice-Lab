@@ -336,3 +336,46 @@ test("Claude processing context is bounded and never includes a filesystem path 
     assert.doesNotMatch(contextText, /speaker/i);
   });
 });
+
+test("hardening F-1: a malicious recording filename renders as literal text, never executes", { timeout: 30_000 }, async () => {
+  await withPage(async (page) => {
+    await goToProcessing(page);
+    const MALICIOUS_FILENAME = '<img src=x onerror=alert(1)>';
+    const NORMAL_FILENAME = "session_report_final.wav";
+    const result = await page.evaluate(
+      ({ malicious, normal }) => {
+        window.__avlAlertFired = false;
+        const originalAlert = window.alert;
+        window.alert = () => {
+          window.__avlAlertFired = true;
+        };
+        const ws = document.querySelector("avl-workspace-processing");
+        // Directly mutate the recordings data this component already
+        // renders from (see _buildRecordingsTable() in
+        // workspace-processing.js) rather than going through a real
+        // import, since the synthetic fixtures never themselves carry
+        // attacker-controlled content -- this proves the *rendering* path
+        // is safe regardless of what feeds it.
+        ws._recordings[0].filename = malicious;
+        ws._recordings[1].filename = normal;
+        ws._render();
+        const rows = [...ws.shadowRoot.querySelectorAll("table tbody tr")];
+        const firstCellText = rows[0].querySelector("td").textContent;
+        const firstCellHasImg = !!rows[0].querySelector("img");
+        const secondCellText = rows[1].querySelector("td").textContent;
+        window.alert = originalAlert;
+        return {
+          firstCellText,
+          firstCellHasImg,
+          secondCellText,
+          alertFired: window.__avlAlertFired,
+        };
+      },
+      { malicious: MALICIOUS_FILENAME, normal: NORMAL_FILENAME },
+    );
+    assert.equal(result.firstCellText, MALICIOUS_FILENAME, "the malicious filename must render as literal text");
+    assert.equal(result.firstCellHasImg, false, "no <img> element must be created from the filename");
+    assert.equal(result.alertFired, false, "no injected handler must execute");
+    assert.equal(result.secondCellText, NORMAL_FILENAME, "a normal filename must continue to render correctly");
+  });
+});
