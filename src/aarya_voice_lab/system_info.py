@@ -19,6 +19,7 @@ import shutil
 import subprocess
 import sys
 from dataclasses import asdict, dataclass, field
+from pathlib import Path
 from typing import Any
 
 
@@ -68,6 +69,12 @@ class GPUInfo:
     devices: list[dict[str, Any]] = field(default_factory=list)
     detection_method: str = "none"
     note: str | None = None
+    #: "NVIDIA", "AMD", a PCI-vendor-ID-derived guess, or None when
+    #: nothing was detected. Hardware-agnostic rule (Real ML Runtime
+    #: milestone follow-up): no vendor is privileged in detection order
+    #: beyond NVIDIA being checked first because scripts/install_env.sh's
+    #: CUDA-wheel decision already depends on that specific signal.
+    vendor: str | None = None
 
 
 @dataclass
@@ -145,11 +152,21 @@ def get_disk_info(path: str = ".") -> DiskInfo:
     return DiskInfo(path=path, total_bytes=total, used_bytes=used, free_bytes=free)
 
 
-def get_gpu_info() -> GPUInfo:
-    nvidia_smi = shutil.which("nvidia-smi")
-    if not nvidia_smi:
-        return GPUInfo(available=False, detection_method="none", note="nvidia-smi not found on PATH")
+#: PCI vendor IDs for the GPU vendors this project can currently name.
+#: Not exhaustive -- an unrecognized ID still gets detected and reported
+#: as present, just without a friendly name. See _detect_gpu_via_sysfs().
+_PCI_VENDOR_NAMES = {
+    "0x10de": "NVIDIA",
+    "0x1002": "AMD",
+    "0x8086": "Intel",
+}
 
+#: Module-level so tests can monkeypatch it to a fabricated layout
+#: rather than needing a real (or real-looking) /sys/class/drm.
+_DRM_ROOT = Path("/sys/class/drm")
+
+
+def _detect_nvidia_gpu(nvidia_smi: str) -> GPUInfo:
     try:
         result = subprocess.run(
             [
@@ -185,6 +202,122 @@ def get_gpu_info() -> GPUInfo:
         driver_version=driver_version,
         devices=devices,
         detection_method="nvidia-smi",
+        vendor="NVIDIA" if devices else None,
+    )
+
+
+def _detect_amd_gpu() -> GPUInfo | None:
+    """AMD via ROCm's own inspection tool. Returns None (never a
+    negative GPUInfo) when rocm-smi is absent or its probe fails, so the
+    caller can keep falling through to the vendor-neutral sysfs check
+    rather than reporting a false "no GPU" the moment this one tool is
+    missing -- the exact trap the NVIDIA-only detection this milestone
+    is fixing fell into."""
+    rocm_smi = shutil.which("rocm-smi")
+    if not rocm_smi:
+        return None
+    try:
+        result = subprocess.run(
+            [rocm_smi, "--showproductname", "--json"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if result.returncode != 0 or not result.stdout.strip():
+        return None
+    try:
+        parsed = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        return None
+    devices = [
+        {"name": info.get("Card series") or info.get("Card model") or card_id, "vram_mib": None}
+        for card_id, info in parsed.items()
+        if isinstance(info, dict)
+    ]
+    if not devices:
+        return None
+    return GPUInfo(available=True, devices=devices, detection_method="rocm-smi", vendor="AMD")
+
+
+def _detect_gpu_via_sysfs() -> GPUInfo | None:
+    """Vendor-neutral last resort: a GPU shows up as a PCI display
+    device under /sys/class/drm on Linux whether or not any vendor CLI
+    (nvidia-smi, rocm-smi, intel_gpu_top, ...) is installed. This is
+    presence-only -- no driver, VRAM, or model name is available this
+    way -- but it is what actually makes "no GPU detected" honest on a
+    machine whose only accelerator is AMD or Intel and has no vendor
+    tool installed, rather than silently assuming NVIDIA-or-nothing."""
+    if not _DRM_ROOT.is_dir():
+        return None
+    try:
+        card_dirs = sorted(p for p in _DRM_ROOT.glob("card[0-9]*") if p.is_dir())
+    except OSError:
+        return None
+
+    devices: list[dict[str, Any]] = []
+    seen_device_dirs: set[Path] = set()
+    vendor_names: set[str] = set()
+    for card in card_dirs:
+        vendor_path = card / "device" / "vendor"
+        if not vendor_path.is_file():
+            continue
+        try:
+            resolved = vendor_path.parent.resolve()
+        except OSError:
+            continue
+        if resolved in seen_device_dirs:
+            continue
+        seen_device_dirs.add(resolved)
+        try:
+            vendor_id = vendor_path.read_text().strip().lower()
+        except OSError:
+            continue
+        vendor_name = _PCI_VENDOR_NAMES.get(vendor_id, f"unknown (PCI vendor {vendor_id})")
+        vendor_names.add(vendor_name)
+        devices.append({"name": f"{vendor_name} GPU (model unconfirmed -- no vendor tool installed)", "vram_mib": None})
+
+    if not devices:
+        return None
+    vendor = vendor_names.pop() if len(vendor_names) == 1 else "mixed"
+    return GPUInfo(
+        available=True,
+        devices=devices,
+        detection_method="sysfs-pci-id",
+        vendor=vendor,
+        note="presence-only detection via PCI vendor ID -- install nvidia-smi/rocm-smi for driver/VRAM detail",
+    )
+
+
+def get_gpu_info() -> GPUInfo:
+    """NVIDIA is checked first only because scripts/install_env.sh's CUDA-
+    vs-CPU wheel index decision already depends on that specific signal
+    (see docs/GPU_STRATEGY.md) -- it is not a claim that NVIDIA is
+    privileged as a vendor. When nvidia-smi is not even on PATH, AMD
+    (rocm-smi) and then a vendor-neutral PCI enumeration are tried in
+    turn before honestly reporting no accelerator at all. When
+    nvidia-smi IS present but its own probe fails, that failure is
+    reported directly rather than silently falling through to another
+    vendor -- a broken NVIDIA tool on an NVIDIA machine is a real signal
+    worth surfacing, not something to paper over."""
+    nvidia_smi = shutil.which("nvidia-smi")
+    if nvidia_smi:
+        return _detect_nvidia_gpu(nvidia_smi)
+
+    amd = _detect_amd_gpu()
+    if amd is not None:
+        return amd
+
+    sysfs = _detect_gpu_via_sysfs()
+    if sysfs is not None:
+        return sysfs
+
+    return GPUInfo(
+        available=False,
+        detection_method="none",
+        note="no NVIDIA, AMD, or PCI-enumerable GPU found (nvidia-smi not found on PATH)",
     )
 
 
@@ -269,12 +402,14 @@ def format_report(report: SystemReport) -> str:
         f"Python           : {sys.version.split()[0]} ({report.python_executable})",
         f"FFmpeg           : {'available — ' + report.ffmpeg.version if report.ffmpeg.available else 'NOT AVAILABLE'}",
         f"GPU              : {'available' if report.gpu.available else 'NOT AVAILABLE'}"
+        + (f" [{report.gpu.vendor}, via {report.gpu.detection_method}]" if report.gpu.available else "")
         + (f" ({report.gpu.note})" if report.gpu.note else ""),
     ]
     for device in report.gpu.devices:
-        lines.append(f"  - {device.get('name')} ({device.get('vram_mib')} MiB VRAM)")
+        vram = f"{device.get('vram_mib')} MiB VRAM" if device.get("vram_mib") is not None else "VRAM unknown"
+        lines.append(f"  - {device.get('name')} ({vram})")
     if report.gpu.driver_version:
-        lines.append(f"  NVIDIA driver  : {report.gpu.driver_version}")
+        lines.append(f"  Driver version : {report.gpu.driver_version}")
     lines.append(
         f"CUDA (via torch) : {'available' if report.cuda.available else 'NOT AVAILABLE'}"
         + (f" ({report.cuda.note})" if report.cuda.note else "")

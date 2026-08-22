@@ -80,13 +80,25 @@ aarya-voice env-audit
 
 | Capability | Meaning |
 |---|---|
-| `NVIDIA GPU` | `AVAILABLE` with model/VRAM, or `OPTIONAL` when absent |
+| `NVIDIA GPU` | `AVAILABLE` with model/VRAM specifically for NVIDIA (via `nvidia-smi`), or `OPTIONAL` when absent. Stays NVIDIA-specific because the torch wheel index decision below depends on exactly this signal. |
+| `Accelerator (any vendor)` | `AVAILABLE` for **any** detected GPU — NVIDIA, AMD (via `rocm-smi`), or any other vendor via a PCI-id sysfs enumeration (`/sys/class/drm`) that needs no vendor tool installed at all — or `OPTIONAL` when none is found. This is the hardware-agnostic signal; read it when the question is "is there an accelerator at all," not "is it NVIDIA." |
 | `CUDA runtime` | `AVAILABLE`, `OPTIONAL`, or `UNKNOWN` when torch is absent |
 | `CUDA toolkit (nvcc)` | `OPTIONAL` — torch wheels bundle their own runtime |
 
 **Absence of a GPU is never an error.** It reports as `OPTIONAL`, and
 `UNKNOWN` (e.g. CUDA state with no torch installed) is not treated as
 blocking either — both are asserted by test.
+
+**Detection vs. execution, still distinct.** `Accelerator (any vendor)`
+going `AVAILABLE` means a GPU device was found — it is not a claim that
+this project can run anything on it. Only NVIDIA has an execution path
+today: `scripts/install_env.sh`'s CUDA wheel index, and `torch.cuda.
+is_available()` as the runtime check. An AMD or other accelerator being
+detected does not mean ROCm/Metal/OpenCL execution works here — no
+runtime-level check or install path for those exists yet
+(`identity.runtime.ComputeBackend`'s `ROCM`/`METAL`/`OPENCL`/`VULKAN`/
+`XPU` members exist precisely so adding one later needs no schema
+change).
 
 ## Wheel index selection
 
@@ -122,3 +134,10 @@ control.
 - No model has been run on any hardware.
 - Performance claims (GPU "faster") are architectural expectations, not
   measurements from this project.
+- **AMD/other-vendor detection code is untested against real hardware**:
+  no AMD or Intel GPU was available on any machine this project has run
+  on, so `_detect_amd_gpu()`/`_detect_gpu_via_sysfs()` are verified only
+  by mocked unit tests (`tests/test_system_info.py`), the same honest
+  caveat NVIDIA CUDA execution itself already carries above. Detecting
+  presence and being able to run something on that hardware remain two
+  different, separately-unverified claims.

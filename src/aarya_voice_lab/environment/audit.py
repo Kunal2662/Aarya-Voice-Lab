@@ -116,8 +116,13 @@ def check_ffmpeg() -> Capability:
 
 
 def check_gpu() -> Capability:
+    """NVIDIA-specific, by name, on purpose: scripts/install_env.sh's
+    CUDA-vs-CPU torch wheel index decision depends on exactly this
+    signal (see docs/GPU_STRATEGY.md), so this capability's name and
+    meaning stay fixed. See check_accelerator() for the vendor-neutral
+    signal that also recognizes AMD/other hardware."""
     report = collect_system_report()
-    if report.gpu.available:
+    if report.gpu.available and report.gpu.vendor == "NVIDIA":
         names = ", ".join(str(d.get("name")) for d in report.gpu.devices)
         return Capability(
             "NVIDIA GPU",
@@ -128,8 +133,32 @@ def check_gpu() -> Capability:
     return Capability(
         "NVIDIA GPU",
         CapabilityState.OPTIONAL,
-        "no GPU detected; CPU-only execution is supported (slower) — "
+        "no NVIDIA GPU detected; CPU-only execution is supported (slower) — "
         f"{report.gpu.note or 'nvidia-smi not found'}",
+    )
+
+
+def check_accelerator() -> Capability:
+    """Hardware-agnostic rule (Real ML Runtime milestone follow-up):
+    AVAILABLE for ANY detected accelerator -- NVIDIA, AMD (rocm-smi), or
+    a PCI-enumerable device of an unrecognized vendor (see
+    system_info._detect_gpu_via_sysfs) -- never just NVIDIA. check_gpu()
+    above stays NVIDIA-specific because a real, existing decision
+    (the torch wheel index) depends on that exact signal; this capability
+    is the one calibration/UI code should read when the question is
+    "is there an accelerator at all", not "is it specifically NVIDIA"."""
+    report = collect_system_report()
+    if report.gpu.available:
+        names = ", ".join(str(d.get("name")) for d in report.gpu.devices)
+        detail = f"{len(report.gpu.devices)} device(s) via {report.gpu.detection_method}: {names}"
+        if report.gpu.note:
+            detail += f" — {report.gpu.note}"
+        return Capability("Accelerator (any vendor)", CapabilityState.AVAILABLE, detail, report.gpu.vendor)
+    return Capability(
+        "Accelerator (any vendor)",
+        CapabilityState.OPTIONAL,
+        "no NVIDIA, AMD, or PCI-enumerable accelerator detected; "
+        "CPU-only execution is supported (slower)",
     )
 
 
@@ -224,6 +253,7 @@ CAPABILITY_CHECKS = (
     check_disk,
     check_ffmpeg,
     check_gpu,
+    check_accelerator,
     check_cuda_runtime,
     check_cuda_toolkit,
     check_pytorch,

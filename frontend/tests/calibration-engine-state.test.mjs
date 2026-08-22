@@ -119,6 +119,17 @@ test("hardware snapshot confirms cuda only when both GPU and CUDA capabilities a
   assert.equal(snap.detected_backend, "cuda");
 });
 
+test("hardware snapshot confirms a non-NVIDIA accelerator as backend 'other', never a fabricated cuda/rocm claim", () => {
+  const caps = [
+    { name: "NVIDIA GPU", state: "OPTIONAL", detail: "no NVIDIA GPU detected", version: null },
+    { name: "Accelerator (any vendor)", state: "AVAILABLE", detail: "1 device via rocm-smi", version: "AMD" },
+    { name: "CUDA runtime", state: "UNKNOWN", detail: "torch not installed", version: null },
+  ];
+  const snap = captureHardwareSnapshot(caps);
+  assert.equal(snap.accelerator_confirmed, true);
+  assert.equal(snap.detected_backend, "other");
+});
+
 test("proposeHardwareAdjustments returns bounded values only", () => {
   const snap = captureHardwareSnapshot(syntheticHardwareCapabilities());
   const adjustments = proposeHardwareAdjustments(snap);

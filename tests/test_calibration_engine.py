@@ -240,6 +240,27 @@ def test_hardware_snapshot_cuda_confirmed_only_when_both_gpu_and_cuda_available(
     assert snapshot.detected_backend.value == "cuda"
 
 
+def test_hardware_snapshot_confirms_non_nvidia_accelerator_as_other_backend():
+    """Hardware-agnostic rule: an AMD/other accelerator reported via the
+    new vendor-neutral capability must set accelerator_confirmed=True
+    even though the NVIDIA-specific capability stays OPTIONAL -- and
+    detected_backend must be OTHER, never a fabricated CUDA/ROCM claim
+    with no runtime-level evidence behind it."""
+    from aarya_voice_lab.core.capability import Capability, CapabilityState
+    from aarya_voice_lab.environment.audit import EnvironmentAudit
+
+    audit = EnvironmentAudit(
+        capabilities=[
+            Capability("NVIDIA GPU", CapabilityState.OPTIONAL, "no NVIDIA GPU detected"),
+            Capability("Accelerator (any vendor)", CapabilityState.AVAILABLE, "1 device via rocm-smi", "AMD"),
+            Capability("CUDA runtime", CapabilityState.UNKNOWN, "torch not installed"),
+        ]
+    )
+    snapshot = HardwareSnapshot.capture(audit=audit)
+    assert snapshot.accelerator_confirmed is True
+    assert snapshot.detected_backend.value == "other"
+
+
 def test_propose_hardware_adjustments_are_bounded():
     snapshot = HardwareSnapshot.capture()
     adjustments = propose_hardware_adjustments(snapshot)

@@ -9,6 +9,7 @@ from aarya_voice_lab.environment import audit as audit_module
 from aarya_voice_lab.environment.audit import (
     CAPABILITY_CHECKS,
     EnvironmentAudit,
+    check_accelerator,
     check_cuda_runtime,
     check_ffmpeg,
     check_gpu,
@@ -17,6 +18,7 @@ from aarya_voice_lab.environment.audit import (
     format_audit,
     run_audit,
 )
+from aarya_voice_lab.system_info import GPUInfo
 
 
 def test_every_check_returns_a_capability():
@@ -39,6 +41,48 @@ def test_missing_gpu_is_optional_not_an_error(monkeypatch):
     capability = check_gpu()
     assert capability.state is not CapabilityState.NOT_AVAILABLE
     assert capability.state is not CapabilityState.INCOMPATIBLE
+    assert capability.ok
+
+
+def test_missing_accelerator_is_optional_not_an_error(monkeypatch):
+    """Hardware-agnostic rule: same "absence is never an error" contract
+    as check_gpu(), for the vendor-neutral capability."""
+    monkeypatch.setattr(audit_module.shutil, "which", lambda name: None)
+    monkeypatch.setattr("aarya_voice_lab.system_info._detect_gpu_via_sysfs", lambda: None)
+    capability = check_accelerator()
+    assert capability.state is not CapabilityState.NOT_AVAILABLE
+    assert capability.state is not CapabilityState.INCOMPATIBLE
+    assert capability.ok
+
+
+class _FakeReport:
+    """Minimal stand-in for SystemReport -- check_gpu()/check_accelerator()
+    only ever read .gpu off whatever collect_system_report() returns."""
+
+    def __init__(self, gpu: GPUInfo) -> None:
+        self.gpu = gpu
+
+
+_AMD_GPU = GPUInfo(available=True, devices=[{"name": "Radeon Test GPU"}], detection_method="rocm-smi", vendor="AMD")
+
+
+def test_accelerator_available_for_a_non_nvidia_device(monkeypatch):
+    """The whole point of this capability: it must go AVAILABLE for an
+    AMD/other GPU, which check_gpu() (NVIDIA-only) never will."""
+    monkeypatch.setattr(audit_module, "collect_system_report", lambda: _FakeReport(_AMD_GPU))
+    capability = check_accelerator()
+    assert capability.state is CapabilityState.AVAILABLE
+    assert capability.version == "AMD"
+
+
+def test_check_gpu_stays_nvidia_specific_even_when_a_non_nvidia_gpu_is_present(monkeypatch):
+    """check_gpu() must not go AVAILABLE just because *some* GPU (e.g.
+    AMD, detected via the new vendor-neutral path) is present -- the
+    torch-wheel-index decision this capability's name is depended on for
+    is specifically about NVIDIA/CUDA."""
+    monkeypatch.setattr(audit_module, "collect_system_report", lambda: _FakeReport(_AMD_GPU))
+    capability = check_gpu()
+    assert capability.state is not CapabilityState.AVAILABLE
     assert capability.ok
 
 

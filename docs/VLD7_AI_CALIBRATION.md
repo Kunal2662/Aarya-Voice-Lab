@@ -216,16 +216,28 @@ the real current profile's evidence state. `ActivitySource.CALIBRATION`
 `identity.runtime.ComputeBackend`/`AccelerationRequirement`/
 `RuntimeCapability` supply the vendor-neutral vocabulary; nothing in
 `calibration_engine` branches on a vendor name — only on
-`CapabilityState`/`ComputeBackend` values. The honest limit, stated
-plainly rather than hidden: `environment.audit.check_gpu()` today only
-actively probes for NVIDIA hardware via `nvidia-smi`. An AMD, Intel, or
-Apple accelerator is architecturally representable (`ComputeBackend` has
-`ROCM`/`METAL`/`OPENCL`/`VULKAN`/`XPU`/`OTHER` precisely so it needs no
-schema change later) but is **not yet actively detected** — `HardwareSnapshot`
-reports this limitation verbatim (`HARDWARE_DETECTION_LIMITATION`) rather
-than reporting "no accelerator" as a confirmed fact on non-NVIDIA hardware.
-`accelerator_confirmed=False` therefore means "not confirmed," never
-"confirmed absent."
+`CapabilityState`/`ComputeBackend` values.
+
+**Update (Real ML Runtime milestone, hardware-agnostic follow-up):**
+accelerator *presence* is now actively detected across vendors —
+`environment.audit.check_accelerator()` reports AVAILABLE for NVIDIA
+(`nvidia-smi`), AMD (`rocm-smi`), or any other vendor via a PCI-id sysfs
+enumeration (`system_info._detect_gpu_via_sysfs`) that needs no vendor
+tool installed at all. `check_gpu()` stays NVIDIA-specific by name,
+because `scripts/install_env.sh`'s CUDA-vs-CPU torch wheel decision
+genuinely depends on that exact signal. The honest limit that remains:
+only CUDA has a *runtime*-level check (via `torch.cuda.is_available()`)
+— a confirmed AMD/other accelerator always yields
+`detected_backend=ComputeBackend.OTHER`, never a fabricated ROCm/Metal/
+OpenCL claim, because no runtime check for those exists yet
+(`ComputeBackend` has `ROCM`/`METAL`/`OPENCL`/`VULKAN`/`XPU`/`OTHER`
+precisely so it needs no schema change once one is built).
+`HardwareSnapshot` reports this remaining limitation verbatim
+(`HARDWARE_DETECTION_LIMITATION`) rather than overclaiming a runtime
+that was never confirmed. `accelerator_confirmed=False` still means "no
+accelerator of any known kind was detected," never "confirmed absent" —
+a machine with no PCI-enumerable GPU and no vendor tool truly has none
+to find.
 
 ## Testing
 

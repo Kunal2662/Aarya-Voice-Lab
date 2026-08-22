@@ -54,13 +54,15 @@ export const CalibrationEvidence = Object.freeze({
 export const MIN_EVIDENCE_FOR_PROVISIONAL = 2;
 
 export const HARDWARE_DETECTION_LIMITATION =
-  "Accelerator detection today only actively probes for NVIDIA GPUs via nvidia-smi " +
-  "(see environment.audit.check_gpu). AMD, Intel, and Apple accelerators are " +
-  "architecturally representable but not yet detected. The absence of a detected " +
-  "NVIDIA GPU does not confirm a CPU-only host on non-NVIDIA hardware. In the " +
-  "browser, CPU core count and (where the browser exposes it) approximate memory " +
-  "are the only hardware facts read directly -- everything else comes from the " +
-  "synthetic capability fixture supplied to this session.";
+  "Accelerator PRESENCE is now detected across vendors: NVIDIA via nvidia-smi, AMD " +
+  "via rocm-smi, and any other vendor via a PCI-id sysfs enumeration that needs no " +
+  "vendor tool installed (see environment.audit.check_accelerator). What is still " +
+  "NOT detected is whether a matching compute RUNTIME actually works: only CUDA has " +
+  "a runtime check here, so a detected AMD/other accelerator always yields " +
+  "detected_backend=other, never a fabricated ROCm/Metal/OpenCL runtime claim. In " +
+  "the browser, CPU core count and (where the browser exposes it) approximate " +
+  "memory are the only hardware facts read directly -- everything else comes from " +
+  "the synthetic capability fixture or live snapshot supplied to this session.";
 
 /** Mirrors pipeline.calibration_engine.ParameterBoundsError. */
 export class ParameterBoundsError extends Error {}
@@ -144,12 +146,18 @@ export function buildParameterAdjustment({
  * synthetic-fixtures.js's syntheticHardwareCapabilities()). */
 export function captureHardwareSnapshot(capabilities = []) {
   const gpu = capabilities.find((c) => c.name === "NVIDIA GPU") || null;
+  const accelerator = capabilities.find((c) => c.name === "Accelerator (any vendor)") || null;
   const cuda = capabilities.find((c) => c.name === "CUDA runtime") || null;
-  const acceleratorConfirmed = !!gpu && gpu.state === "AVAILABLE";
+  const nvidiaConfirmed = !!gpu && gpu.state === "AVAILABLE";
+  const anyAcceleratorConfirmed = !!accelerator && accelerator.state === "AVAILABLE";
+  const acceleratorConfirmed = nvidiaConfirmed || anyAcceleratorConfirmed;
   let detectedBackend = null;
-  if (acceleratorConfirmed && cuda && cuda.state === "AVAILABLE") {
+  if (nvidiaConfirmed && cuda && cuda.state === "AVAILABLE") {
     detectedBackend = "cuda";
   } else if (acceleratorConfirmed) {
+    // A non-NVIDIA (or NVIDIA-without-confirmed-CUDA) accelerator is
+    // present with no runtime-level check behind it yet -- "other" is
+    // the honest answer, mirroring pipeline.calibration_engine exactly.
     detectedBackend = "other";
   }
 

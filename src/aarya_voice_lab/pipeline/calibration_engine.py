@@ -64,14 +64,20 @@ Reviewer-feedback evidence (when sufficient) only ever affects the
 
 `HardwareSnapshot` does not add a new hardware probe. It reads
 `environment.audit.run_audit()` (which itself reads `system_info`) and
-`identity.runtime`'s vendor-neutral vocabulary. `environment.audit`'s GPU
-check today only actively probes for NVIDIA hardware via `nvidia-smi` —
-an AMD, Intel, or Apple accelerator is architecturally representable
-(`identity.runtime.ComputeBackend` has ROCM/METAL/OPENCL/VULKAN/XPU/OTHER
-members precisely so it does not need a schema change later) but is not
-yet actively detected. `HardwareSnapshot` reports this limitation
-verbatim rather than reporting "no accelerator" as if it were a
-confirmed CPU-only host.
+`identity.runtime`'s vendor-neutral vocabulary. As of the Real ML Runtime
+milestone's hardware-agnostic follow-up, `environment.audit` reports GPU
+*presence* across vendors — NVIDIA via `nvidia-smi`, AMD via `rocm-smi`,
+any other vendor via a PCI-id sysfs enumeration needing no vendor tool —
+via `check_accelerator()`, while `check_gpu()` stays NVIDIA-specific
+because the CUDA-vs-CPU torch wheel decision in `scripts/install_env.sh`
+depends on exactly that signal. What remains undetected is compute
+*runtime* readiness for anything other than CUDA: a confirmed AMD or
+other accelerator always yields `ComputeBackend.OTHER`, never a
+confirmed ROCm/Metal/OpenCL claim, because no runtime-level check for
+those exists yet (`identity.runtime.ComputeBackend` has ROCM/METAL/
+OPENCL/VULKAN/XPU/OTHER members precisely so it does not need a schema
+change once one is built). `HardwareSnapshot` reports this limitation
+verbatim rather than overclaiming a runtime that was never confirmed.
 
 ## What this module never does
 
@@ -120,14 +126,21 @@ CALIBRATION_ENGINE_VERSION = "1.0.0"
 MIN_EVIDENCE_FOR_PROVISIONAL = 2
 
 GPU_CAPABILITY_NAME = "NVIDIA GPU"
+ACCELERATOR_CAPABILITY_NAME = "Accelerator (any vendor)"
 CUDA_CAPABILITY_NAME = "CUDA runtime"
 
 HARDWARE_DETECTION_LIMITATION = (
-    "Accelerator detection today only actively probes for NVIDIA GPUs via "
-    "nvidia-smi (see environment.audit.check_gpu). AMD, Intel, and Apple "
-    "accelerators are architecturally representable (identity.runtime."
-    "ComputeBackend) but not yet detected. The absence of a detected NVIDIA "
-    "GPU does not confirm a CPU-only host on non-NVIDIA hardware."
+    "Accelerator PRESENCE is now detected across vendors: NVIDIA via "
+    "nvidia-smi, AMD via rocm-smi, and any other vendor via a PCI-id "
+    "sysfs enumeration that needs no vendor tool installed (see "
+    "environment.audit.check_accelerator, system_info._detect_gpu_via_sysfs). "
+    "What is still NOT detected is whether a matching compute RUNTIME "
+    "actually works: only CUDA has a runtime check (CUDA runtime "
+    "capability, via torch) here, so a detected AMD/other accelerator "
+    "always yields detected_backend=OTHER, never a confirmed ROCm/Metal/ "
+    "OpenCL runtime claim -- identity.runtime.ComputeBackend's ROCM/METAL/ "
+    "OPENCL/VULKAN/XPU members remain representable for whenever that "
+    "runtime-level check is built."
 )
 
 
@@ -271,11 +284,18 @@ class HardwareSnapshot:
         report = report if report is not None else collect_system_report()
 
         gpu = audit.get(GPU_CAPABILITY_NAME)
+        accelerator = audit.get(ACCELERATOR_CAPABILITY_NAME)
         cuda = audit.get(CUDA_CAPABILITY_NAME)
-        accelerator_confirmed = gpu is not None and gpu.state is CapabilityState.AVAILABLE
-        if accelerator_confirmed and cuda is not None and cuda.state is CapabilityState.AVAILABLE:
+        nvidia_confirmed = gpu is not None and gpu.state is CapabilityState.AVAILABLE
+        any_accelerator_confirmed = accelerator is not None and accelerator.state is CapabilityState.AVAILABLE
+        accelerator_confirmed = nvidia_confirmed or any_accelerator_confirmed
+        if nvidia_confirmed and cuda is not None and cuda.state is CapabilityState.AVAILABLE:
             detected_backend: ComputeBackend | None = ComputeBackend.CUDA
         elif accelerator_confirmed:
+            # A non-NVIDIA (or NVIDIA-without-confirmed-CUDA) accelerator
+            # is present, but no runtime-level check exists for it yet --
+            # OTHER is the honest answer, exactly mirroring how an NVIDIA
+            # GPU without a confirmed CUDA runtime is handled above.
             detected_backend = ComputeBackend.OTHER
         else:
             detected_backend = None
