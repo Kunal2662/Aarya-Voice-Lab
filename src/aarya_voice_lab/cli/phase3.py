@@ -23,6 +23,7 @@ from aarya_voice_lab.identity.enrollment import available_strategies, describe_s
 from aarya_voice_lab.identity.synthetic_e2e import run_synthetic_e2e, uncalibrated_baseline
 from aarya_voice_lab.pipeline.generation import LocalNeuralVoiceGenerator
 from aarya_voice_lab.pipeline.training import LocalTrainingProvider
+from aarya_voice_lab.registry.model_registry import ModelRegistry
 
 
 def cmd_identity_status(args: argparse.Namespace) -> int:
@@ -295,6 +296,33 @@ def cmd_voice_engine_status(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_model_registry(args: argparse.Namespace) -> int:
+    """VL-D12 -- the real model registry, minus any private_voice entry.
+
+    docs/SECURITY.md: a private_voice model requires Core-side,
+    server-side permission enforcement and must never gain a
+    frontend-only path to itself. This CLI surface (and the live
+    frontend snapshot built on top of it) is unauthenticated, so it can
+    only ever expose `list_non_private_models()` -- never the raw
+    `.list()` or `list_private_voice_models()`.
+    """
+    models = ModelRegistry().list_non_private_models()
+    if args.json:
+        print(json.dumps({"models": models, "count": len(models)}, indent=2))
+        return 0
+
+    print("AARYA Voice Lab — Model Registry (private_voice entries never shown here)")
+    print("=" * 60)
+    if not models:
+        print("  (empty)")
+        return 0
+    for model in models:
+        lifecycle = model["lifecycle_state"] or "unknown lifecycle"
+        print(f"  {model['model_name']} ({model['version']}) — {model['model_type']}, {lifecycle}")
+        print(f"    provider: {model['provider']}  status: {model['status']}")
+    return 0
+
+
 def register(subparsers) -> None:
     p = subparsers.add_parser("identity-status", help="Speaker identity architecture status.")
     p.add_argument("--json", action="store_true")
@@ -347,3 +375,9 @@ def register(subparsers) -> None:
     p = subparsers.add_parser("voice-preview-status", help="VL-V0 preview loop status (contracts only).")
     p.add_argument("--json", action="store_true")
     p.set_defaults(func=cmd_voice_preview_status)
+
+    p = subparsers.add_parser(
+        "model-registry", help="VL-D12: real model registry entries (private_voice always excluded)."
+    )
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=cmd_model_registry)

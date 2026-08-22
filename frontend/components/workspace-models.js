@@ -5,6 +5,7 @@
 // over AMD/Intel/CPU-only in this UI.
 import { AvlElement, defineComponent } from "./base-element.js";
 import { syntheticModels } from "../state/synthetic-fixtures.js";
+import { fetchModelRegistrySnapshot } from "../state/model-registry-snapshot.js";
 import "./workspace-state.js";
 import "./model-card.js";
 import "./panel.js";
@@ -47,6 +48,14 @@ export class AvlWorkspaceModels extends AvlElement {
     } catch {
       this._engineCapabilities = null;
     }
+    // VL-D12 -- the real model registry (private_voice entries always
+    // excluded at the source, see registry.ModelRegistry.
+    // list_non_private_models() and its own docstring). A missing/
+    // malformed snapshot resolves to null and renders an honest
+    // "not fetched" state, same as every other live snapshot here.
+    this._registrySnapshot = await fetchModelRegistrySnapshot(
+      new URL("../contracts/live/model_registry_snapshot.json", import.meta.url),
+    );
     this._render();
   }
 
@@ -156,6 +165,52 @@ export class AvlWorkspaceModels extends AvlElement {
       }
       enginePanel.appendChild(engineList);
       wrapper.appendChild(enginePanel);
+    }
+
+    if (this._state === "ready") {
+      const registryPanel = document.createElement("avl-panel");
+      registryPanel.setAttribute("title", "Model registry (real, checksum-addressed entries)");
+      const registryList = document.createElement("div");
+      registryList.className = "engine-list";
+      const snapshot = this._registrySnapshot;
+      if (!snapshot) {
+        const notice = document.createElement("p");
+        notice.className = "avl-type-caption";
+        notice.textContent =
+          "No live model registry snapshot fetched yet — run `python scripts/export_model_registry_snapshot.py` " +
+          "and reload. This is an honest \"not fetched\" state, never a fabricated model list.";
+        registryList.appendChild(notice);
+      } else if (snapshot.models.length === 0) {
+        const notice = document.createElement("p");
+        notice.className = "avl-type-caption";
+        notice.textContent = "No real (non-private) model is registered yet.";
+        registryList.appendChild(notice);
+      } else {
+        for (const model of snapshot.models) {
+          const row = document.createElement("div");
+          row.className = "engine-row";
+          const label = document.createElement("span");
+          label.textContent = `${model.model_name} (${model.version}) — ${model.provider}`;
+          row.appendChild(label);
+          // model.lifecycle_state is null for registry entries created
+          // before the Real Voice Model Engine milestone (schema note) --
+          // that is a real absence, never fabricated into a specific badge.
+          if (model.lifecycle_state) {
+            const badge = document.createElement("avl-status-badge");
+            badge.setAttribute("domain", "model_lifecycle");
+            badge.setAttribute("state", model.lifecycle_state);
+            row.appendChild(badge);
+          } else {
+            const note = document.createElement("span");
+            note.className = "avl-type-caption";
+            note.textContent = "no lifecycle state recorded";
+            row.appendChild(note);
+          }
+          registryList.appendChild(row);
+        }
+      }
+      registryPanel.appendChild(registryList);
+      wrapper.appendChild(registryPanel);
     }
 
     if (this._backends) {

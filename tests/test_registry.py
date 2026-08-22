@@ -82,6 +82,39 @@ def test_model_registry_separates_default_and_private(tmp_path):
     assert [m["model_name"] for m in registry.list_private_voice_models()] == ["private-voice"]
 
 
+def test_list_non_private_models_never_includes_a_private_voice_entry(tmp_path):
+    """VL-D12 security requirement: this is the one method safe to feed
+    an unauthenticated surface (CLI --json, a live frontend snapshot).
+    docs/SECURITY.md is explicit that a private_voice model must never
+    gain a frontend-only path to itself -- this asserts the exclusion
+    directly, with a real other/default entry present too, so a
+    filter-that-excludes-everything bug would also be caught."""
+    registry = ModelRegistry(tmp_path / "models.jsonl")
+    registry.add(
+        build_model_registry_entry(
+            model_name="embedding-model", version="1", provider="local", model_type="other", status="approved"
+        )
+    )
+    registry.add(
+        build_model_registry_entry(
+            model_name="default-voice", version="1", provider="local", model_type="default_voice", status="planned"
+        )
+    )
+    registry.add(
+        build_model_registry_entry(
+            model_name="private-voice",
+            version="1",
+            provider="local",
+            model_type="private_voice",
+            status="planned",
+            security_metadata=PRIVATE_SECURITY_METADATA,
+        )
+    )
+    names = [m["model_name"] for m in registry.list_non_private_models()]
+    assert "private-voice" not in names
+    assert set(names) == {"embedding-model", "default-voice"}
+
+
 def test_private_model_without_security_metadata_is_rejected(tmp_path):
     registry = ModelRegistry(tmp_path / "models.jsonl")
     with pytest.raises(ValidationError):

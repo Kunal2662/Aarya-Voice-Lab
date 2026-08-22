@@ -132,7 +132,8 @@ lowest-risk fit.
 - Model registry / real artifact display in `workspace-models.js` (still
   `syntheticModels()`) — real, found, deferred as a close-but-larger
   VL-D12 candidate (needs a new CLI subcommand for parity with the
-  established pattern).
+  established pattern). **Update:** implemented — see
+  `docs/VLD12_MODEL_REGISTRY_BRIDGE.md`.
 - Any training-job/readiness UI surface — real, found, deferred (needs a
   CLI subcommand before an export script can exist at all).
 - IndicF5 generation, training, or any change to the Real ML Runtime

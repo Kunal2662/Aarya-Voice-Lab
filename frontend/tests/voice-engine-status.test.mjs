@@ -109,6 +109,76 @@ test("Models workspace shows an honest Voice Model Engine capability panel", { t
   }
 });
 
+test("VL-D12: Models workspace shows an honest model registry panel", { timeout: 30_000 }, async () => {
+  const playwright = await loadPlaywright();
+  const browser = await playwright.chromium.launch({ executablePath: CHROMIUM_EXECUTABLE, args: ["--no-sandbox"] });
+  try {
+    await withServer(async (baseUrl) => {
+      const page = await browser.newPage();
+      await page.goto(`${baseUrl}/app/index.html`, { waitUntil: "networkidle" });
+      await page.evaluate(() => {
+        location.hash = "#/models";
+      });
+      await page.waitForTimeout(300);
+
+      const text = await collectShadowText(page, "avl-workspace-models");
+      assert.match(text, /Model registry \(real, checksum-addressed entries\)/);
+
+      // Whatever the live-snapshot fetch outcome, the panel must say ONE
+      // of these honest things -- never silently show nothing.
+      const notFetched = /No live model registry snapshot fetched yet/.test(text);
+      const empty = /No real \(non-private\) model is registered yet\./.test(text);
+      const hasEntries = /\(1\.0\.0\)/.test(text) || /titanet_large/.test(text);
+      assert.ok(
+        notFetched || empty || hasEntries,
+        `panel showed none of not-fetched/empty/real-entries: ${text}`,
+      );
+
+      // Never, under any live-snapshot outcome, does this panel mention
+      // a private_voice entry -- see docs/SECURITY.md and
+      // registry.ModelRegistry.list_non_private_models().
+      assert.doesNotMatch(text, /private_voice/i);
+      await page.close();
+    });
+  } finally {
+    await browser.close();
+  }
+});
+
+test("VL-D12: a real model registry entry renders its real lifecycle state, never a fabricated one", { timeout: 30_000 }, async () => {
+  const playwright = await loadPlaywright();
+  const browser = await playwright.chromium.launch({ executablePath: CHROMIUM_EXECUTABLE, args: ["--no-sandbox"] });
+  try {
+    await withServer(async (baseUrl) => {
+      const page = await browser.newPage();
+      await page.goto(`${baseUrl}/app/index.html`, { waitUntil: "networkidle" });
+      await page.evaluate(() => {
+        location.hash = "#/models";
+      });
+      await page.waitForTimeout(300);
+
+      const registryBadges = await page.evaluate(() => {
+        const ws = document.querySelector("avl-workspace-models");
+        const panels = [...ws.shadowRoot.querySelectorAll("avl-panel")];
+        const panel = panels.find((p) => p.getAttribute("title") === "Model registry (real, checksum-addressed entries)");
+        if (!panel) return null;
+        return [...panel.querySelectorAll("avl-status-badge")].map((b) => b.getAttribute("state"));
+      });
+
+      // If any registry entries were fetched, every lifecycle badge must
+      // be a real value from the model_lifecycle vocabulary -- never a
+      // blank, never a fabricated default.
+      const VALID_LIFECYCLE_STATES = ["DRAFT", "TRAINING", "EVALUATING", "VALIDATED", "AVAILABLE", "ACTIVE", "ARCHIVED", "FAILED"];
+      for (const state of registryBadges || []) {
+        assert.ok(VALID_LIFECYCLE_STATES.includes(state), `unexpected model_lifecycle state: ${state}`);
+      }
+      await page.close();
+    });
+  } finally {
+    await browser.close();
+  }
+});
+
 test("Models workspace's engine panel badges use the honest training_provider_state/generation_backend_state domains", { timeout: 30_000 }, async () => {
   const playwright = await loadPlaywright();
   const browser = await playwright.chromium.launch({ executablePath: CHROMIUM_EXECUTABLE, args: ["--no-sandbox"] });
@@ -129,9 +199,14 @@ test("Models workspace's engine panel badges use the honest training_provider_st
 
       // Either no live snapshot was fetched (zero badges -- the honest
       // "not fetched" text renders instead), or every badge names a real
-      // status domain and a real state within it.
+      // status domain and a real state within it. VL-D12 added
+      // model_lifecycle badges for the real model registry panel,
+      // alongside the pre-existing engine-capability domains.
       for (const { domain, state } of badgeDomains) {
-        assert.ok(["training_provider_state", "generation_backend_state"].includes(domain), `unexpected domain: ${domain}`);
+        assert.ok(
+          ["training_provider_state", "generation_backend_state", "model_lifecycle"].includes(domain),
+          `unexpected domain: ${domain}`,
+        );
         assert.ok(state && state.length > 0, "badge must have a real state, never blank");
       }
       await page.close();

@@ -25,3 +25,17 @@ class ModelRegistry(JsonLinesRegistry):
 
     def list_default_voice_models(self) -> list[dict[str, Any]]:
         return [r for r in self.list() if r.get("model_type") == "default_voice"]
+
+    def list_non_private_models(self) -> list[dict[str, Any]]:
+        """Every entry EXCEPT `private_voice` -- the only method in this
+        class safe to expose to an unauthenticated surface (CLI --json,
+        a live frontend snapshot, ...). docs/SECURITY.md is explicit: a
+        private_voice model requires Core-side, server-side permission
+        enforcement and must never gain a frontend-only path to itself
+        (`security_metadata.frontend_direct_access` exists precisely to
+        record that requirement). This project has no such Core-side
+        enforcement layer yet, so the only safe rule here is to never let
+        a private_voice record reach any consumer that doesn't already
+        have this filter applied -- enforced at this single source
+        rather than trusted to every future caller."""
+        return [r for r in self.list() if r.get("model_type") != "private_voice"]
