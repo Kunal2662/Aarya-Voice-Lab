@@ -1,0 +1,13 @@
+{
+  "$generated_by": "scripts/export_frontend_contracts.py",
+  "$source": "aarya_voice_lab.pipeline.model_artifact.ModelArtifactFormat",
+  "description": "Closed set of artifact file formats pipeline.model_artifact.ArtifactStore accepts. A format absent from this list is refused, never silently accepted.",
+  "values": [
+    "onnx",
+    "safetensors",
+    "pytorch_state_dict",
+    "nemo_checkpoint",
+    "raw_audio_wav",
+    "json_metadata"
+  ]
+}

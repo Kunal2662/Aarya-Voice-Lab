@@ -1,0 +1,15 @@
+{
+  "$generated_by": "scripts/export_frontend_contracts.py",
+  "$source": "aarya_voice_lab.pipeline.model_lifecycle.ModelLifecycleState",
+  "description": "Real Voice Model Engine milestone \u2014 a voice model's lifecycle state (DRAFT..ACTIVE, or ARCHIVED/FAILED). Only pipeline.model_lifecycle.transition() may move a model between these; the UI must never infer or skip a state.",
+  "values": [
+    "DRAFT",
+    "TRAINING",
+    "EVALUATING",
+    "VALIDATED",
+    "AVAILABLE",
+    "ACTIVE",
+    "ARCHIVED",
+    "FAILED"
+  ]
+}

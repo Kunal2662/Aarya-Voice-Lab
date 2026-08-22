@@ -28,6 +28,7 @@ from aarya_voice_lab.identity.calibration import (
 from aarya_voice_lab.identity.embeddings import (
     EmbeddingProviderError,
     EmbeddingStore,
+    ProviderKind,
     SyntheticEmbeddingProvider,
     SyntheticProvenanceError,
     available_providers,
@@ -150,9 +151,25 @@ def test_unknown_provider_is_refused():
         get_provider("titanet-real")
 
 
-def test_only_synthetic_provider_is_available():
-    """No real provider may exist in this environment."""
-    assert available_providers() == ["synthetic-cosine-projection"]
+def test_only_synthetic_provider_can_actually_produce_an_embedding():
+    """Real Voice Model Engine milestone -- the provider *registry* now
+    also names a real, local-neural provider class (the abstraction real
+    providers implement), but no real embedding runtime is installed in
+    this environment (confirmed empirically, not assumed -- see
+    identity.embeddings.LocalNeuralEmbeddingProvider.capability_state()).
+    So the synthetic provider remains the only one that can actually
+    embed anything: every other registered provider must report itself
+    NOT_CONFIGURED and must refuse to embed rather than silently
+    producing a fabricated vector."""
+    assert set(available_providers()) == {"synthetic-cosine-projection", "local-neural-embedding"}
+
+    real = get_provider("local-neural-embedding")
+    assert real.kind is ProviderKind.NEURAL
+    assert not real.is_synthetic
+    state = real.capability_state()
+    assert state["state"] == "NOT_CONFIGURED"
+    with pytest.raises(EmbeddingProviderError):
+        real.embed([1, 2, 3], 16000)
 
 
 def test_store_roundtrip_verifies_integrity(tmp_path):

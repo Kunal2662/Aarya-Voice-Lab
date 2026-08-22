@@ -141,6 +141,40 @@ class EmbeddingProvider(ABC):
     def is_synthetic(self) -> bool:
         return self.kind is ProviderKind.SYNTHETIC
 
+    def preprocessing_requirements(self) -> dict[str, Any]:
+        """What the caller must guarantee about the signal before calling
+        `embed()` -- e.g. required sample rate, channel count, minimum
+        duration. The base implementation declares no requirement; a real
+        provider must override this with its model's actual constraints
+        rather than silently accepting anything."""
+        return {}
+
+    def validate_samples(self, samples: list[int], sample_rate: int) -> list[str]:
+        """Return validation error messages against
+        `preprocessing_requirements()`; an empty list means the signal is
+        acceptable to `embed()`. Providers with real requirements must
+        override this -- the base implementation only checks for an
+        empty or non-positive-rate signal, the two conditions `embed()`
+        itself always rejects."""
+        errors = []
+        if not samples:
+            errors.append("signal is empty")
+        if sample_rate <= 0:
+            errors.append(f"invalid sample rate: {sample_rate}")
+        required_rate = self.preprocessing_requirements().get("sample_rate")
+        if required_rate is not None and sample_rate != required_rate:
+            errors.append(f"sample_rate must be {required_rate}, got {sample_rate}")
+        return errors
+
+    def is_compatible_with(self, other: EmbeddingProvider | dict[str, Any]) -> bool:
+        """Whether an embedding from `other` can be meaningfully compared
+        against one from this provider. Mirrors `cosine_similarity()`'s
+        own name+version equality check, exposed here so a caller can ask
+        the question before attempting a comparison."""
+        other_name = other.name if isinstance(other, EmbeddingProvider) else other.get("provider_name")
+        other_version = other.version if isinstance(other, EmbeddingProvider) else other.get("provider_version")
+        return self.name == other_name and self.version == other_version
+
     def describe(self) -> dict[str, Any]:
         return {
             "name": self.name,
@@ -148,6 +182,7 @@ class EmbeddingProvider(ABC):
             "kind": self.kind.value,
             "dimension": self.dimension,
             "is_synthetic": self.is_synthetic,
+            "preprocessing_requirements": self.preprocessing_requirements(),
         }
 
 
@@ -216,10 +251,98 @@ class SyntheticEmbeddingProvider(EmbeddingProvider):
         )
 
 
+class LocalNeuralEmbeddingProvider(EmbeddingProvider):
+    """Real Voice Model Engine milestone -- the provider boundary for a
+    real, local speaker-embedding model, with genuine capability
+    detection instead of a fabricated result.
+
+    This class performs no arithmetic of its own and stamps nothing
+    synthetic: `kind` is `ProviderKind.NEURAL`. It checks, via
+    `importlib.metadata` (empirically, not assumed), for either of the
+    two real candidates this project's own documentation already named
+    (`docs/PHASE3_IDENTITY.md`'s module docstring: "TitaNet, WeSpeaker,
+    …", via NVIDIA NeMo or a generic torch-based model). **Neither is
+    installed in this interpreter.** Installing one is a separate,
+    approval-gated step (`configs/default.yaml`'s
+    `environments.env-nemo`), not something this class does on its own.
+
+    So `embed()` here always raises `EmbeddingProviderError` naming
+    exactly what is missing -- it never falls back to
+    `SyntheticEmbeddingProvider`'s arithmetic and never fabricates a
+    vector. This satisfies the "real provider behind the same
+    abstraction, honest about unavailability" requirement without
+    silently downloading a model or a dependency during this milestone.
+    """
+
+    name = "local-neural-embedding"
+    version = "1.0.0"
+    kind = ProviderKind.NEURAL
+    #: TitaNet-family dimension, per NVIDIA's published model card --
+    #: documented so a real implementation's output shape is already
+    #: known and testable even before the model itself is installed.
+    dimension = 192
+
+    #: Distribution name -> what it would provide. Checked via
+    #: importlib.metadata, never assumed present.
+    CANDIDATE_DISTRIBUTIONS: dict[str, str] = {
+        "nemo_toolkit": "NVIDIA NeMo (TitaNet speaker-embedding models)",
+    }
+
+    def _installed(self) -> dict[str, str | None]:
+        import importlib.metadata
+
+        found: dict[str, str | None] = {}
+        for distribution in self.CANDIDATE_DISTRIBUTIONS:
+            try:
+                found[distribution] = importlib.metadata.version(distribution)
+            except importlib.metadata.PackageNotFoundError:
+                found[distribution] = None
+        return found
+
+    def capability_state(self) -> dict[str, Any]:
+        """The honest, current state of this provider -- call this before
+        `embed()` to decide whether to attempt it at all."""
+        installed = self._installed()
+        missing = sorted(name for name, version in installed.items() if version is None)
+        if not missing:
+            return {"state": "AVAILABLE", "detail": f"detected: {installed}"}
+        return {
+            "state": "NOT_CONFIGURED",
+            "missing_requirements": missing,
+            "detail": (
+                "No real local speaker-embedding runtime is installed in this interpreter. "
+                "See docs/NEMO.md for the env-nemo build; installing it is a separate, "
+                "approval-gated step, not something this provider does on its own."
+            ),
+        }
+
+    def preprocessing_requirements(self) -> dict[str, Any]:
+        return {"sample_rate": 16000, "channels": 1, "min_duration_seconds": 0.5}
+
+    def embed(self, samples: list[int], sample_rate: int, *, bit_depth: int = 16) -> EmbeddingVector:
+        state = self.capability_state()
+        if state["state"] != "AVAILABLE":
+            raise EmbeddingProviderError(
+                f"{self.name} is not configured: {state['detail']} "
+                f"(missing: {state.get('missing_requirements', [])})"
+            )
+        # Unreachable in this environment (capability_state() above always
+        # returns NOT_CONFIGURED here) -- present only so a future,
+        # approved environment that installs nemo_toolkit has a single,
+        # obvious place to add the real inference call, rather than this
+        # class silently doing nothing.
+        raise EmbeddingProviderError(  # pragma: no cover
+            f"{self.name} reported AVAILABLE but no inference implementation exists yet — "
+            "this is a real defect, not an expected NOT_CONFIGURED path."
+        )
+
+
 #: Provider registry. Real providers register themselves when their
-#: environment is built; the base environment only ever sees the synthetic one.
+#: environment is built; the base environment only ever sees the synthetic
+#: one plus the honestly-NOT_CONFIGURED local-neural boundary above.
 _PROVIDERS: dict[str, type[EmbeddingProvider]] = {
     SyntheticEmbeddingProvider.name: SyntheticEmbeddingProvider,
+    LocalNeuralEmbeddingProvider.name: LocalNeuralEmbeddingProvider,
 }
 
 

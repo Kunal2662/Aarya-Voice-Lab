@@ -334,7 +334,7 @@ result. Synthetic provenance blocks dataset entry by design.
 
 | Blocked | Why |
 |---|---|
-| Real speaker verification | No real embedding provider installed |
+| Real speaker verification | No real embedding provider installed — the Real Voice Model Engine milestone (see `docs/REAL_VOICE_MODEL_ENGINE.md`) added `identity.embeddings.LocalNeuralEmbeddingProvider`, a real provider *class* with honest, empirical capability detection, but it reports `NOT_CONFIGURED` in every environment this project runs in today; nothing here changes |
 | Target profile enrollment | Requires the recordings plus human seed selection |
 | Operator profile enrollment | Requires a fresh recording from the operator |
 | Any statistical calibration | Requires held-out labelled data |

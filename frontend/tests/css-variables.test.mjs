@@ -90,6 +90,10 @@ const DOMAIN_TO_CONTRACT = {
   voice_profile_state: { contract: "voice_profile_state.json" },
   generation_backend_state: { contract: "generation_backend_state.json" },
   evaluation_completion_state: { contract: "evaluation_completion_state.json" },
+  // Real Voice Model Engine milestone.
+  training_job_status: { contract: "training_job_status.json" },
+  training_provider_state: { contract: "training_provider_state.json" },
+  model_lifecycle: { contract: "model_lifecycle_state.json" },
   // quality_decision.json's backend enum (PASS/WARNING/REVIEW/FAIL) has no
   // "no assessment done yet" member -- NOT_ANALYZED is a real, deliberate
   // frontend-only sentinel (see state/quality-summary.js's QUALITY_RANK,
@@ -127,6 +131,12 @@ const CONTRACTS_NOT_IN_STATUS_JSON = [
   "preview_kind.json",
   "processing_feedback_category.json",
   "voice_quality_dimension.json",
+  // Real Voice Model Engine milestone -- a reason code (mirrors
+  // candidate_review_reason.json's pattern above) and two artifact
+  // metadata vocabularies never rendered as a generic status badge.
+  "training_failure_reason.json",
+  "model_artifact_format.json",
+  "model_artifact_type.json",
 ];
 
 test("every status.json domain backed by a generated contract exactly matches it (minus documented frontend-only sentinels)", () => {

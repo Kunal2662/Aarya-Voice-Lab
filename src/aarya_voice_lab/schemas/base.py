@@ -51,6 +51,7 @@ class SchemaName(StrEnum):
     EVALUATION = "evaluation"
     AB_EVALUATION = "ab_evaluation"
     CALIBRATION_PROFILE = "calibration_profile"
+    TRAINING_JOB = "training_job"
 
 
 class ValidationError(ValueError):

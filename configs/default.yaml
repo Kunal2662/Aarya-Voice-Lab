@@ -55,3 +55,21 @@ speaker_policy:
   medium_confidence_threshold: 0.70
   reject_overlap_by_default: true
   require_independent_verification: true
+
+# Real Voice Model Engine milestone -- training-readiness thresholds.
+# These are conservative, documented starting points (not measured
+# against any specific model's actual data requirements, since no real
+# training backend is installed yet -- see docs/REAL_VOICE_MODEL_ENGINE.md).
+# A model-specific TrainingProvider may declare stricter requirements of
+# its own; pipeline.training_readiness never lowers what a provider asks
+# for, only raises the floor when this config asks for more than the
+# provider does.
+training_readiness:
+  minimum_sample_count: 20
+  minimum_total_duration_seconds: 300
+  minimum_average_duration_seconds: 2.0
+  required_sample_rate: 16000
+  required_channels: 1
+  max_clipping_ratio: 0.01
+  max_silence_ratio: 0.5
+  minimum_snr_db: 15.0

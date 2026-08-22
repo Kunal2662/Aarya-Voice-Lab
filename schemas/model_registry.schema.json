@@ -45,6 +45,49 @@
       "type": "string",
       "enum": ["planned", "experimental", "candidate", "approved", "deprecated", "rejected"]
     },
+    "architecture": {
+      "type": ["string", "null"],
+      "description": "Real Voice Model Engine milestone. Model architecture family, e.g. 'titanet' or 'piper-vits'. Null while unknown/not yet trained."
+    },
+    "lifecycle_state": {
+      "type": ["string", "null"],
+      "enum": ["DRAFT", "TRAINING", "EVALUATING", "VALIDATED", "AVAILABLE", "ACTIVE", "ARCHIVED", "FAILED", null],
+      "description": "pipeline.model_lifecycle.ModelLifecycleState. Null only for registry entries created before this milestone."
+    },
+    "sample_rate": { "type": ["integer", "null"], "minimum": 0 },
+    "channels": { "type": ["integer", "null"], "minimum": 0 },
+    "preprocessing_version": { "type": ["string", "null"] },
+    "embedding_model_ref": {
+      "type": ["object", "null"],
+      "description": "Which embedding model (if any) this voice model's identity is derived from.",
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "version": { "type": "string" }
+      }
+    },
+    "generation_model_ref": {
+      "type": ["object", "null"],
+      "description": "Which generation/TTS model (if any) this registry entry names.",
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "version": { "type": "string" }
+      }
+    },
+    "training_config_hash": {
+      "type": ["string", "null"],
+      "description": "pipeline.training.TrainingConfig.config_hash for the job that produced this model, if any."
+    },
+    "source_job_id": {
+      "type": ["string", "null"],
+      "description": "pipeline.training.TrainingJob.job_id that produced this model, if any."
+    },
+    "artifact_checksum": {
+      "type": ["string", "null"],
+      "pattern": "^([0-9a-f]{64})?$",
+      "description": "pipeline.model_artifact.ModelArtifact.checksum_sha256 for this model's stored weights, if any."
+    },
     "security_metadata": {
       "type": ["object", "null"],
       "description": "Required (non-null) when model_type == 'private_voice'.",

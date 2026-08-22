@@ -143,6 +143,16 @@ def build_model_registry_entry(
     benchmark_results: list[str] | None = None,
     security_metadata: dict[str, Any] | None = None,
     schema_version: str = SCHEMA_VERSION,
+    architecture: str | None = None,
+    lifecycle_state: str | None = None,
+    sample_rate: int | None = None,
+    channels: int | None = None,
+    preprocessing_version: str | None = None,
+    embedding_model_ref: dict[str, str] | None = None,
+    generation_model_ref: dict[str, str] | None = None,
+    training_config_hash: str | None = None,
+    source_job_id: str | None = None,
+    artifact_checksum: str | None = None,
 ) -> dict[str, Any]:
     record = {
         "schema_version": schema_version,
@@ -159,6 +169,16 @@ def build_model_registry_entry(
         "benchmark_results": benchmark_results,
         "status": status,
         "security_metadata": security_metadata,
+        "architecture": architecture,
+        "lifecycle_state": lifecycle_state,
+        "sample_rate": sample_rate,
+        "channels": channels,
+        "preprocessing_version": preprocessing_version,
+        "embedding_model_ref": embedding_model_ref,
+        "generation_model_ref": generation_model_ref,
+        "training_config_hash": training_config_hash,
+        "source_job_id": source_job_id,
+        "artifact_checksum": artifact_checksum,
     }
     validate(record, SchemaName.MODEL_REGISTRY)
     return record

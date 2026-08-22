@@ -1,0 +1,17 @@
+{
+  "$generated_by": "scripts/export_frontend_contracts.py",
+  "$source": "aarya_voice_lab.pipeline.training.TrainingFailureReason",
+  "description": "Machine-readable reason a training job ended in FAILED/CANCELLED/TIMEOUT. In this environment every job fails with MODEL_UNAVAILABLE, since no real training runtime is installed (see LocalTrainingProvider) \u2014 this is the honest, expected outcome, not a bug.",
+  "values": [
+    "MODEL_UNAVAILABLE",
+    "DATASET_INVALID",
+    "INSUFFICIENT_DATA",
+    "INCOMPATIBLE_MODEL",
+    "RESOURCE_UNAVAILABLE",
+    "TRAINING_FAILED",
+    "GENERATION_FAILED",
+    "ARTIFACT_CORRUPTED",
+    "CANCELLED",
+    "TIMEOUT"
+  ]
+}

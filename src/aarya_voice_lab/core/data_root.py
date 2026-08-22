@@ -17,6 +17,12 @@ Layout:
       calibration/ VL-D7 calibration engine profiles (hardware snapshots,
                    proposed parameters, provenance -- never audio, never
                    embeddings, never speaker identity).
+      model_artifacts/ Real Voice Model Engine milestone -- checksum-
+                   addressable model artifact files (see
+                   pipeline/model_artifact.py). Never a raw pretrained
+                   weights download destination for an unreviewed model;
+                   only artifacts this project's own training/export path
+                   produced land here.
 
 Everything under `data/` is git-ignored except the README. `source/` is
 additionally protected in code: `assert_source_writable` refuses any
@@ -57,6 +63,7 @@ ENROLLMENT_DIR = "enrollment"
 AUDIT_DIR = "audit"
 PREVIEWS_DIR = "previews"
 CALIBRATION_DIR = "calibration"
+MODEL_ARTIFACTS_DIR = "model_artifacts"
 
 DATA_SUBDIRECTORIES: tuple[str, ...] = (
     SOURCE_DIR,
@@ -71,6 +78,7 @@ DATA_SUBDIRECTORIES: tuple[str, ...] = (
     AUDIT_DIR,
     PREVIEWS_DIR,
     CALIBRATION_DIR,
+    MODEL_ARTIFACTS_DIR,
 )
 
 #: The one directory the pipeline must never write to.
@@ -149,6 +157,12 @@ class DataRoot:
         """VL-D7 calibration engine profiles: hardware snapshots and
         proposed runtime parameters, never audio or biometric material."""
         return self.root / CALIBRATION_DIR
+
+    @property
+    def model_artifacts(self) -> Path:
+        """Real Voice Model Engine milestone: checksum-addressable model
+        artifact files (see pipeline/model_artifact.py)."""
+        return self.root / MODEL_ARTIFACTS_DIR
 
     def create(self) -> DataRoot:
         """Create the writable directories. Does NOT create `source/` —

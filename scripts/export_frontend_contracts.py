@@ -45,6 +45,8 @@ from aarya_voice_lab.pipeline.evaluation import (  # noqa: E402
 )
 from aarya_voice_lab.pipeline.feedback import FeedbackType, ProcessingFeedbackCategory  # noqa: E402
 from aarya_voice_lab.pipeline.generation import GenerationBackendState, GenerationStatus  # noqa: E402
+from aarya_voice_lab.pipeline.model_artifact import ModelArtifactFormat, ModelArtifactType  # noqa: E402
+from aarya_voice_lab.pipeline.model_lifecycle import ModelLifecycleState  # noqa: E402
 from aarya_voice_lab.pipeline.overlap import OverlapStatus  # noqa: E402
 from aarya_voice_lab.pipeline.preview_feedback import PreviewFeedbackCategory  # noqa: E402
 from aarya_voice_lab.pipeline.processing import ProcessingDecision, ProcessingStatus  # noqa: E402
@@ -55,6 +57,11 @@ from aarya_voice_lab.pipeline.stages import (  # noqa: E402
     PIPELINE_ORDER,
     SPEAKER_IDENTITY_BOUNDARY,
     SPEAKER_IDENTITY_STAGES,
+)
+from aarya_voice_lab.pipeline.training import (  # noqa: E402
+    TrainingFailureReason,
+    TrainingJobStatus,
+    TrainingProviderState,
 )
 from aarya_voice_lab.pipeline.voice_profile import VoiceProfileState  # noqa: E402
 
@@ -269,6 +276,50 @@ def build_payloads() -> dict[str, dict]:
             "runtime parameters considered), or HARDWARE_AND_FEEDBACK "
             "(enough reviewer-feedback evidence to also reach PROVISIONAL "
             "evidence state — never CALIBRATED).",
+        ),
+        "training_job_status.json": _enum_payload(
+            "aarya_voice_lab.pipeline.training.TrainingJobStatus",
+            TrainingJobStatus,
+            "Real Voice Model Engine milestone — a training job's lifecycle "
+            "state (QUEUED..COMPLETED, or FAILED/CANCELLED/TIMEOUT). The UI "
+            "must render exactly this state, never infer TRAINING from a "
+            "queued job or COMPLETED from anything but this value.",
+        ),
+        "training_failure_reason.json": _enum_payload(
+            "aarya_voice_lab.pipeline.training.TrainingFailureReason",
+            TrainingFailureReason,
+            "Machine-readable reason a training job ended in FAILED/"
+            "CANCELLED/TIMEOUT. In this environment every job fails with "
+            "MODEL_UNAVAILABLE, since no real training runtime is installed "
+            "(see LocalTrainingProvider) — this is the honest, expected "
+            "outcome, not a bug.",
+        ),
+        "training_provider_state.json": _enum_payload(
+            "aarya_voice_lab.pipeline.training.TrainingProviderState",
+            TrainingProviderState,
+            "A training provider's own capability state, mirroring "
+            "generation_backend_state.json's vocabulary so both can share a "
+            "status-badge domain.",
+        ),
+        "model_lifecycle_state.json": _enum_payload(
+            "aarya_voice_lab.pipeline.model_lifecycle.ModelLifecycleState",
+            ModelLifecycleState,
+            "Real Voice Model Engine milestone — a voice model's lifecycle "
+            "state (DRAFT..ACTIVE, or ARCHIVED/FAILED). Only "
+            "pipeline.model_lifecycle.transition() may move a model between "
+            "these; the UI must never infer or skip a state.",
+        ),
+        "model_artifact_format.json": _enum_payload(
+            "aarya_voice_lab.pipeline.model_artifact.ModelArtifactFormat",
+            ModelArtifactFormat,
+            "Closed set of artifact file formats pipeline.model_artifact."
+            "ArtifactStore accepts. A format absent from this list is "
+            "refused, never silently accepted.",
+        ),
+        "model_artifact_type.json": _enum_payload(
+            "aarya_voice_lab.pipeline.model_artifact.ModelArtifactType",
+            ModelArtifactType,
+            "What kind of artifact a stored ModelArtifact record is.",
         ),
     }
 

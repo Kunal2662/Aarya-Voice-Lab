@@ -115,6 +115,7 @@ aarya-voice identity-audit           # append-only identity audit log
 aarya-voice embedding-inventory      # stored embeddings (never their vectors)
 aarya-voice synthetic-e2e            # full Phase 3 chain on generated audio
 aarya-voice voice-preview-status     # VL-V0 preview contracts (no generation)
+aarya-voice voice-engine-status      # Real Voice Model Engine provider capability states
 
 aarya-voice experiment --help
 aarya-voice benchmark --help
@@ -177,6 +178,7 @@ No test uses, references, or requires the real recordings.
 | [FE2_VISUAL_REDESIGN.md](docs/FE2_VISUAL_REDESIGN.md) | FE-2 visual redesign pass: denser dashboard stat-tile/icon-badge/meter primitives, real-data-only headline tiles on Command Center and 6 other workspaces, no fabricated hardware gauges or user identity |
 | [FE3_VISUAL_SYSTEM.md](docs/FE3_VISUAL_SYSTEM.md) | FE-3 Aarya glass surface system: restrained translucent panel/card/dialog/shell tokens, focus-only accent glow, real-data stat tiles for 4 more workspaces, WCAG AA contrast audit, light/dark theme hardening |
 | [FE4_FINAL_COMPLETION.md](docs/FE4_FINAL_COMPLETION.md) | FE-4 through FE-10 final frontend completion: 4-agent whole-app audit, fabricated-status/hardcoded-metric fixes, 5 listener-leak fixes, 2 keyboard-accessibility fixes, dashboard/heading consistency, per-keystroke performance fixes, real Chromium + regression verification |
+| [REAL_VOICE_MODEL_ENGINE.md](docs/REAL_VOICE_MODEL_ENGINE.md) | Real Voice Model Engine milestone: real (honestly NOT_CONFIGURED) embedding/generation/training provider architecture, training job lifecycle, training-readiness assessment, model lifecycle + checksum-addressed artifacts, multilingual-ready contracts |
 | [TOOLCHAIN.md](docs/TOOLCHAIN.md) | Provider abstraction & candidate tools |
 | [MODEL_STRATEGY.md](docs/MODEL_STRATEGY.md) | Model registry, experiments, TTS candidates |
 | [BENCHMARKING.md](docs/BENCHMARKING.md) | Voice quality benchmark framework |

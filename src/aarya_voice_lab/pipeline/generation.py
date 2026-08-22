@@ -300,6 +300,88 @@ class SyntheticVoiceGenerator(VoiceGenerator):
         )
 
 
+class LocalNeuralVoiceGenerator(VoiceGenerator):
+    """Real Voice Model Engine milestone -- the provider boundary for a
+    real, local TTS/voice-cloning backend, with genuine capability
+    detection instead of a fabricated result.
+
+    Checks, via `importlib.metadata` (empirically, not assumed), for the
+    packages every candidate `requirements/tts.txt` already documents:
+    `piper-tts` (the CPU-only, no-torch baseline) or `torch` (required by
+    the IndicF5/Parler-TTS candidates). **None is installed in this
+    interpreter.** Installing one is an explicitly separate, approval-
+    gated, license-reviewed decision (`requirements/tts.txt`'s own "NO
+    MODEL HAS BEEN SELECTED... do not install a model merely because it
+    is listed", and `configs/default.yaml`'s
+    `environments.env-tts.requires_approval`) -- never something this
+    class does on its own.
+
+    So `generate_preview()` here always raises `GenerationBlockedError`
+    naming exactly what is missing. It never falls back to
+    `SyntheticVoiceGenerator`'s sine tone and never produces audio that
+    could be mistaken for a real generated voice.
+    """
+
+    name = "local-neural-tts"
+    version = "1.0.0"
+
+    #: Distribution name -> what it would provide. See requirements/tts.txt.
+    CANDIDATE_DISTRIBUTIONS: dict[str, str] = {
+        "piper-tts": "Piper (CPU-only, ONNX, no torch at inference)",
+        "torch": "PyTorch (required by the IndicF5/Parler-TTS candidates)",
+    }
+
+    def _installed(self) -> dict[str, str | None]:
+        import importlib.metadata
+
+        found: dict[str, str | None] = {}
+        for distribution in self.CANDIDATE_DISTRIBUTIONS:
+            try:
+                found[distribution] = importlib.metadata.version(distribution)
+            except importlib.metadata.PackageNotFoundError:
+                found[distribution] = None
+        return found
+
+    def get_capabilities(self) -> GenerationCapabilities:
+        installed = self._installed()
+        if any(version is not None for version in installed.values()):
+            # A candidate package is present, but no real inference path
+            # has been implemented against it yet (see generate_preview()) --
+            # report ERROR rather than AVAILABLE, since AVAILABLE would
+            # promise a working generation path that does not exist.
+            return GenerationCapabilities(
+                backend_state=GenerationBackendState.ERROR,
+                compute_backend=ComputeBackend.CPU,
+                supported_controls=frozenset(),
+            )
+        return GenerationCapabilities(
+            backend_state=GenerationBackendState.NOT_CONFIGURED,
+            compute_backend=ComputeBackend.CPU,
+            supported_controls=frozenset(),
+        )
+
+    def validate_request(self, request: dict[str, Any]) -> list[str]:
+        capabilities = self.get_capabilities()
+        if capabilities.backend_state is not GenerationBackendState.AVAILABLE:
+            missing = sorted(name for name, version in self._installed().items() if version is None)
+            return [
+                f"{self.name} is not configured (state={capabilities.backend_state.value}); "
+                f"missing: {missing or 'a working inference implementation'}. "
+                "See requirements/tts.txt for the documented, license-reviewed candidates."
+            ]
+        return []
+
+    def estimate_requirements(self, request: dict[str, Any]) -> dict[str, Any]:
+        return {"estimate_basis": "not available -- no real TTS backend is configured"}
+
+    def supports_regeneration(self) -> bool:
+        return False
+
+    def generate_preview(self, request: dict[str, Any]) -> PreviewArtifact:
+        errors = self.validate_request(request)
+        raise GenerationBlockedError("; ".join(errors) if errors else f"{self.name} has no working inference path")
+
+
 class UnavailableVoiceGenerator(VoiceGenerator):
     """A backend that is honestly never available — used to exercise and
     demonstrate the NOT_AVAILABLE/BLOCKED path without a fabricated

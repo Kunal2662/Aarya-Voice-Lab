@@ -1,0 +1,76 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://aarya-voice-lab/schemas/training_job.schema.json",
+  "title": "AARYA Voice Lab Training Job Record (Real Voice Model Engine milestone)",
+  "description": "One finished (terminal-status) training job, recorded append-only via pipeline.training.TrainingJobLog once its TrainingQueue processing reaches COMPLETED/FAILED/CANCELLED/TIMEOUT. progress is null whenever the provider cannot genuinely measure it -- never a fabricated percentage. No embedding, no biometric vector, and no raw audio ever appears in this record.",
+  "type": "object",
+  "required": [
+    "job_id", "config", "status", "progress", "current_operation", "warnings", "errors",
+    "failure_reason", "checkpoints", "output_artifact_id", "evaluation_result",
+    "queued_at", "started_at", "finished_at", "duration_seconds"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "job_id": { "type": "string", "minLength": 1 },
+    "config": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "job_id", "model_name", "model_version", "speaker_profile_id", "dataset_id",
+        "provider_name", "language", "hyperparameters", "config_hash"
+      ],
+      "properties": {
+        "job_id": { "type": "string", "minLength": 1 },
+        "model_name": { "type": "string", "minLength": 1 },
+        "model_version": { "type": "string", "minLength": 1 },
+        "speaker_profile_id": { "type": ["string", "null"] },
+        "dataset_id": { "type": "string", "minLength": 1 },
+        "provider_name": { "type": "string", "minLength": 1 },
+        "language": { "type": "string", "minLength": 1 },
+        "hyperparameters": { "type": "object" },
+        "config_hash": { "type": "string" }
+      }
+    },
+    "status": {
+      "type": "string",
+      "enum": ["QUEUED", "VALIDATING", "PREPARING", "TRAINING", "CHECKPOINTING", "EVALUATING", "COMPLETED", "FAILED", "CANCELLED", "TIMEOUT"]
+    },
+    "progress": {
+      "type": ["number", "null"],
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Null means genuinely unmeasurable -- must never be rendered as 0%."
+    },
+    "current_operation": { "type": ["string", "null"] },
+    "warnings": { "type": "array", "items": { "type": "string" } },
+    "errors": { "type": "array", "items": { "type": "string" } },
+    "failure_reason": {
+      "type": ["string", "null"],
+      "enum": [
+        "MODEL_UNAVAILABLE", "DATASET_INVALID", "INSUFFICIENT_DATA", "INCOMPATIBLE_MODEL",
+        "RESOURCE_UNAVAILABLE", "TRAINING_FAILED", "GENERATION_FAILED", "ARTIFACT_CORRUPTED",
+        "CANCELLED", "TIMEOUT", null
+      ]
+    },
+    "checkpoints": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["checkpoint_id", "step", "elapsed_seconds", "artifact_id"],
+        "properties": {
+          "checkpoint_id": { "type": "string", "minLength": 1 },
+          "step": { "type": ["integer", "null"] },
+          "elapsed_seconds": { "type": "number", "minimum": 0 },
+          "artifact_id": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "output_artifact_id": { "type": ["string", "null"] },
+    "evaluation_result": { "type": ["object", "null"] },
+    "queued_at": { "type": "string" },
+    "started_at": { "type": ["string", "null"] },
+    "finished_at": { "type": ["string", "null"] },
+    "duration_seconds": { "type": ["number", "null"], "minimum": 0 }
+  }
+}

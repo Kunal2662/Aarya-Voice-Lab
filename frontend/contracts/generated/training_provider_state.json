@@ -1,0 +1,11 @@
+{
+  "$generated_by": "scripts/export_frontend_contracts.py",
+  "$source": "aarya_voice_lab.pipeline.training.TrainingProviderState",
+  "description": "A training provider's own capability state, mirroring generation_backend_state.json's vocabulary so both can share a status-badge domain.",
+  "values": [
+    "AVAILABLE",
+    "NOT_CONFIGURED",
+    "UNAVAILABLE",
+    "ERROR"
+  ]
+}

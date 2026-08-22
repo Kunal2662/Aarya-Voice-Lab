@@ -18,9 +18,11 @@ from pathlib import Path
 from aarya_voice_lab.core.data_root import DataRoot
 from aarya_voice_lab.identity import command_center, contracts
 from aarya_voice_lab.identity.audit import AuditEventType, AuditLog
-from aarya_voice_lab.identity.embeddings import EmbeddingStore, available_providers
+from aarya_voice_lab.identity.embeddings import EmbeddingStore, available_providers, get_provider
 from aarya_voice_lab.identity.enrollment import available_strategies, describe_strategies
 from aarya_voice_lab.identity.synthetic_e2e import run_synthetic_e2e, uncalibrated_baseline
+from aarya_voice_lab.pipeline.generation import LocalNeuralVoiceGenerator
+from aarya_voice_lab.pipeline.training import LocalTrainingProvider
 
 
 def cmd_identity_status(args: argparse.Namespace) -> int:
@@ -246,6 +248,53 @@ def cmd_command_center(args: argparse.Namespace) -> int:
     return 0 if diag["healthy"] else 1
 
 
+def cmd_voice_engine_status(args: argparse.Namespace) -> int:
+    """Real Voice Model Engine milestone -- the one honest place to see
+    every provider's actual capability state in one report. Never
+    fabricates AVAILABLE; every state here comes from a real,
+    empirical check (importlib.metadata against this interpreter)."""
+    embedding_reports = []
+    for provider_name in available_providers():
+        provider = get_provider(provider_name)
+        if hasattr(provider, "capability_state"):
+            state = provider.capability_state()
+        else:
+            state = {"state": "AVAILABLE" if not provider.is_synthetic else "SYNTHETIC_ONLY"}
+        embedding_reports.append({"name": provider_name, "is_synthetic": provider.is_synthetic, **state})
+
+    generation_capabilities = LocalNeuralVoiceGenerator().get_capabilities().to_dict()
+    training_capabilities = LocalTrainingProvider().capabilities().to_dict()
+
+    payload = {
+        "embedding_providers": embedding_reports,
+        "generation_provider": {"name": LocalNeuralVoiceGenerator.name, **generation_capabilities},
+        "training_provider": {"name": LocalTrainingProvider.name, **training_capabilities},
+    }
+
+    if args.json:
+        print(json.dumps(payload, indent=2))
+        return 0
+
+    print("AARYA Voice Lab — Real Voice Model Engine: capability status")
+    print("=" * 60)
+    print("Embedding providers:")
+    for report in embedding_reports:
+        print(f"  {report['name']:<28} {report['state']}")
+    print()
+    print(f"Generation provider ({LocalNeuralVoiceGenerator.name}):")
+    print(f"  backend_state: {generation_capabilities['backend_state']}")
+    print()
+    print(f"Training provider ({LocalTrainingProvider.name}):")
+    print(f"  state: {training_capabilities['state']}")
+    if training_capabilities.get("missing_requirements"):
+        print(f"  missing: {', '.join(training_capabilities['missing_requirements'])}")
+    print()
+    print("  No fallback to a synthetic provider is ever silent: every state")
+    print("  above is this interpreter's real, current capability, not an")
+    print("  assumption. See docs/REAL_VOICE_MODEL_ENGINE.md.")
+    return 0
+
+
 def register(subparsers) -> None:
     p = subparsers.add_parser("identity-status", help="Speaker identity architecture status.")
     p.add_argument("--json", action="store_true")
@@ -287,6 +336,13 @@ def register(subparsers) -> None:
     p = subparsers.add_parser("command-center", help="Backend snapshot for the desktop Claude panel.")
     p.add_argument("--json", action="store_true")
     p.set_defaults(func=cmd_command_center)
+
+    p = subparsers.add_parser(
+        "voice-engine-status",
+        help="Real Voice Model Engine milestone: embedding/generation/training provider capability states.",
+    )
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=cmd_voice_engine_status)
 
     p = subparsers.add_parser("voice-preview-status", help="VL-V0 preview loop status (contracts only).")
     p.add_argument("--json", action="store_true")

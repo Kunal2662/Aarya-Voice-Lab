@@ -185,6 +185,46 @@
         "CANNOT_JUDGE": "text.muted",
         "ABANDONED": "text.disabled"
       }
+    },
+    "training_job_status": {
+      "description": "Mirrors aarya_voice_lab.pipeline.training.TrainingJobStatus exactly (Real Voice Model Engine milestone). In this environment every job ends FAILED (no real training runtime is installed) -- honest, not a bug.",
+      "states": ["QUEUED", "VALIDATING", "PREPARING", "TRAINING", "CHECKPOINTING", "EVALUATING", "COMPLETED", "FAILED", "CANCELLED", "TIMEOUT"],
+      "color_token": {
+        "QUEUED": "text.muted",
+        "VALIDATING": "state.info",
+        "PREPARING": "state.info",
+        "TRAINING": "state.info",
+        "CHECKPOINTING": "state.info",
+        "EVALUATING": "state.info",
+        "COMPLETED": "state.success",
+        "FAILED": "state.danger",
+        "CANCELLED": "text.disabled",
+        "TIMEOUT": "state.danger"
+      }
+    },
+    "training_provider_state": {
+      "description": "Mirrors aarya_voice_lab.pipeline.training.TrainingProviderState exactly. Shares generation_backend_state's vocabulary shape so both can use the same status-badge presentation.",
+      "states": ["AVAILABLE", "NOT_CONFIGURED", "UNAVAILABLE", "ERROR"],
+      "color_token": {
+        "AVAILABLE": "state.success",
+        "NOT_CONFIGURED": "text.muted",
+        "UNAVAILABLE": "state.danger",
+        "ERROR": "state.danger"
+      }
+    },
+    "model_lifecycle": {
+      "description": "Mirrors aarya_voice_lab.pipeline.model_lifecycle.ModelLifecycleState exactly (Real Voice Model Engine milestone). Only pipeline.model_lifecycle.transition() may move a model between these.",
+      "states": ["DRAFT", "TRAINING", "EVALUATING", "VALIDATED", "AVAILABLE", "ACTIVE", "ARCHIVED", "FAILED"],
+      "color_token": {
+        "DRAFT": "text.muted",
+        "TRAINING": "state.info",
+        "EVALUATING": "state.info",
+        "VALIDATED": "state.success",
+        "AVAILABLE": "state.success",
+        "ACTIVE": "state.success",
+        "ARCHIVED": "text.disabled",
+        "FAILED": "state.danger"
+      }
     }
   }
 }

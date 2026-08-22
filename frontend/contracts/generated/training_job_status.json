@@ -1,0 +1,17 @@
+{
+  "$generated_by": "scripts/export_frontend_contracts.py",
+  "$source": "aarya_voice_lab.pipeline.training.TrainingJobStatus",
+  "description": "Real Voice Model Engine milestone \u2014 a training job's lifecycle state (QUEUED..COMPLETED, or FAILED/CANCELLED/TIMEOUT). The UI must render exactly this state, never infer TRAINING from a queued job or COMPLETED from anything but this value.",
+  "values": [
+    "QUEUED",
+    "VALIDATING",
+    "PREPARING",
+    "TRAINING",
+    "CHECKPOINTING",
+    "EVALUATING",
+    "COMPLETED",
+    "FAILED",
+    "CANCELLED",
+    "TIMEOUT"
+  ]
+}

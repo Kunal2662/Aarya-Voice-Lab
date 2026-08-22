@@ -65,6 +65,15 @@ must be visible at the registry level rather than rediscovered later.
 Backed by `models/registry.jsonl` (git-ignored). Statuses: `planned` →
 `experimental` → `candidate` → `approved`, or `deprecated`/`rejected`.
 
+The Real Voice Model Engine milestone (`docs/REAL_VOICE_MODEL_ENGINE.md`)
+added optional fields for a real training/artifact pipeline —
+`architecture`, `lifecycle_state` (see `pipeline/model_lifecycle.py`),
+`sample_rate`, `channels`, `preprocessing_version`, `embedding_model_ref`,
+`generation_model_ref`, `training_config_hash`, `source_job_id`,
+`artifact_checksum` (see `pipeline/model_artifact.py`) — every existing
+registry entry remains valid unchanged; these are populated only once a
+real training job or artifact actually produces them.
+
 ## Experiment tracking
 
 [`registry/experiment_registry.py`](../src/aarya_voice_lab/registry/experiment_registry.py),

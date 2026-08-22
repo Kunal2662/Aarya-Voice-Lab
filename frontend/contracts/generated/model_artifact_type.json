@@ -1,0 +1,12 @@
+{
+  "$generated_by": "scripts/export_frontend_contracts.py",
+  "$source": "aarya_voice_lab.pipeline.model_artifact.ModelArtifactType",
+  "description": "What kind of artifact a stored ModelArtifact record is.",
+  "values": [
+    "embedding_model_weights",
+    "generation_model_weights",
+    "training_checkpoint",
+    "generated_audio",
+    "evaluation_report"
+  ]
+}

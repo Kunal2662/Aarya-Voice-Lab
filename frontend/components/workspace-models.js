@@ -9,6 +9,7 @@ import "./workspace-state.js";
 import "./model-card.js";
 import "./panel.js";
 import "./stat-tile.js";
+import "./status-badge.js";
 
 // FE-3 -- same 5-tone cycle every other workspace dashboard uses.
 const TILE_TONES = ["blue", "teal", "green", "violet", "pink"];
@@ -34,6 +35,18 @@ export class AvlWorkspaceModels extends AvlElement {
       this._state = "error";
       this._errorDetail = String(err);
     }
+    // Real Voice Model Engine milestone -- a live, gitignored capability
+    // snapshot (frontend/contracts/live/voice_engine_capabilities.json,
+    // same pattern as dataset_gate_status.json/command_center_snapshot.json).
+    // A 404 here is expected and honest in a fresh clone that hasn't run
+    // `python scripts/export_voice_engine_capabilities.py` yet -- it must
+    // never be treated as a real "unavailable" capability state.
+    try {
+      const response = await fetch(new URL("../contracts/live/voice_engine_capabilities.json", import.meta.url));
+      this._engineCapabilities = response.ok ? await response.json() : null;
+    } catch {
+      this._engineCapabilities = null;
+    }
     this._render();
   }
 
@@ -48,6 +61,8 @@ export class AvlWorkspaceModels extends AvlElement {
       .backend-list { display: flex; flex-wrap: wrap; gap: var(--avl-space-1); }
       .backend { font: var(--avl-type-caption-weight) var(--avl-type-caption-size) / 1 var(--avl-type-caption-family); padding: var(--avl-space-1) var(--avl-space-2); border: 1px solid var(--avl-color-border-default); border-radius: var(--avl-radius-pill); color: var(--avl-color-text-secondary); }
       .dashboard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: var(--avl-space-3); margin-bottom: var(--avl-space-4); }
+      .engine-list { display: flex; flex-direction: column; gap: var(--avl-space-2); }
+      .engine-row { display: flex; align-items: center; justify-content: space-between; gap: var(--avl-space-2); }
     `;
     this.shadowRoot.appendChild(style);
 
@@ -81,6 +96,66 @@ export class AvlWorkspaceModels extends AvlElement {
       });
       dashboard.appendChild(grid);
       wrapper.appendChild(dashboard);
+    }
+
+    if (this._state === "ready") {
+      const enginePanel = document.createElement("avl-panel");
+      enginePanel.setAttribute("title", "Voice Model Engine — provider capability");
+      const engineList = document.createElement("div");
+      engineList.className = "engine-list";
+      const capabilities = this._engineCapabilities;
+      if (!capabilities) {
+        const notice = document.createElement("p");
+        notice.className = "avl-type-caption";
+        notice.textContent =
+          "No live capability snapshot fetched yet — run `python scripts/export_voice_engine_capabilities.py` " +
+          "and reload. This is an honest \"not fetched\" state, never treated as NOT_CONFIGURED.";
+        engineList.appendChild(notice);
+      } else {
+        for (const provider of capabilities.embedding_providers) {
+          const row = document.createElement("div");
+          row.className = "engine-row";
+          const label = document.createElement("span");
+          label.textContent = `Embedding: ${provider.name}`;
+          row.appendChild(label);
+          if (provider.is_synthetic) {
+            const note = document.createElement("span");
+            note.className = "avl-type-caption";
+            note.textContent = "SYNTHETIC — deterministic test provider, never a real identity conclusion";
+            row.appendChild(note);
+          } else {
+            const badge = document.createElement("avl-status-badge");
+            badge.setAttribute("domain", "training_provider_state");
+            badge.setAttribute("state", provider.state);
+            row.appendChild(badge);
+          }
+          engineList.appendChild(row);
+        }
+
+        const generationRow = document.createElement("div");
+        generationRow.className = "engine-row";
+        const generationLabel = document.createElement("span");
+        generationLabel.textContent = `Generation: ${capabilities.generation_provider.name}`;
+        generationRow.appendChild(generationLabel);
+        const generationBadge = document.createElement("avl-status-badge");
+        generationBadge.setAttribute("domain", "generation_backend_state");
+        generationBadge.setAttribute("state", capabilities.generation_provider.backend_state);
+        generationRow.appendChild(generationBadge);
+        engineList.appendChild(generationRow);
+
+        const trainingRow = document.createElement("div");
+        trainingRow.className = "engine-row";
+        const trainingLabel = document.createElement("span");
+        trainingLabel.textContent = `Training: ${capabilities.training_provider.name}`;
+        trainingRow.appendChild(trainingLabel);
+        const trainingBadge = document.createElement("avl-status-badge");
+        trainingBadge.setAttribute("domain", "training_provider_state");
+        trainingBadge.setAttribute("state", capabilities.training_provider.state);
+        trainingRow.appendChild(trainingBadge);
+        engineList.appendChild(trainingRow);
+      }
+      enginePanel.appendChild(engineList);
+      wrapper.appendChild(enginePanel);
     }
 
     if (this._backends) {
