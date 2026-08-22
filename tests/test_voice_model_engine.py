@@ -80,19 +80,66 @@ def test_local_neural_embedding_provider_is_neural_not_synthetic():
     assert not provider.is_synthetic
 
 
-def test_local_neural_embedding_provider_reports_not_configured_honestly():
-    """This is an empirical assertion about THIS interpreter (no
-    nemo_toolkit installed), not a mocked stand-in."""
+def test_local_neural_embedding_provider_capability_state_is_empirical(tmp_path, monkeypatch):
+    """Real ML runtime integration milestone -- capability-gated (per the
+    milestone's own testing rules): this is an empirical assertion about
+    the REAL, current state of `.envs/env-nemo`, whatever it is, never a
+    mocked stand-in. Simulates "not built" by pointing the provider at an
+    env-nemo path that does not exist -- the one case guaranteed
+    reproducible in any environment, including CI where the real
+    multi-GB env-nemo build has not run."""
+    from aarya_voice_lab.identity import embeddings as embeddings_module
+
     provider = get_provider(LocalNeuralEmbeddingProvider.name)
+    monkeypatch.setattr(embeddings_module, "_ENV_NEMO_PYTHON", tmp_path / "does-not-exist" / "python")
     state = provider.capability_state()
     assert state["state"] == "NOT_CONFIGURED"
-    assert "nemo_toolkit" in state["missing_requirements"]
+    assert "env-nemo" in state["missing_requirements"]
 
 
-def test_local_neural_embedding_provider_refuses_to_embed_when_not_configured():
+def test_local_neural_embedding_provider_refuses_to_embed_when_not_configured(tmp_path, monkeypatch):
+    from aarya_voice_lab.identity import embeddings as embeddings_module
+
     provider = get_provider(LocalNeuralEmbeddingProvider.name)
+    monkeypatch.setattr(embeddings_module, "_ENV_NEMO_PYTHON", tmp_path / "does-not-exist" / "python")
     with pytest.raises(EmbeddingProviderError, match="not configured"):
         provider.embed([1, 2, 3, 4], 16000)
+
+
+def test_local_neural_embedding_provider_real_inference_when_configured():
+    """Capability-gated real-model integration test (per the milestone's
+    §24/25): if `.envs/env-nemo` is actually built in this environment
+    (as it is here -- see docs/REAL_VOICE_MODEL_ENGINE.md), this proves
+    real, end-to-end TitaNet-large inference through the subprocess
+    bridge -- not a mock, not a stub. If it is not built (a fresh clone
+    or CI without the multi-GB ML environment), this reports
+    NOT_CONFIGURED and stops rather than silently passing through
+    synthetic behaviour."""
+    import math
+
+    provider = get_provider(LocalNeuralEmbeddingProvider.name)
+    state = provider.capability_state()
+    if state["state"] != "AVAILABLE":
+        pytest.skip(f"env-nemo not configured in this environment: {state}")
+
+    sample_rate = 16000
+    duration_seconds = 1.0
+    count = int(sample_rate * duration_seconds)
+    samples = [int(32767 * 0.3 * math.sin(2 * math.pi * 220.0 * i / sample_rate)) for i in range(count)]
+
+    vector = provider.embed(samples, sample_rate)
+
+    assert vector.dimension == 192
+    assert vector.is_synthetic is False
+    assert vector.provider_kind is ProviderKind.NEURAL
+    assert len(vector.values) == 192
+    assert any(v != 0.0 for v in vector.values), "a real model must not return an all-zero vector"
+    # Determinism: the exact same input, run twice, must produce the
+    # exact same real embedding -- a live model that returns different
+    # output for identical input on a CPU-only, non-training pass would
+    # itself be a genuine defect.
+    vector_again = provider.embed(samples, sample_rate)
+    assert vector.values == vector_again.values
 
 
 def test_local_neural_embedding_provider_declares_real_preprocessing_requirements():

@@ -1,14 +1,24 @@
 # Real Voice Model Engine — architecture and current capability
 
-**Status: architecture complete, capability NOT_CONFIGURED.** Every
-provider boundary, contract, job/artifact/lifecycle state machine, and
-UI surface this milestone adds is real, tested code. No real speaker
-embedding, no real voice generation, and no real training run has ever
-executed anywhere in this codebase — that remains true after this
-milestone, exactly as it was before it. What changed is that the *gap*
-between "architecture exists" and "a real model runs" is now honestly
-represented in code (`NOT_CONFIGURED`, empirically detected) instead of
-only in prose.
+**Status at the time this milestone shipped: architecture complete,
+capability NOT_CONFIGURED everywhere.** A later milestone,
+**"Real ML Runtime & Model Integration"** (`docs/REAL_ML_RUNTIME_INTEGRATION.md`),
+installed a real embedding model against the architecture described
+below — `identity.embeddings.LocalNeuralEmbeddingProvider` now reports
+`AVAILABLE` on a machine that has built `.envs/env-nemo`. Generation and
+training remain exactly as described in this document. Read this file
+for the architecture; read `docs/REAL_ML_RUNTIME_INTEGRATION.md` for
+which parts of it are now real.
+
+Every provider boundary, contract, job/artifact/lifecycle state machine,
+and UI surface this milestone adds is real, tested code. At the time
+this milestone shipped, no real speaker embedding, no real voice
+generation, and no real training run had ever executed anywhere in this
+codebase. What changed *in this milestone* is that the *gap* between
+"architecture exists" and "a real model runs" was made honestly
+representable in code (`NOT_CONFIGURED`, empirically detected) instead
+of only in prose — a later milestone then closed part of that gap for
+real, using this same architecture unchanged.
 
 See also: `docs/PHASE3_IDENTITY.md` (the identity architecture this
 extends), `docs/MODEL_STRATEGY.md` (the model registry this extends),

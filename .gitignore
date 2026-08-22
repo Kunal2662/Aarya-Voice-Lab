@@ -150,6 +150,9 @@ dist/
 .venv/
 venv/
 env/
+# Isolated ML environments (scripts/install_env.sh) -- multi-GB, built
+# locally, never committed. See docs/REAL_VOICE_MODEL_ENGINE.md.
+.envs/
 .mypy_cache/
 .pytest_cache/
 .ruff_cache/

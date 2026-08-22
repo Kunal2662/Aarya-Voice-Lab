@@ -75,14 +75,31 @@ test("Models workspace shows an honest Voice Model Engine capability panel", { t
         // The synthetic provider must never be badged as if it were a
         // real capability state -- it gets an explicit synthetic label.
         assert.match(text, /SYNTHETIC.*deterministic test provider/i);
-        // No real provider may claim AVAILABLE in this environment: no
-        // ML runtime is installed here (see LocalNeuralEmbeddingProvider,
-        // LocalNeuralVoiceGenerator, LocalTrainingProvider).
-        const availableClaims = (text.match(/AVAILABLE/g) || []).length;
-        assert.equal(
-          availableClaims,
-          0,
-          "no real provider should report AVAILABLE in this environment -- that would be a fabricated capability claim",
+        // Real ML Runtime milestone: `.envs/env-nemo` may or may not be
+        // built in the sandbox that runs this test (it is a multi-GB,
+        // gitignored, locally-built artifact -- see docs/NEMO.md), so
+        // this panel legitimately renders AVAILABLE for the embedding
+        // provider on a machine that built it, and NOT_CONFIGURED on one
+        // that didn't. Both are honest; neither is asserted here.
+        // Generation and training have no real runtime installed in this
+        // milestone's scope (voice generation was explicitly deferred --
+        // see docs/REAL_ML_RUNTIME_INTEGRATION.md) and must never claim
+        // AVAILABLE regardless of what the embedding row says.
+        // collectShadowText joins everything with spaces (no row
+        // separators), so bound each row's text to the next known label
+        // before checking it -- an unbounded match could cross into a
+        // later row's state.
+        const generationSegment = text.slice(text.indexOf("Generation: "), text.indexOf("Training: "));
+        assert.doesNotMatch(
+          generationSegment,
+          /AVAILABLE/,
+          "generation has no real runtime installed this milestone -- AVAILABLE would be a fabricated claim",
+        );
+        const trainingSegment = text.slice(text.indexOf("Training: "));
+        assert.doesNotMatch(
+          trainingSegment,
+          /AVAILABLE/,
+          "training has no real runtime installed this milestone -- AVAILABLE would be a fabricated claim",
         );
       }
       await page.close();

@@ -106,6 +106,38 @@ def test_check_package_accepts_loose_spec():
     assert capability.state is CapabilityState.AVAILABLE
 
 
+def test_check_package_ignores_local_version_suffix(monkeypatch):
+    """Real ML runtime integration milestone -- scripts/install_env.sh
+    installs torch from an explicit --cpu/--cuda wheel index specifically
+    so the accelerator build is deterministic; that wheel's version
+    always carries a PEP 440 local segment ("2.13.0+cpu"). Comparing that
+    verbatim against an exact pin ("2.13.0") would report every
+    correctly-installed torch as INCOMPATIBLE, which is exactly backwards."""
+    import importlib.metadata
+
+    from aarya_voice_lab.environment import verify as verify_module
+
+    def _fake_version(name: str) -> str:
+        if name == "torch":
+            return "2.13.0+cpu"
+        raise importlib.metadata.PackageNotFoundError(name)
+
+    monkeypatch.setattr(importlib.metadata, "version", _fake_version)
+    capability = verify_module.check_package("torch", "2.13.0")
+    assert capability.state is CapabilityState.AVAILABLE
+    assert capability.version == "2.13.0+cpu"
+
+
+def test_check_package_still_flags_a_real_local_version_mismatch(monkeypatch):
+    """If the expected spec itself pins a local segment, that segment is
+    still enforced -- only an unpinned expectation ignores it."""
+    import importlib.metadata
+
+    monkeypatch.setattr(importlib.metadata, "version", lambda name: "2.13.0+cu130")
+    capability = check_package("torch", "2.13.0+cpu")
+    assert capability.state is CapabilityState.INCOMPATIBLE
+
+
 @pytest.mark.parametrize("env_id", list(EnvironmentId))
 def test_verification_runs_for_every_environment(env_id):
     result = verify_environment(env_id)

@@ -37,13 +37,25 @@ def _installed_version(distribution: str) -> str | None:
         return None
 
 
+def _public_version(version: str) -> str:
+    """Strip a PEP 440 local version segment (e.g. "2.13.0+cpu" ->
+    "2.13.0"). scripts/install_env.sh installs torch from an explicit
+    --cpu/--cuda wheel index specifically so pip cannot silently resolve
+    a different accelerator build -- that wheel's version always carries
+    a local segment identifying it ("+cpu", "+cu130", ...), which is not
+    version drift and must not be reported as one."""
+    return version.split("+", 1)[0]
+
+
 def check_package(distribution: str, expected: str) -> Capability:
     """Compare an installed distribution against the spec's expected version.
 
     A mismatch is INCOMPATIBLE rather than merely informational: the whole
     point of pinning here is that silent version drift (pip resolving a
     different torch to satisfy some other package) is the main failure
-    mode this project guards against.
+    mode this project guards against. A PEP 440 local version segment
+    (the "+cpu"/"+cu130" suffix on an accelerator-specific wheel) is not
+    drift and is ignored unless the expected spec itself pins one.
     """
     version = _installed_version(distribution)
     if version is None:
@@ -51,7 +63,8 @@ def check_package(distribution: str, expected: str) -> Capability:
     if expected.startswith(">=") or expected.startswith("=="):
         # Loose specs are informational only; exact pins are enforced below.
         return Capability(distribution, CapabilityState.AVAILABLE, f"spec: {expected}", version)
-    if version != expected:
+    comparable_version = version if "+" in expected else _public_version(version)
+    if comparable_version != expected:
         return Capability(
             distribution,
             CapabilityState.INCOMPATIBLE,

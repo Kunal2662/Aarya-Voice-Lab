@@ -1,7 +1,18 @@
 # NeMo Environment (`env-nemo`)
 
-Primary speaker diarization. **Specified and scripted; not built.** No
-NeMo package is installed and no Sortformer weights have been downloaded.
+Primary speaker diarization. **Built, for a different purpose than
+originally documented here.** The Real ML Runtime & Model Integration
+milestone built this exact environment (`nemo-toolkit[asr]` 3.0.0, torch
+2.13.0+cpu) and used it to load `titanet_large` — a real, working NeMo
+*speaker-embedding* model — for `identity.embeddings.LocalNeuralEmbeddingProvider`.
+See `docs/REAL_ML_RUNTIME_INTEGRATION.md` for that model decision, its
+license, and measured performance.
+
+Sortformer diarization (the model this file was originally written for)
+has **not** been exercised — no Sortformer weights have been downloaded
+and no diarization stage has run. The rest of this document describes
+the diarization use case as originally planned; only the "built" claim
+above has changed.
 
 ## Why NeMo is the primary system
 
@@ -102,10 +113,12 @@ silently.
 
 ## Not verified
 
-- The environment has **not been built**; only dependency resolution was
-  tested (on Python 3.11.15, not 3.12).
-- No weights downloaded, so no model has been loaded or run.
-- No GPU on the audit machine — CUDA wheel selection and VRAM needs are
-  untested.
+- CUDA wheel selection and VRAM needs are untested — the environment was
+  built and used CPU-only (`--cpu`), no GPU present on this machine.
 - Whether NeMo 3.0.0's release ships Sortformer inference code identical
-  to `main`; the v2.1 model card recommends installing from `main`.
+  to `main`; the v2.1 model card recommends installing from `main`. This
+  remains unverified because Sortformer itself was never loaded — only
+  `titanet_large` (a different model within the same package) was.
+- Sortformer diarization end-to-end: no diarization stage has run in
+  this environment. `docs/REAL_ML_RUNTIME_INTEGRATION.md` covers only
+  the speaker-embedding use case this milestone actually exercised.

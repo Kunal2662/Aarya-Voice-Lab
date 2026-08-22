@@ -151,25 +151,43 @@ def test_unknown_provider_is_refused():
         get_provider("titanet-real")
 
 
-def test_only_synthetic_provider_can_actually_produce_an_embedding():
-    """Real Voice Model Engine milestone -- the provider *registry* now
-    also names a real, local-neural provider class (the abstraction real
-    providers implement), but no real embedding runtime is installed in
-    this environment (confirmed empirically, not assumed -- see
-    identity.embeddings.LocalNeuralEmbeddingProvider.capability_state()).
-    So the synthetic provider remains the only one that can actually
-    embed anything: every other registered provider must report itself
-    NOT_CONFIGURED and must refuse to embed rather than silently
-    producing a fabricated vector."""
+def test_provider_registry_names_both_synthetic_and_real_providers():
+    """The provider registry names a real, local-neural provider class
+    (the abstraction real providers implement) alongside the synthetic
+    one. Whether the real provider can *actually* embed something is a
+    separate, environment-dependent, empirically-checked question -- see
+    test_only_configured_providers_can_actually_produce_an_embedding
+    below -- registration alone must never be read as "this works"."""
     assert set(available_providers()) == {"synthetic-cosine-projection", "local-neural-embedding"}
 
     real = get_provider("local-neural-embedding")
     assert real.kind is ProviderKind.NEURAL
     assert not real.is_synthetic
+
+
+def test_only_configured_providers_can_actually_produce_an_embedding():
+    """Real Voice Model Engine milestone -- capability-gated (never
+    assumed either way): the synthetic provider can always embed
+    (deterministic arithmetic, no external runtime). The real provider
+    can only embed when its real capability check empirically reports
+    AVAILABLE (see identity.embeddings.LocalNeuralEmbeddingProvider.
+    capability_state(), which actually loads the model rather than
+    checking that a package merely imports) -- and if it is not
+    AVAILABLE, it must refuse to embed rather than silently producing a
+    fabricated vector, never silently falling back to the synthetic
+    arithmetic."""
+    synthetic = get_provider("synthetic-cosine-projection")
+    synthetic.embed([1, 2, 3, 4], 16000)  # never gated -- must always work
+
+    real = get_provider("local-neural-embedding")
     state = real.capability_state()
-    assert state["state"] == "NOT_CONFIGURED"
-    with pytest.raises(EmbeddingProviderError):
-        real.embed([1, 2, 3], 16000)
+    assert state["state"] in ("AVAILABLE", "NOT_CONFIGURED", "ERROR")
+    if state["state"] == "AVAILABLE":
+        vector = real.embed([1, 2, 3, 4] * 4000, 16000)
+        assert not vector.is_synthetic
+    else:
+        with pytest.raises(EmbeddingProviderError):
+            real.embed([1, 2, 3, 4], 16000)
 
 
 def test_store_roundtrip_verifies_integrity(tmp_path):

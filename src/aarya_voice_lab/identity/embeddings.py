@@ -42,6 +42,7 @@ from pathlib import Path
 from typing import Any
 
 from aarya_voice_lab.core.data_root import DataRoot, assert_source_writable
+from aarya_voice_lab.core.paths import PROJECT_ROOT
 
 #: Bump when a provider's output changes meaning; invalidates cached work.
 SYNTHETIC_PROVIDER_VERSION = "1.0.0"
@@ -251,89 +252,174 @@ class SyntheticEmbeddingProvider(EmbeddingProvider):
         )
 
 
+#: The isolated env-nemo interpreter this provider bridges to. Never
+#: imported directly -- nemo_toolkit is deliberately not a base-interpreter
+#: dependency (see module docstring). Communication happens entirely
+#: through scripts/ml_workers/nemo_embedding_worker.py and two JSON files.
+_ENV_NEMO_PYTHON = PROJECT_ROOT / ".envs" / "env-nemo" / "bin" / "python"
+_NEMO_WORKER_SCRIPT = PROJECT_ROOT / "scripts" / "ml_workers" / "nemo_embedding_worker.py"
+
+#: Telemetry opt-out, mirrored from scripts/disable_telemetry.sh so every
+#: subprocess this provider launches carries it too, not only interactive
+#: shells that remembered to `source` that script.
+_NEMO_SUBPROCESS_ENV: dict[str, str] = {
+    "WANDB_MODE": "offline",
+    "WANDB_DISABLED": "true",
+    "SENTRY_DSN": "",
+    "NEMO_TELEMETRY_OPT_OUT": "1",
+    "NVIDIA_ONE_LOGGER_DISABLED": "1",
+    "OTEL_SDK_DISABLED": "true",
+    "HF_HUB_DISABLE_TELEMETRY": "1",
+    "DO_NOT_TRACK": "1",
+}
+
+
 class LocalNeuralEmbeddingProvider(EmbeddingProvider):
-    """Real Voice Model Engine milestone -- the provider boundary for a
-    real, local speaker-embedding model, with genuine capability
-    detection instead of a fabricated result.
+    """Real Voice Model Engine milestone -- a real, local speaker-
+    embedding provider, bridging to NVIDIA NeMo's TitaNet-large model
+    running in the isolated `.envs/env-nemo` interpreter (see
+    `docs/NEMO.md`).
 
-    This class performs no arithmetic of its own and stamps nothing
-    synthetic: `kind` is `ProviderKind.NEURAL`. It checks, via
-    `importlib.metadata` (empirically, not assumed), for either of the
-    two real candidates this project's own documentation already named
-    (`docs/PHASE3_IDENTITY.md`'s module docstring: "TitaNet, WeSpeaker,
-    …", via NVIDIA NeMo or a generic torch-based model). **Neither is
-    installed in this interpreter.** Installing one is a separate,
-    approval-gated step (`configs/default.yaml`'s
-    `environments.env-nemo`), not something this class does on its own.
+    This class performs no arithmetic of its own and imports nothing
+    from `nemo_toolkit`/`torch` into the base interpreter -- exactly the
+    isolation this module's docstring has always described ("real
+    providers... communicate through the filesystem contract... never
+    imported into the base interpreter"). Every call to `embed()` or
+    `capability_state()` launches `_ENV_NEMO_PYTHON` as a subprocess
+    running `scripts/ml_workers/nemo_embedding_worker.py`, with a
+    controlled argv (no shell), a bounded timeout, a temp working
+    directory, and captured stdout/stderr.
 
-    So `embed()` here always raises `EmbeddingProviderError` naming
-    exactly what is missing -- it never falls back to
-    `SyntheticEmbeddingProvider`'s arithmetic and never fabricates a
-    vector. This satisfies the "real provider behind the same
-    abstraction, honest about unavailability" requirement without
-    silently downloading a model or a dependency during this milestone.
+    `capability_state()` does not merely check that `nemo_toolkit` is
+    importable -- it actually asks the worker to load TitaNet-large and
+    reports AVAILABLE only if that succeeds (per the "the actual model
+    must load successfully" rule). This costs several seconds; callers
+    that need a cheap existence check should look at whether
+    `_ENV_NEMO_PYTHON` exists first.
+
+    If `.envs/env-nemo` was never built, or the worker cannot load the
+    model, `embed()` raises `EmbeddingProviderError` naming exactly what
+    failed -- it never falls back to `SyntheticEmbeddingProvider`'s
+    arithmetic and never fabricates a vector.
     """
 
     name = "local-neural-embedding"
     version = "1.0.0"
     kind = ProviderKind.NEURAL
-    #: TitaNet-family dimension, per NVIDIA's published model card --
-    #: documented so a real implementation's output shape is already
-    #: known and testable even before the model itself is installed.
+    #: TitaNet-large's real, published embedding dimension -- confirmed
+    #: by actually loading the model (see docs/REAL_VOICE_MODEL_ENGINE.md).
     dimension = 192
+    model_name = "titanet_large"
+    #: Real, measured wall-clock model-load cost on the CPU-only host
+    #: this was verified against (see docs/REAL_VOICE_MODEL_ENGINE.md) --
+    #: informational only, never used to short-circuit a real check.
+    PROBE_TIMEOUT_SECONDS = 90
+    EMBED_TIMEOUT_SECONDS = 90
 
-    #: Distribution name -> what it would provide. Checked via
-    #: importlib.metadata, never assumed present.
-    CANDIDATE_DISTRIBUTIONS: dict[str, str] = {
-        "nemo_toolkit": "NVIDIA NeMo (TitaNet speaker-embedding models)",
-    }
+    def _run_worker(self, request: dict[str, Any], *, timeout: float) -> dict[str, Any]:
+        """The one place this class touches a subprocess. Controlled
+        argv, controlled cwd, bounded timeout, captured output -- see
+        module docstring and docs/REAL_VOICE_MODEL_ENGINE.md's security
+        section."""
+        import os
+        import subprocess
+        import tempfile
 
-    def _installed(self) -> dict[str, str | None]:
-        import importlib.metadata
+        with tempfile.TemporaryDirectory(prefix="nemo-embed-") as scratch:
+            request_path = Path(scratch) / "request.json"
+            response_path = Path(scratch) / "response.json"
+            request_path.write_text(json.dumps(request), encoding="utf-8")
 
-        found: dict[str, str | None] = {}
-        for distribution in self.CANDIDATE_DISTRIBUTIONS:
+            # Inherit the real environment (PATH etc. -- torch/NeMo's own
+            # startup needs it) and layer the telemetry opt-outs on top,
+            # never replace it wholesale.
+            subprocess_env = {**os.environ, **_NEMO_SUBPROCESS_ENV}
             try:
-                found[distribution] = importlib.metadata.version(distribution)
-            except importlib.metadata.PackageNotFoundError:
-                found[distribution] = None
-        return found
+                result = subprocess.run(  # noqa: S603 -- fixed argv, no shell, no untrusted input in argv itself
+                    [str(_ENV_NEMO_PYTHON), str(_NEMO_WORKER_SCRIPT), str(request_path), str(response_path)],
+                    cwd=scratch,
+                    env=subprocess_env,
+                    capture_output=True,
+                    text=True,
+                    timeout=timeout,
+                )
+            except subprocess.TimeoutExpired as exc:
+                raise EmbeddingProviderError(
+                    f"{self.name}: worker timed out after {timeout}s"
+                ) from exc
+
+            if not response_path.is_file():
+                raise EmbeddingProviderError(
+                    f"{self.name}: worker exited {result.returncode} with no response file — "
+                    f"stderr: {result.stderr[-2000:]}"
+                )
+            response = json.loads(response_path.read_text(encoding="utf-8"))
+            if not response.get("ok"):
+                raise EmbeddingProviderError(f"{self.name}: {response.get('error', 'unknown worker failure')}")
+            return response
 
     def capability_state(self) -> dict[str, Any]:
         """The honest, current state of this provider -- call this before
-        `embed()` to decide whether to attempt it at all."""
-        installed = self._installed()
-        missing = sorted(name for name, version in installed.items() if version is None)
-        if not missing:
-            return {"state": "AVAILABLE", "detail": f"detected: {installed}"}
+        `embed()` to decide whether to attempt it at all. Actually loads
+        the real model in the isolated interpreter; this is not a cheap
+        check."""
+        if not _ENV_NEMO_PYTHON.is_file():
+            return {
+                "state": "NOT_CONFIGURED",
+                "missing_requirements": ["env-nemo"],
+                "detail": "`.envs/env-nemo` has not been built. Run `scripts/install_env.sh env-nemo --cpu` first.",
+            }
+        try:
+            response = self._run_worker({"mode": "probe"}, timeout=self.PROBE_TIMEOUT_SECONDS)
+        except EmbeddingProviderError as exc:
+            return {"state": "ERROR", "detail": str(exc)}
         return {
-            "state": "NOT_CONFIGURED",
-            "missing_requirements": missing,
-            "detail": (
-                "No real local speaker-embedding runtime is installed in this interpreter. "
-                "See docs/NEMO.md for the env-nemo build; installing it is a separate, "
-                "approval-gated step, not something this provider does on its own."
-            ),
+            "state": "AVAILABLE",
+            "detail": f"{response['model_name']} loaded in {response['model_load_seconds']}s",
+            "model_load_seconds": response["model_load_seconds"],
         }
 
     def preprocessing_requirements(self) -> dict[str, Any]:
         return {"sample_rate": 16000, "channels": 1, "min_duration_seconds": 0.5}
 
     def embed(self, samples: list[int], sample_rate: int, *, bit_depth: int = 16) -> EmbeddingVector:
-        state = self.capability_state()
-        if state["state"] != "AVAILABLE":
+        errors = self.validate_samples(samples, sample_rate)
+        if errors:
+            raise EmbeddingProviderError(f"{self.name}: {'; '.join(errors)}")
+        if bit_depth != 16:
+            # Real limitation, stated honestly rather than risking a
+            # mis-packed WAV file: every fixture/caller in this codebase
+            # today uses 16-bit PCM (see testing.synthetic_audio), and
+            # this bridge has only been verified against that width.
+            raise EmbeddingProviderError(f"{self.name}: only 16-bit PCM is currently supported (got {bit_depth})")
+        if not _ENV_NEMO_PYTHON.is_file():
             raise EmbeddingProviderError(
-                f"{self.name} is not configured: {state['detail']} "
-                f"(missing: {state.get('missing_requirements', [])})"
+                f"{self.name} is not configured: `.envs/env-nemo` has not been built. "
+                "Run `scripts/install_env.sh env-nemo --cpu` first."
             )
-        # Unreachable in this environment (capability_state() above always
-        # returns NOT_CONFIGURED here) -- present only so a future,
-        # approved environment that installs nemo_toolkit has a single,
-        # obvious place to add the real inference call, rather than this
-        # class silently doing nothing.
-        raise EmbeddingProviderError(  # pragma: no cover
-            f"{self.name} reported AVAILABLE but no inference implementation exists yet — "
-            "this is a real defect, not an expected NOT_CONFIGURED path."
+
+        import tempfile
+        import wave
+
+        with tempfile.TemporaryDirectory(prefix="nemo-embed-wav-") as scratch:
+            wav_path = Path(scratch) / "input.wav"
+            with wave.open(str(wav_path), "wb") as wav_file:
+                wav_file.setnchannels(1)
+                wav_file.setsampwidth(bit_depth // 8)
+                wav_file.setframerate(sample_rate)
+                wav_file.writeframes(struct.pack(f"<{len(samples)}h", *samples))
+
+            response = self._run_worker(
+                {"mode": "embed", "wav_path": str(wav_path)}, timeout=self.EMBED_TIMEOUT_SECONDS
+            )
+
+        return EmbeddingVector(
+            values=tuple(response["values"]),
+            provider_name=self.name,
+            provider_version=self.version,
+            provider_kind=self.kind,
+            sample_rate=sample_rate,
+            source_duration_seconds=len(samples) / sample_rate,
         )
 
 
