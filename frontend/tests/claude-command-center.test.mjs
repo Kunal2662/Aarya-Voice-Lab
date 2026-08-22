@@ -126,9 +126,30 @@ function realIdentitySnapshotFixture() {
       note: "A real embedding provider is installed and loaded on this machine (see identity.embeddings.any_real_provider_available).",
     },
     pipeline: { contract: "pipeline_status", stages: [], identity_boundary_index: 5, identity_boundary_stage: "speaker_enrollment", batches: [], implemented_count: 9 },
-    embeddings: { contract: "embedding_inventory", entries: [], count: 0 },
-    runtime: { contract: "runtime_capabilities", components: [], portability: {} },
-    preview: { contract: "voice_preview_status" },
+    embeddings: {
+      contract: "embedding_inventory",
+      embedding_ids: [],
+      count: 0,
+      storage_directory: "data/embeddings",
+      git_ignored: true,
+      export_supported: false,
+      note: "Vectors are never returned by any contract. Embeddings are biometric identifiers and have no export path.",
+    },
+    runtime: {
+      contract: "runtime_capabilities",
+      components: [
+        { component: "synthetic-cosine-projection", runs_on_cpu: true, requires_accelerator: false },
+        { component: "verification-engine", runs_on_cpu: true, requires_accelerator: false },
+        { component: "local-neural-embedding", runs_on_cpu: true, requires_accelerator: false },
+      ],
+      portability: { cpu_only_viable: true, accelerator_bound_components: [], undetermined_components: [] },
+    },
+    preview: {
+      contract: "voice_preview_status",
+      iteration_count: 0,
+      generation_implemented: false,
+      note: "VL-V0 contracts only. No voice generation exists in Phase 3, and no generated speech has ever been produced by this project.",
+    },
     audit: { entry_count: 4, event_counts: {}, chain_intact: true, chain_problems: [], first_entry: null, last_entry: null },
   };
 }
@@ -436,6 +457,49 @@ test("17. real_provider_installed=false renders honestly too -- this panel never
         await goToClaude(page);
         const text = await identityPanelText(page);
         assert.match(text, /No real embedding provider installed — synthetic only\./);
+      });
+    });
+  });
+});
+
+test("18. VL-D13: runtime capability components render by name, including the real embedding provider when present", { timeout: 30_000 }, async () => {
+  await withSnapshotFile(JSON.stringify(realSnapshotFixture()), async () => {
+    await withIdentitySnapshotFile(JSON.stringify(realIdentitySnapshotFixture()), async () => {
+      await withPage(async (page) => {
+        await goToClaude(page);
+        const text = await identityPanelText(page);
+        assert.match(text, /synthetic-cosine-projection/);
+        assert.match(text, /verification-engine/);
+        assert.match(text, /local-neural-embedding/);
+      });
+    });
+  });
+});
+
+test("19. VL-D13: a runtime snapshot with no real provider declared does not fabricate the local-neural-embedding component", { timeout: 30_000 }, async () => {
+  const snapshot = realIdentitySnapshotFixture();
+  snapshot.enrollment.real_provider_installed = false;
+  snapshot.runtime.components = snapshot.runtime.components.filter((c) => c.component !== "local-neural-embedding");
+  await withSnapshotFile(JSON.stringify(realSnapshotFixture()), async () => {
+    await withIdentitySnapshotFile(JSON.stringify(snapshot), async () => {
+      await withPage(async (page) => {
+        await goToClaude(page);
+        const text = await identityPanelText(page);
+        assert.match(text, /synthetic-cosine-projection/);
+        assert.doesNotMatch(text, /local-neural-embedding/);
+      });
+    });
+  });
+});
+
+test("20. VL-D13: embedding inventory and preview-loop honesty sentences render, never a fabricated generated-speech claim", { timeout: 30_000 }, async () => {
+  await withSnapshotFile(JSON.stringify(realSnapshotFixture()), async () => {
+    await withIdentitySnapshotFile(JSON.stringify(realIdentitySnapshotFixture()), async () => {
+      await withPage(async (page) => {
+        await goToClaude(page);
+        const text = await identityPanelText(page);
+        assert.match(text, /Embeddings are biometric identifiers and have no export path\./);
+        assert.match(text, /Voice generation is not implemented/);
       });
     });
   });

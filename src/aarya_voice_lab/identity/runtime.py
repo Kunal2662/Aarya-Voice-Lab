@@ -153,6 +153,27 @@ VERIFICATION_ENGINE_CAPABILITY = RuntimeCapability(
     performance_notes=("decision logic only; embedding computation happens in the provider",),
 )
 
+#: `LocalNeuralEmbeddingProvider` (identity.embeddings) -- NVIDIA NeMo
+#: TitaNet-large, run in the isolated `.envs/env-nemo` interpreter. Only
+#: ever verified on CPU (see docs/REAL_ML_RUNTIME_INTEGRATION.md's
+#: measured latency table), so `CPU_ONLY` is the honest acceleration
+#: claim, not "not yet tried on a GPU". `PORTABLE_UNVERIFIED` rather than
+#: `PORTABLE`: it depends on a built subprocess-isolated environment
+#: (`.envs/env-nemo`), not zero-dependency-portable like the synthetic
+#: provider above. `min_ram_gb`/`min_vram_gb` stay `None` -- never
+#: measured, so never claimed.
+LOCAL_NEURAL_EMBEDDING_CAPABILITY = RuntimeCapability(
+    component="local-neural-embedding",
+    acceleration=AccelerationRequirement.CPU_ONLY,
+    supported_backends=(ComputeBackend.CPU,),
+    portability=PortabilityClass.PORTABLE_UNVERIFIED,
+    performance_notes=(
+        "requires `.envs/env-nemo` (isolated subprocess interpreter, see docs/NEMO.md)",
+        "measured cold model load: 8.57s-86.4s; warm: ~8.4-10.9s each "
+        "(see docs/REAL_ML_RUNTIME_INTEGRATION.md)",
+    ),
+)
+
 
 def describe_portability(capabilities: list[RuntimeCapability]) -> dict[str, Any]:
     """Summarise whether a set of components could run on a CPU-only host.

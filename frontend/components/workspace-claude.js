@@ -128,6 +128,8 @@ export class AvlWorkspaceClaude extends AvlElement {
         "Usable profiles": snap.profiles?.usable_count ?? 0,
         "Pipeline stages implemented": snap.pipeline?.implemented_count ?? 0,
         "Audit entries": snap.audit?.entry_count ?? 0,
+        "Embeddings stored": snap.embeddings?.count ?? 0,
+        "Runtime components declared": snap.runtime?.components?.length ?? 0,
       };
       Object.entries(counts).forEach(([label, value], i) => {
         const tile = document.createElement("avl-stat-tile");
@@ -152,6 +154,43 @@ export class AvlWorkspaceClaude extends AvlElement {
         : "No real embedding provider installed — synthetic only.";
       providerRow.appendChild(providerLabel);
       identityPanel.appendChild(providerRow);
+
+      // VL-D13 -- desktop_snapshot()'s runtime/embeddings/preview
+      // sub-payloads were already fetched here since D11, but never
+      // rendered. Each stays as honest as the backend contract: a
+      // component list that only ever includes the real embedding
+      // provider when it is genuinely installed, an embedding count that
+      // is always real (never a vector, per embedding_inventory()'s own
+      // note), and a preview-loop sentence that is honestly static since
+      // voice generation is not implemented.
+      const runtimeRow = document.createElement("div");
+      runtimeRow.className = "avl-row avl-row--center";
+      const runtimeLabel = document.createElement("span");
+      runtimeLabel.className = "avl-type-body-small";
+      const components = snap.runtime?.components ?? [];
+      runtimeLabel.textContent = components.length
+        ? `Runtime capabilities declared: ${components.map((c) => c.component).join(", ")}.`
+        : "No runtime capabilities declared.";
+      runtimeRow.appendChild(runtimeLabel);
+      identityPanel.appendChild(runtimeRow);
+
+      const embeddingsRow = document.createElement("div");
+      embeddingsRow.className = "avl-row avl-row--center";
+      const embeddingsLabel = document.createElement("span");
+      embeddingsLabel.className = "avl-type-caption";
+      embeddingsLabel.textContent = snap.embeddings?.note || "No embedding inventory data.";
+      embeddingsRow.appendChild(embeddingsLabel);
+      identityPanel.appendChild(embeddingsRow);
+
+      const previewRow = document.createElement("div");
+      previewRow.className = "avl-row avl-row--center";
+      const previewLabel = document.createElement("span");
+      previewLabel.className = "avl-type-body-small";
+      previewLabel.textContent = snap.preview?.generation_implemented
+        ? "Voice generation is implemented."
+        : "Voice generation is not implemented — preview loop contracts only.";
+      previewRow.appendChild(previewLabel);
+      identityPanel.appendChild(previewRow);
     }
     identitySection.appendChild(identityPanel);
     wrapper.appendChild(identitySection);

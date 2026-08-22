@@ -31,6 +31,7 @@ from aarya_voice_lab.identity.preview import preview_loop_state
 from aarya_voice_lab.identity.profile import ProfileStore
 from aarya_voice_lab.identity.review import IdentityReviewQueue
 from aarya_voice_lab.identity.runtime import (
+    LOCAL_NEURAL_EMBEDDING_CAPABILITY,
     SYNTHETIC_PROVIDER_CAPABILITY,
     VERIFICATION_ENGINE_CAPABILITY,
     describe_portability,
@@ -283,8 +284,16 @@ def runtime_capabilities() -> dict[str, Any]:
     Vendor-neutral by construction: components declare whether they need
     an accelerator, not which one. Supports VL-D19/D20 portability work
     without hard-coding CUDA anywhere in Core.
+
+    The real embedding provider's capability is included only when it is
+    genuinely installed and loadable on this machine right now (see
+    `identity.embeddings.any_real_provider_available`) -- never declared
+    unconditionally, which would overstate what a machine without
+    `.envs/env-nemo` built can actually do.
     """
     capabilities = [SYNTHETIC_PROVIDER_CAPABILITY, VERIFICATION_ENGINE_CAPABILITY]
+    if any_real_provider_available():
+        capabilities.append(LOCAL_NEURAL_EMBEDDING_CAPABILITY)
     return _envelope(
         "runtime_capabilities",
         {

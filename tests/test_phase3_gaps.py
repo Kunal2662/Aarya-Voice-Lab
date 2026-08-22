@@ -471,6 +471,39 @@ def test_portability_claim_is_not_overstated():
     assert "not" in note and ("declaration" in note or "verified" in note)
 
 
+def test_runtime_capabilities_excludes_real_provider_when_none_is_installed(tmp_path, monkeypatch):
+    """VL-D13: `runtime_capabilities()` must not claim the real embedding
+    provider's capability on a machine that does not actually have it --
+    reproducibly simulate the not-installed case rather than assuming it,
+    mirroring the D11 `real_provider_installed` test pattern."""
+    from aarya_voice_lab.identity import embeddings as embeddings_module
+
+    monkeypatch.setattr(embeddings_module, "_ENV_NEMO_PYTHON", tmp_path / "does-not-exist")
+    payload = contracts.runtime_capabilities()
+    names = {c["component"] for c in payload["components"]}
+    assert "local-neural-embedding" not in names
+    assert names == {"synthetic-cosine-projection", "verification-engine"}
+
+
+def test_runtime_capabilities_includes_real_provider_honestly(tmp_path):
+    """Whatever `any_real_provider_available()` says about THIS
+    interpreter, `runtime_capabilities()` must include the real
+    provider's declared capability if and only if that -- never
+    unconditionally, which would overstate a machine without
+    `.envs/env-nemo` built, and never omitted when it genuinely is
+    installed. The declared capability must also stay honestly CPU-only
+    so it cannot break `test_shipped_components_are_cpu_only`."""
+    from aarya_voice_lab.identity.embeddings import any_real_provider_available
+
+    payload = contracts.runtime_capabilities()
+    names = {c["component"] for c in payload["components"]}
+    assert ("local-neural-embedding" in names) == any_real_provider_available()
+    for component in payload["components"]:
+        if component["component"] == "local-neural-embedding":
+            assert component["runs_on_cpu"]
+            assert not component["requires_accelerator"]
+
+
 def test_accelerator_bound_component_blocks_cpu_only_claim():
     capability = RuntimeCapability(
         component="hypothetical",
