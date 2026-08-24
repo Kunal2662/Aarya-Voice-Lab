@@ -323,8 +323,13 @@ ruff check .                   # expect clean
 aarya-voice synthetic-e2e      # expect 0 promotions, 0 real identity claims
 
 # 4. Read this file's §5 (limitations) and §7 (next steps) before
-#    doing anything else. Do not assume Phase 3 is "done" beyond
-#    "software architecture complete, synthetic-only" — it is.
+#    doing anything else. Current state, precisely: a real embedding
+#    provider exists and is verified (NeMo titanet_large, synthetic
+#    audio only — see docs/REAL_ML_RUNTIME_INTEGRATION.md). Real
+#    target-speaker/consented-recording verification has NOT occurred.
+#    Phase 4 (real-data processing) remains gated on owner decisions
+#    (§7). Training has not been performed. Voice generation remains
+#    deferred by explicit user decision. Benchmarking has not started.
 ```
 
 If `git log` or `pytest` disagree with this document, trust them, not
