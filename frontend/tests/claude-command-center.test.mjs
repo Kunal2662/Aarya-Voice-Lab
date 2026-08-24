@@ -607,6 +607,101 @@ test("26. VL-D15: the Identity panel's batch row never renders the synthetic Bat
   });
 });
 
+test("27. VL-D16: non-empty by_state renders every key and count from the backend", { timeout: 30_000 }, async () => {
+  const snapshot = realIdentitySnapshotFixture();
+  snapshot.enrollment.by_state = { enrolled: 2, pending: 1 };
+  await withSnapshotFile(JSON.stringify(realSnapshotFixture()), async () => {
+    await withIdentitySnapshotFile(JSON.stringify(snapshot), async () => {
+      await withPage(async (page) => {
+        await goToClaude(page);
+        const text = await identityPanelText(page);
+        assert.match(text, /Profiles by state: enrolled: 2, pending: 1\./);
+      });
+    });
+  });
+});
+
+test("28. VL-D16: non-empty by_role renders every key and count from the backend", { timeout: 30_000 }, async () => {
+  const snapshot = realIdentitySnapshotFixture();
+  snapshot.enrollment.by_role = { user: 2, admin: 1 };
+  await withSnapshotFile(JSON.stringify(realSnapshotFixture()), async () => {
+    await withIdentitySnapshotFile(JSON.stringify(snapshot), async () => {
+      await withPage(async (page) => {
+        await goToClaude(page);
+        const text = await identityPanelText(page);
+        assert.match(text, /Profiles by role: user: 2, admin: 1\./);
+      });
+    });
+  });
+});
+
+test("29. VL-D16: additional keys beyond two render dynamically, proving iteration rather than a hardcoded list", { timeout: 30_000 }, async () => {
+  const snapshot = realIdentitySnapshotFixture();
+  snapshot.enrollment.by_state = { enrolled: 2, pending: 1, suspended: 3 };
+  await withSnapshotFile(JSON.stringify(realSnapshotFixture()), async () => {
+    await withIdentitySnapshotFile(JSON.stringify(snapshot), async () => {
+      await withPage(async (page) => {
+        await goToClaude(page);
+        const text = await identityPanelText(page);
+        assert.match(text, /Profiles by state: enrolled: 2, pending: 1, suspended: 3\./);
+      });
+    });
+  });
+});
+
+test("30. VL-D16: empty by_state/by_role dictionaries render an honest empty state, never fabricated", { timeout: 30_000 }, async () => {
+  // The shared fixture already defaults both to {} -- this asserts that
+  // default renders honestly rather than a fabricated "0" entry.
+  await withSnapshotFile(JSON.stringify(realSnapshotFixture()), async () => {
+    await withIdentitySnapshotFile(JSON.stringify(realIdentitySnapshotFixture()), async () => {
+      await withPage(async (page) => {
+        await goToClaude(page);
+        const text = await identityPanelText(page);
+        assert.match(text, /Profiles by state: no profiles recorded yet\./);
+        assert.match(text, /Profiles by role: no profiles recorded yet\./);
+      });
+    });
+  });
+});
+
+test("31. VL-D16: a snapshot missing by_state/by_role entirely does not break the panel", { timeout: 30_000 }, async () => {
+  const snapshot = realIdentitySnapshotFixture();
+  delete snapshot.enrollment.by_state;
+  delete snapshot.enrollment.by_role;
+  await withSnapshotFile(JSON.stringify(realSnapshotFixture()), async () => {
+    await withIdentitySnapshotFile(JSON.stringify(snapshot), async () => {
+      await withPage(async (page) => {
+        await goToClaude(page);
+        const text = await identityPanelText(page);
+        assert.match(text, /Profiles by state: no profiles recorded yet\./);
+        assert.match(text, /Profiles by role: no profiles recorded yet\./);
+        // The rest of the panel (a sibling real field) must still render
+        // -- a missing by_state/by_role must not break unrelated rows.
+        assert.match(text, /Embedding providers available:/);
+      });
+    });
+  });
+});
+
+test("32. VL-D16: malformed by_state/by_role values render an honest empty state, never crash", { timeout: 30_000 }, async () => {
+  const snapshot = realIdentitySnapshotFixture();
+  snapshot.enrollment.by_state = "corrupted-not-an-object";
+  snapshot.enrollment.by_role = 42;
+  await withSnapshotFile(JSON.stringify(realSnapshotFixture()), async () => {
+    await withIdentitySnapshotFile(JSON.stringify(snapshot), async () => {
+      await withPage(async (page) => {
+        // withPage()'s own teardown asserts zero unexpected console
+        // errors -- a malformed value that threw would fail this test
+        // there, not just in the text assertions below.
+        await goToClaude(page);
+        const text = await identityPanelText(page);
+        assert.match(text, /Profiles by state: no profiles recorded yet\./);
+        assert.match(text, /Profiles by role: no profiles recorded yet\./);
+      });
+    });
+  });
+});
+
 test("13. a full create-then-navigate cycle across snapshot states produces zero console errors", { timeout: 30_000 }, async () => {
   await withSnapshotFile(JSON.stringify(realSnapshotFixture()), async () => {
     await withPage(async (page) => {

@@ -28,6 +28,20 @@ import "./stat-tile.js";
 import "./claude-command-shell.js";
 import "./claude-fix-flow.js";
 
+// VL-D16 -- formats a real backend count-by-key object (e.g.
+// enrollment_status()'s by_state/by_role) as "key: count, key: count",
+// iterating whatever keys the backend actually sent rather than a
+// hardcoded list, so an unknown future key still renders instead of
+// being silently dropped. Returns null for anything that isn't a
+// non-array object, or that has no entries -- callers render an honest
+// empty state for null rather than fabricating a "0" count that was
+// never in the payload.
+function formatCountBreakdown(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const entries = Object.entries(value);
+  return entries.length ? entries.map(([key, count]) => `${key}: ${count}`).join(", ") : null;
+}
+
 export class AvlWorkspaceClaude extends AvlElement {
   set services(value) {
     this._services = value || {};
@@ -185,6 +199,38 @@ export class AvlWorkspaceClaude extends AvlElement {
         : "No embedding providers declared.";
       providersRow.appendChild(providersLabel);
       identityPanel.appendChild(providersRow);
+
+      // VL-D16 -- enrollment_status()'s by_state/by_role were already
+      // fetched here alongside available_strategies/available_providers
+      // since D11, but D14 only bridged those two -- these were left
+      // behind. Rendered directly from the backend payload (never
+      // recomputed from profiles.count or any other frontend data), and
+      // dynamically over every key the backend actually returned, so an
+      // unfamiliar future state/role still renders. embeddings.embedding_ids
+      // is deliberately NOT bridged here -- its id format can embed a
+      // caller-chosen profile_id, a distinct privacy question this
+      // milestone does not decide.
+      const byStateRow = document.createElement("div");
+      byStateRow.className = "avl-row avl-row--center";
+      const byStateLabel = document.createElement("span");
+      byStateLabel.className = "avl-type-body-small";
+      const byStateText = formatCountBreakdown(snap.enrollment?.by_state);
+      byStateLabel.textContent = byStateText
+        ? `Profiles by state: ${byStateText}.`
+        : "Profiles by state: no profiles recorded yet.";
+      byStateRow.appendChild(byStateLabel);
+      identityPanel.appendChild(byStateRow);
+
+      const byRoleRow = document.createElement("div");
+      byRoleRow.className = "avl-row avl-row--center";
+      const byRoleLabel = document.createElement("span");
+      byRoleLabel.className = "avl-type-body-small";
+      const byRoleText = formatCountBreakdown(snap.enrollment?.by_role);
+      byRoleLabel.textContent = byRoleText
+        ? `Profiles by role: ${byRoleText}.`
+        : "Profiles by role: no profiles recorded yet.";
+      byRoleRow.appendChild(byRoleLabel);
+      identityPanel.appendChild(byRoleRow);
 
       // VL-D13 -- desktop_snapshot()'s runtime/embeddings/preview
       // sub-payloads were already fetched here since D11, but never
