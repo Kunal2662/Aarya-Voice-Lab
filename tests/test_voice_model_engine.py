@@ -27,9 +27,11 @@ from aarya_voice_lab.identity.embeddings import (
     available_providers,
     get_provider,
 )
+from aarya_voice_lab.identity.runtime import ComputeBackend
 from aarya_voice_lab.pipeline.generation import (
     GenerationBackendState,
     GenerationBlockedError,
+    GenerationCapabilities,
     LocalNeuralVoiceGenerator,
     SyntheticVoiceGenerator,
 )
@@ -187,6 +189,106 @@ def test_local_neural_voice_generator_never_produces_a_fake_preview():
 def test_local_neural_voice_generator_is_a_distinct_backend_from_synthetic():
     assert LocalNeuralVoiceGenerator.name != SyntheticVoiceGenerator.name
     assert not hasattr(LocalNeuralVoiceGenerator, "kind")  # never stamped synthetic
+
+
+# ==========================================================================
+# VL-D18 -- IndicF5 capability honesty bridge. Every test here monkeypatches
+# importlib.metadata.version only (mirroring
+# test_environment_specs.py::test_check_package_ignores_local_version_suffix)
+# -- never installs a package, never touches HF_TOKEN, never makes a
+# network call.
+# ==========================================================================
+
+
+def test_local_neural_voice_generator_reports_missing_indicf5_dependencies_honestly(monkeypatch):
+    """No IndicF5 dependency installed: every absent package is named, and
+    the detail sentence identifies IndicF5, its HuggingFace gating, and
+    its unreviewed trust_remote_code requirement."""
+    import importlib.metadata
+
+    def _fake_version(name: str) -> str:
+        raise importlib.metadata.PackageNotFoundError(name)
+
+    monkeypatch.setattr(importlib.metadata, "version", _fake_version)
+    generator = LocalNeuralVoiceGenerator()
+    capabilities = generator.get_capabilities()
+    assert capabilities.backend_state == GenerationBackendState.NOT_CONFIGURED
+    assert capabilities.missing_requirements == ("soundfile", "torch", "transformers")
+    assert "IndicF5" in capabilities.detail
+    assert "gated" in capabilities.detail
+    assert "trust_remote_code" in capabilities.detail
+
+
+def test_local_neural_voice_generator_lists_only_the_actually_absent_dependencies(monkeypatch):
+    """A partially-installed environment (torch present, transformers/
+    soundfile absent) reports exactly the absent packages -- never the
+    one that is genuinely importable -- and still never claims AVAILABLE."""
+    import importlib.metadata
+
+    def _fake_version(name: str) -> str:
+        if name == "torch":
+            return "2.9.0"
+        raise importlib.metadata.PackageNotFoundError(name)
+
+    monkeypatch.setattr(importlib.metadata, "version", _fake_version)
+    generator = LocalNeuralVoiceGenerator()
+    capabilities = generator.get_capabilities()
+    assert capabilities.backend_state == GenerationBackendState.NOT_CONFIGURED
+    assert capabilities.missing_requirements == ("soundfile", "transformers")
+    assert "soundfile" in capabilities.detail
+    assert "transformers" in capabilities.detail
+    assert capabilities.backend_state is not GenerationBackendState.AVAILABLE
+
+
+def test_local_neural_voice_generator_all_dependencies_present_still_never_available(monkeypatch):
+    """Even with every IndicF5 dependency importable, real generation is
+    still not possible: no inference implementation exists, and the
+    HuggingFace access/trust_remote_code gates are independent of local
+    package installation. ERROR, never AVAILABLE -- and generate_preview()
+    must still refuse."""
+    import importlib.metadata
+
+    monkeypatch.setattr(importlib.metadata, "version", lambda name: "1.0.0")
+    generator = LocalNeuralVoiceGenerator()
+    capabilities = generator.get_capabilities()
+    assert capabilities.missing_requirements == ()
+    assert capabilities.backend_state == GenerationBackendState.ERROR
+    assert capabilities.backend_state is not GenerationBackendState.AVAILABLE
+    assert "IndicF5" in capabilities.detail
+    with pytest.raises(GenerationBlockedError):
+        generator.generate_preview({"text": "hello", "sample_rate": 16000})
+
+
+def test_generation_capabilities_serializes_detail_and_missing_requirements():
+    """New fields round-trip through to_dict(); existing fields are
+    unchanged in shape."""
+    capabilities = GenerationCapabilities(
+        backend_state=GenerationBackendState.NOT_CONFIGURED,
+        compute_backend=ComputeBackend.CPU,
+        supported_controls=frozenset({"speed"}),
+        missing_requirements=("torch", "transformers"),
+        detail="example detail text",
+    )
+    payload = capabilities.to_dict()
+    assert payload["missing_requirements"] == ["torch", "transformers"]
+    assert payload["detail"] == "example detail text"
+    assert payload["backend_state"] == "NOT_CONFIGURED"
+    assert payload["compute_backend"] == "cpu"
+    assert payload["supported_controls"] == ["speed"]
+
+
+def test_generation_capabilities_defaults_stay_backward_compatible():
+    """A caller that never mentions the new fields (every pre-D18 call
+    site) still constructs correctly, with an empty detail/requirements
+    default -- never a fabricated one."""
+    capabilities = GenerationCapabilities(
+        backend_state=GenerationBackendState.AVAILABLE,
+        compute_backend=ComputeBackend.CPU,
+    )
+    assert capabilities.missing_requirements == ()
+    assert capabilities.detail == ""
+    assert capabilities.to_dict()["missing_requirements"] == []
+    assert capabilities.to_dict()["detail"] == ""
 
 
 # ==========================================================================

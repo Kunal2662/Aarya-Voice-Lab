@@ -99,12 +99,22 @@ class GenerationCapabilities:
     backend_state: GenerationBackendState
     compute_backend: ComputeBackend
     supported_controls: frozenset[str] = field(default_factory=frozenset)
+    #: VL-D18 -- mirrors pipeline.training.TrainingProviderCapabilities'
+    #: shape exactly. What this provider actually requires to move past
+    #: NOT_CONFIGURED, shown to the operator verbatim rather than a
+    #: generic "unavailable".
+    missing_requirements: tuple[str, ...] = field(default_factory=tuple)
+    #: VL-D18 -- static, honest explanation of the current state. Never
+    #: derived from a live credential/network check.
+    detail: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "backend_state": self.backend_state.value,
             "compute_backend": self.compute_backend.value,
             "supported_controls": sorted(self.supported_controls),
+            "missing_requirements": list(self.missing_requirements),
+            "detail": self.detail,
         }
 
 
@@ -300,35 +310,58 @@ class SyntheticVoiceGenerator(VoiceGenerator):
         )
 
 
+#: VL-D18 -- static, informational text only. Never derived from a live
+#: credential lookup, network request, or HuggingFace availability check
+#: -- true (or false) independent of anything installed on this
+#: interpreter, so it never claims more than is actually known.
+_INDICF5_ACCESS_NOTE = (
+    "AI4Bharat IndicF5 is the approved generation candidate (see "
+    "docs/TTS_MODELS.md). Its HuggingFace repository is gated -- "
+    "downloading the weights requires accepting a contact-sharing "
+    "agreement -- and it loads with trust_remote_code=True, which "
+    "executes arbitrary code from the model repository; that code has "
+    "not undergone the required security review. Neither condition "
+    "depends on what is installed in this interpreter."
+)
+
+
 class LocalNeuralVoiceGenerator(VoiceGenerator):
-    """Real Voice Model Engine milestone -- the provider boundary for a
-    real, local TTS/voice-cloning backend, with genuine capability
-    detection instead of a fabricated result.
+    """Real Voice Model Engine milestone, extended by VL-D18 -- the
+    provider boundary for a real, local TTS/voice-cloning backend, with
+    genuine capability detection instead of a fabricated result.
 
     Checks, via `importlib.metadata` (empirically, not assumed), for the
-    packages every candidate `requirements/tts.txt` already documents:
-    `piper-tts` (the CPU-only, no-torch baseline) or `torch` (required by
-    the IndicF5/Parler-TTS candidates). **None is installed in this
-    interpreter.** Installing one is an explicitly separate, approval-
-    gated, license-reviewed decision (`requirements/tts.txt`'s own "NO
-    MODEL HAS BEEN SELECTED... do not install a model merely because it
-    is listed", and `configs/default.yaml`'s
-    `environments.env-tts.requires_approval`) -- never something this
-    class does on its own.
+    packages AI4Bharat IndicF5 -- the approved generation candidate, see
+    `docs/TTS_MODELS.md` -- actually requires: `transformers`, `torch`,
+    and `soundfile`. **None is installed in this interpreter.** Piper
+    remains a documented fallback candidate only (`requirements/tts.txt`)
+    and is deliberately not checked here -- substituting it is a decision
+    this class does not make on its own. Installing any of these is an
+    explicitly separate, approval-gated, license-reviewed decision
+    (`requirements/tts.txt`'s own "NO MODEL HAS BEEN SELECTED... do not
+    install a model merely because it is listed", and
+    `configs/default.yaml`'s `environments.env-tts.requires_approval`) --
+    never something this class does on its own.
 
-    So `generate_preview()` here always raises `GenerationBlockedError`
-    naming exactly what is missing. It never falls back to
-    `SyntheticVoiceGenerator`'s sine tone and never produces audio that
-    could be mistaken for a real generated voice.
+    Even if every dependency above were installed, IndicF5's own
+    HuggingFace access gate and unreviewed `trust_remote_code=True`
+    requirement (see `_INDICF5_ACCESS_NOTE`) mean real generation would
+    still not be possible -- `get_capabilities()` never reports
+    `AVAILABLE`, and `generate_preview()` always raises
+    `GenerationBlockedError` naming exactly what is missing. It never
+    falls back to `SyntheticVoiceGenerator`'s sine tone and never
+    produces audio that could be mistaken for a real generated voice.
     """
 
     name = "local-neural-tts"
     version = "1.0.0"
 
-    #: Distribution name -> what it would provide. See requirements/tts.txt.
+    #: Distribution name -> what it would provide, for IndicF5 (the
+    #: approved candidate). See requirements/tts.txt and docs/TTS_MODELS.md.
     CANDIDATE_DISTRIBUTIONS: dict[str, str] = {
-        "piper-tts": "Piper (CPU-only, ONNX, no torch at inference)",
-        "torch": "PyTorch (required by the IndicF5/Parler-TTS candidates)",
+        "transformers": "HuggingFace Transformers (required to load IndicF5)",
+        "torch": "PyTorch (required by IndicF5)",
+        "soundfile": "soundfile (required for IndicF5 audio I/O)",
     }
 
     def _installed(self) -> dict[str, str | None]:
@@ -344,20 +377,35 @@ class LocalNeuralVoiceGenerator(VoiceGenerator):
 
     def get_capabilities(self) -> GenerationCapabilities:
         installed = self._installed()
-        if any(version is not None for version in installed.values()):
-            # A candidate package is present, but no real inference path
-            # has been implemented against it yet (see generate_preview()) --
-            # report ERROR rather than AVAILABLE, since AVAILABLE would
-            # promise a working generation path that does not exist.
+        missing = tuple(sorted(name for name, version in installed.items() if version is None))
+        if not missing:
+            # Every known IndicF5 dependency is importable, but that
+            # changes nothing about real generation: no inference
+            # implementation exists yet (see generate_preview()), and
+            # _INDICF5_ACCESS_NOTE's HuggingFace-gating/trust_remote_code
+            # facts are unaffected by local package installation. Report
+            # ERROR rather than AVAILABLE, since AVAILABLE would promise
+            # a working generation path that does not exist.
             return GenerationCapabilities(
                 backend_state=GenerationBackendState.ERROR,
                 compute_backend=ComputeBackend.CPU,
                 supported_controls=frozenset(),
+                missing_requirements=(),
+                detail=(
+                    "All of IndicF5's known Python dependencies are importable in "
+                    "this interpreter, but no real inference implementation exists "
+                    f"yet. {_INDICF5_ACCESS_NOTE}"
+                ),
             )
         return GenerationCapabilities(
             backend_state=GenerationBackendState.NOT_CONFIGURED,
             compute_backend=ComputeBackend.CPU,
             supported_controls=frozenset(),
+            missing_requirements=missing,
+            detail=(
+                f"Missing IndicF5 dependencies in this interpreter: {', '.join(missing)}. "
+                f"{_INDICF5_ACCESS_NOTE}"
+            ),
         )
 
     def validate_request(self, request: dict[str, Any]) -> list[str]:
