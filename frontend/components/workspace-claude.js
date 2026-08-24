@@ -155,6 +155,37 @@ export class AvlWorkspaceClaude extends AvlElement {
       providerRow.appendChild(providerLabel);
       identityPanel.appendChild(providerRow);
 
+      // VL-D14 -- enrollment_status()'s available_strategies/
+      // available_providers were already fetched here since D11 (both
+      // live inside snap.enrollment), but never rendered -- the same
+      // "real data fetched every load, silently dropped" gap D13 closed
+      // for runtime/embeddings/preview. Neither field is biometric or
+      // profile data (just strategy/provider catalogue metadata), so no
+      // new security review is needed; rendered as an honest sentence
+      // naming every declared entry, or an explicit "none declared"
+      // state for an empty array -- never a fabricated default catalogue.
+      const strategiesRow = document.createElement("div");
+      strategiesRow.className = "avl-row avl-row--center";
+      const strategiesLabel = document.createElement("span");
+      strategiesLabel.className = "avl-type-body-small";
+      const strategies = snap.enrollment?.available_strategies ?? [];
+      strategiesLabel.textContent = strategies.length
+        ? `Enrollment strategies available: ${strategies.map((s) => s.name).join(", ")}.`
+        : "No enrollment strategies declared.";
+      strategiesRow.appendChild(strategiesLabel);
+      identityPanel.appendChild(strategiesRow);
+
+      const providersRow = document.createElement("div");
+      providersRow.className = "avl-row avl-row--center";
+      const providersLabel = document.createElement("span");
+      providersLabel.className = "avl-type-body-small";
+      const providers = snap.enrollment?.available_providers ?? [];
+      providersLabel.textContent = providers.length
+        ? `Embedding providers available: ${providers.join(", ")}.`
+        : "No embedding providers declared.";
+      providersRow.appendChild(providersLabel);
+      identityPanel.appendChild(providersRow);
+
       // VL-D13 -- desktop_snapshot()'s runtime/embeddings/preview
       // sub-payloads were already fetched here since D11, but never
       // rendered. Each stays as honest as the backend contract: a

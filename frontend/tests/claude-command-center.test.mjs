@@ -505,6 +505,59 @@ test("20. VL-D13: embedding inventory and preview-loop honesty sentences render,
   });
 });
 
+test("21. VL-D14: enrollment strategies render by name when declared", { timeout: 30_000 }, async () => {
+  const snapshot = realIdentitySnapshotFixture();
+  snapshot.enrollment.available_strategies = [
+    { name: "synthetic", version: "1.0.0", requires_human_approval: false, permitted_roles: ["any"], minimum_samples: 1, minimum_total_seconds: 0.5 },
+    { name: "direct_recording", version: "1.0.0", requires_human_approval: true, permitted_roles: ["operator"], minimum_samples: 3, minimum_total_seconds: 5.0 },
+    { name: "human_anchored", version: "1.0.0", requires_human_approval: true, permitted_roles: ["target"], minimum_samples: 3, minimum_total_seconds: 5.0 },
+  ];
+  await withSnapshotFile(JSON.stringify(realSnapshotFixture()), async () => {
+    await withIdentitySnapshotFile(JSON.stringify(snapshot), async () => {
+      await withPage(async (page) => {
+        await goToClaude(page);
+        const text = await identityPanelText(page);
+        assert.match(text, /Enrollment strategies available: synthetic, direct_recording, human_anchored\./);
+      });
+    });
+  });
+});
+
+test("22. VL-D14: embedding providers render by name", { timeout: 30_000 }, async () => {
+  await withSnapshotFile(JSON.stringify(realSnapshotFixture()), async () => {
+    await withIdentitySnapshotFile(JSON.stringify(realIdentitySnapshotFixture()), async () => {
+      await withPage(async (page) => {
+        await goToClaude(page);
+        const text = await identityPanelText(page);
+        assert.match(text, /Embedding providers available: local-neural-embedding, synthetic-cosine-projection\./);
+      });
+    });
+  });
+});
+
+test("23. VL-D14: empty enrollment strategies/providers render an honest 'none declared' state, never fabricated", { timeout: 30_000 }, async () => {
+  // Note: runtime.components (a separate, unrelated field bridged by
+  // D13) still legitimately contains "synthetic-cosine-projection" in
+  // this fixture -- so this test asserts on the enrollment sentences
+  // specifically, not on bare substring absence, to avoid a false
+  // failure from that unrelated row.
+  const snapshot = realIdentitySnapshotFixture();
+  snapshot.enrollment.available_strategies = [];
+  snapshot.enrollment.available_providers = [];
+  await withSnapshotFile(JSON.stringify(realSnapshotFixture()), async () => {
+    await withIdentitySnapshotFile(JSON.stringify(snapshot), async () => {
+      await withPage(async (page) => {
+        await goToClaude(page);
+        const text = await identityPanelText(page);
+        assert.match(text, /No enrollment strategies declared\./);
+        assert.match(text, /No embedding providers declared\./);
+        assert.doesNotMatch(text, /Enrollment strategies available:/);
+        assert.doesNotMatch(text, /Embedding providers available:/);
+      });
+    });
+  });
+});
+
 test("13. a full create-then-navigate cycle across snapshot states produces zero console errors", { timeout: 30_000 }, async () => {
   await withSnapshotFile(JSON.stringify(realSnapshotFixture()), async () => {
     await withPage(async (page) => {
