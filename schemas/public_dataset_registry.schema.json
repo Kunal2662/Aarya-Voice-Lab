@@ -1,0 +1,83 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://aarya-voice-lab/schemas/public_dataset_registry.schema.json",
+  "title": "AARYA Voice Lab Public Dataset Registry Record",
+  "description": "One entry describing a public/third-party licensed dataset considered or approved for training-pipeline development, model experimentation, generic voice development, or benchmark development (see docs/DATA_POLICY.md). This registry is exclusively for the PUBLIC LICENSED DATA track. It must never hold synthetic test fixtures or consented real-person (target-speaker) data -- those tracks are recorded and governed elsewhere (schemas/enrollment_profile.schema.json, dataset_gate.py, docs/PRIVACY.md) and must never be mixed with this registry.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "dataset_id",
+    "dataset_name",
+    "version",
+    "source",
+    "license",
+    "permitted_uses",
+    "status"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "type": "string" },
+    "dataset_id": { "type": "string", "minLength": 1 },
+    "dataset_name": { "type": "string", "minLength": 1 },
+    "version": { "type": "string", "minLength": 1 },
+    "source": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Where the dataset was or would be obtained from -- a canonical URL, DOI, or publisher name. Never a description alone."
+    },
+    "license": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The dataset's actual license identifier or name (e.g. 'CC BY 4.0', 'ODC-BY'). 'unknown' is a valid but honest value -- never left blank to imply a permissive default."
+    },
+    "permitted_uses": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "enum": [
+          "training-pipeline-development",
+          "model-experimentation",
+          "generic-voice-development",
+          "benchmark-development"
+        ]
+      },
+      "description": "Which of this project's public-data use categories the dataset's own license/terms actually permit. Never inferred from 'it is downloadable' -- see docs/DATA_POLICY.md."
+    },
+    "prohibited_uses": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "language": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "speaker_metadata_restrictions": {
+      "type": ["string", "null"],
+      "description": "Any restriction on using or exposing per-speaker identity from this dataset (e.g. 'anonymized speaker IDs only, no PII', 'consented for research use only'). Null only if the dataset genuinely carries no speaker metadata at all."
+    },
+    "intended_purpose": { "type": ["string", "null"] },
+    "provenance": {
+      "type": ["string", "null"],
+      "description": "How/when this dataset was acquired and by what process -- distinct from `source` (where it comes from)."
+    },
+    "checksum_sha256": {
+      "type": ["string", "null"],
+      "pattern": "^([0-9a-f]{64})?$",
+      "description": "SHA-256 of the acquired archive/manifest, recorded where practical. Null when not yet computed."
+    },
+    "acquisition_metadata": {
+      "type": ["object", "null"],
+      "additionalProperties": true
+    },
+    "citation": { "type": ["string", "null"] },
+    "status": {
+      "type": "string",
+      "enum": ["registered", "under_review", "approved", "rejected", "deprecated"],
+      "description": "'registered' records metadata only and grants no usage rights by itself -- 'approved' is the only status that clears the license/provenance gate."
+    },
+    "reviewed_by": { "type": ["string", "null"] },
+    "reviewed_at": { "type": ["string", "null"], "format": "date-time" },
+    "notes": { "type": ["string", "null"] }
+  }
+}

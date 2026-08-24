@@ -211,6 +211,53 @@ def build_benchmark(
     return record
 
 
+def build_public_dataset_entry(
+    *,
+    dataset_id: str,
+    dataset_name: str,
+    version: str,
+    source: str,
+    license: str,
+    permitted_uses: list[str],
+    status: str,
+    prohibited_uses: list[str] | None = None,
+    language: list[str] | None = None,
+    speaker_metadata_restrictions: str | None = None,
+    intended_purpose: str | None = None,
+    provenance: str | None = None,
+    checksum_sha256: str | None = None,
+    acquisition_metadata: dict[str, Any] | None = None,
+    citation: str | None = None,
+    reviewed_by: str | None = None,
+    reviewed_at: str | None = None,
+    notes: str | None = None,
+    schema_version: str = SCHEMA_VERSION,
+) -> dict[str, Any]:
+    record = {
+        "schema_version": schema_version,
+        "dataset_id": dataset_id,
+        "dataset_name": dataset_name,
+        "version": version,
+        "source": source,
+        "license": license,
+        "permitted_uses": permitted_uses,
+        "prohibited_uses": prohibited_uses or [],
+        "language": language or [],
+        "speaker_metadata_restrictions": speaker_metadata_restrictions,
+        "intended_purpose": intended_purpose,
+        "provenance": provenance,
+        "checksum_sha256": checksum_sha256,
+        "acquisition_metadata": acquisition_metadata,
+        "citation": citation,
+        "status": status,
+        "reviewed_by": reviewed_by,
+        "reviewed_at": reviewed_at,
+        "notes": notes,
+    }
+    validate(record, SchemaName.PUBLIC_DATASET_REGISTRY)
+    return record
+
+
 def build_manual_review(
     *,
     review_id: str,

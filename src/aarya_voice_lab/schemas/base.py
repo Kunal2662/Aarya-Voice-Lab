@@ -52,6 +52,7 @@ class SchemaName(StrEnum):
     AB_EVALUATION = "ab_evaluation"
     CALIBRATION_PROFILE = "calibration_profile"
     TRAINING_JOB = "training_job"
+    PUBLIC_DATASET_REGISTRY = "public_dataset_registry"
 
 
 class ValidationError(ValueError):

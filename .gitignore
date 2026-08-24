@@ -47,6 +47,8 @@
 !/source/README.md
 /datasets/**
 !/datasets/README.md
+/public_datasets/**
+!/public_datasets/README.md
 
 # The Phase 2 data root. Originals, derived audio, segments, manifests,
 # reports, review metadata and cache all live here and are ALL private.
