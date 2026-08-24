@@ -55,8 +55,9 @@ export const MIN_EVIDENCE_FOR_PROVISIONAL = 2;
 
 export const HARDWARE_DETECTION_LIMITATION =
   "Accelerator PRESENCE is now detected across vendors: NVIDIA via nvidia-smi, AMD " +
-  "via rocm-smi, and any other vendor via a PCI-id sysfs enumeration that needs no " +
-  "vendor tool installed (see environment.audit.check_accelerator). What is still " +
+  "via rocm-smi, any other vendor via a PCI-id sysfs enumeration on Linux, or a " +
+  "Windows WMI enumeration on Windows (see environment.audit.check_accelerator) -- " +
+  "none needing a vendor tool installed. What is still " +
   "NOT detected is whether a matching compute RUNTIME actually works: only CUDA has " +
   "a runtime check here, so a detected AMD/other accelerator always yields " +
   "detected_backend=other, never a fabricated ROCm/Metal/OpenCL runtime claim. In " +

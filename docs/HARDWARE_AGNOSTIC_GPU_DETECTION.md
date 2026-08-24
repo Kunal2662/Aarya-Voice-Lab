@@ -125,3 +125,14 @@ verified" section rather than implied to be hardware-tested.
   independently (via `git stash`) to reproduce identically before any of
   this session's edits, and confirmed intermittent by re-running (passes
   2 out of 3 consecutive runs).
+
+## Update
+
+**VL-D19** (`docs/VLD19_WINDOWS_GPU_DETECTION.md`) closed a real gap this
+work left open: the vendor-neutral sysfs fallback above only ever
+succeeds on Linux, so a Windows machine with no `nvidia-smi`/`rocm-smi`
+on `PATH` fell straight through to the honest "no GPU" negative even
+with real hardware present. VL-D19 added a Windows/WMI equivalent and
+verified it against a real Intel integrated GPU — the first time any
+tier of this project's GPU detection has been confirmed against
+non-NVIDIA hardware that actually exists, rather than only mocked.

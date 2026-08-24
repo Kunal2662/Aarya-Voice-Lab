@@ -134,10 +134,17 @@ control.
 - No model has been run on any hardware.
 - Performance claims (GPU "faster") are architectural expectations, not
   measurements from this project.
-- **AMD/other-vendor detection code is untested against real hardware**:
-  no AMD or Intel GPU was available on any machine this project has run
-  on, so `_detect_amd_gpu()`/`_detect_gpu_via_sysfs()` are verified only
-  by mocked unit tests (`tests/test_system_info.py`), the same honest
-  caveat NVIDIA CUDA execution itself already carries above. Detecting
+- **AMD detection code remains untested against real hardware**: no AMD
+  GPU has been available on any machine this project has run on, so
+  `_detect_amd_gpu()` is verified only by mocked unit tests
+  (`tests/test_system_info.py`).
+- **Intel GPU presence detection *is* now verified against real
+  hardware** (VL-D19, `docs/VLD19_WINDOWS_GPU_DETECTION.md`): a real
+  Intel integrated GPU was detected via the Windows-native fallback
+  (`_detect_gpu_via_windows_wmi()`) on the machine that milestone was
+  implemented on — independently confirmed against `Get-CimInstance
+  Win32_VideoController` outside the project's own code. Detecting
   presence and being able to run something on that hardware remain two
-  different, separately-unverified claims.
+  different, separately-unverified claims: Intel GPU *execution* is
+  still untested, the same honest caveat NVIDIA CUDA execution itself
+  already carries above.
