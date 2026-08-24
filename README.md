@@ -3,17 +3,27 @@
 Standalone, **local-first** research and engineering project for AARYA's
 voice system.
 
-> **Status: Phase 3 — Speaker Identity Architecture (software-only).**
-> The identity architecture is implemented and tested against synthetic
-> fixtures: embedding provider abstraction, pluggable enrollment, speaker
-> profiles, verification engine, calibration states, identity review, and
-> an append-only audit log.
+> **Status: Phase 3 — Speaker Identity Architecture, with a real embedding
+> provider implemented and verified.** The identity architecture —
+> embedding provider abstraction, pluggable enrollment, speaker profiles,
+> verification engine, calibration states, identity review, append-only
+> audit log, and the real-recording access gate (15 conditions,
+> fail-closed) — is implemented and tested. A deterministic synthetic
+> embedding provider is always available for development; a real provider
+> (NVIDIA NeMo TitaNet-large, subprocess-isolated) is also implemented and
+> has been verified end-to-end, computing real embeddings from synthetic
+> (sine-tone) audio. It requires a locally built `.envs/env-nemo`
+> environment, which is **not built on every checkout** — see
+> [Testing](#testing) for exactly what that means for this repository's
+> test results.
 >
-> **No recordings have been accessed. No real embedding has ever been
-> computed. No speaker model is installed. No training has occurred. No
-> cloud voice API is used.** The only embedding provider is a deterministic
-> synthetic one, and every artifact it produces is stamped synthetic so it
-> can never be read as a real identity conclusion.
+> **No real (private) recording has ever been accessed. No training has
+> occurred. No cloud voice API is used.** Every artifact a provider
+> produces is stamped synthetic or real accordingly, so a development
+> result can never be read as a real identity conclusion. Real Phase 4
+> processing of the actual private recordings remains gated on a human
+> enrollment-methodology decision and a manually recorded operator
+> reference sample — see [`docs/PRIVACY.md`](docs/PRIVACY.md).
 
 This project is **separate from AARYA Core and AARYA Frontend**. It does
 not modify, import from, or integrate with either.
@@ -55,13 +65,18 @@ these rules are not optional.
 | Experiment & model registries | Implemented |
 | Manual-review data model | Implemented |
 | CLI | Implemented |
-| Test suite (synthetic fixtures only) | Implemented — 432 tests |
-| `VoiceService` interface contract | Defined, **no provider implemented** |
-| NeMo / WhisperX / TTS environments | **Specified, NOT installed** |
-| Model weights | **None downloaded** |
+| Test suite | Implemented — 808 passed, 0 failed, 5 skipped (see [Testing](#testing)) |
+| `VoiceService` interface contract | Defined; a real embedding provider is implemented, generation/training remain unimplemented |
+| NeMo embedding environment (`env-nemo`) | Implemented, verified — **not built on this checkout** (5 tests skip; see [Testing](#testing)) |
+| WhisperX / TTS environments | **Specified, NOT installed** — approval-gated |
+| Model weights | **None downloaded on this checkout** — TitaNet-large weights are fetched automatically when `env-nemo` is built |
 | Dataset candidate pipeline (Phase 2) | Implemented — synthetic audio only |
-| Speaker identity architecture (Phase 3) | Implemented — **synthetic provider only** |
-| Real speaker verification | **BLOCKED** — no real provider installed |
+| Speaker identity architecture (Phase 3) | Implemented, including a real (non-synthetic) embedding provider |
+| Real speaker verification against real recordings | **Not performed** — no real recording has ever been accessed; gated by [`docs/PRIVACY.md`](docs/PRIVACY.md) |
+| Real-recording access gate (`dataset-gate`) | Implemented — 15 fail-closed conditions (operator enrollment, real embedding provider, model-licence review, + 12 prior) |
+| Cross-vendor, cross-OS GPU detection | Implemented — NVIDIA/AMD/Intel on Linux and Windows; verified on real Intel hardware |
+| Native Windows backend support | Implemented — cross-platform file locking, canonical path serialization; backend suite passes cleanly on native Windows |
+| Desktop UI (VL-D0–VL-D20 series) | Implemented — see [Documentation](#documentation) below |
 | Speaker diarization | **PLANNED** |
 | Verified dataset construction | **PLANNED** |
 | Voice model training | **PLANNED** |
@@ -78,7 +93,7 @@ can commonly support. See [`docs/ENVIRONMENT.md`](docs/ENVIRONMENT.md).
 
 ```bash
 python -m venv .venv
-source .venv/bin/activate
+source .venv/bin/activate     # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"
 ```
 
@@ -139,11 +154,17 @@ the private source tree unless explicitly approved.
 ## Testing
 
 ```bash
-pytest        # 432 tests, synthetic fixtures only
+pytest        # 808 passed, 0 failed, 5 skipped
 ruff check .
 ```
 
-No test uses, references, or requires the real recordings.
+The 5 skips require a real embedding provider (`.envs/env-nemo`, NVIDIA
+NeMo TitaNet-large) built locally — optional infrastructure, not part of
+this repository. Skipping is the correct, honest outcome when it isn't
+built; it is never reported as a pass. See [NEMO.md](docs/NEMO.md) to
+build it. Verified clean on native Windows as well as Linux.
+
+No test uses, references, or requires the real (private) recordings.
 
 ---
 
@@ -177,6 +198,13 @@ No test uses, references, or requires the real recordings.
 | [VLD11_IDENTITY_STATUS_BRIDGE.md](docs/VLD11_IDENTITY_STATUS_BRIDGE.md) | VL-D11 Identity Status Bridge: evidence-based D11 audit, desktop_snapshot() wired to a new Claude Command Center panel, fixes a real hardcoded `real_provider_installed: False` defect found live in D10's own diagnostics payload |
 | [VLD12_MODEL_REGISTRY_BRIDGE.md](docs/VLD12_MODEL_REGISTRY_BRIDGE.md) | VL-D12 Model Registry Bridge: evidence-based D12 audit, real (non-synthetic) model registry entries wired to the Models workspace, `private_voice` entries permanently excluded at the source per docs/SECURITY.md |
 | [VLD13_RUNTIME_CAPABILITY_BRIDGE.md](docs/VLD13_RUNTIME_CAPABILITY_BRIDGE.md) | VL-D13 Runtime Capability Bridge: evidence-based D13 audit, `runtime_capabilities()` now declares the real embedding provider's capability only when genuinely installed, `desktop_snapshot()`'s previously-unrendered runtime/embeddings/preview payloads now render honestly in the Claude Command Center |
+| [VLD14_IDENTITY_ENROLLMENT_CAPABILITY_COMPLETENESS.md](docs/VLD14_IDENTITY_ENROLLMENT_CAPABILITY_COMPLETENESS.md) | VL-D14 Identity Enrollment Capability Completeness Bridge: real `enrollment.available_strategies` / `available_providers` wired into the Identity panel |
+| [VLD15_PIPELINE_BATCH_VISIBILITY_BRIDGE.md](docs/VLD15_PIPELINE_BATCH_VISIBILITY_BRIDGE.md) | VL-D15 Pipeline Batch Visibility Bridge: real on-disk `pipeline.batches` wired into the Identity panel |
+| [VLD16_ENROLLMENT_ROLE_STATE_BREAKDOWN_BRIDGE.md](docs/VLD16_ENROLLMENT_ROLE_STATE_BREAKDOWN_BRIDGE.md) | VL-D16 Enrollment Role/State Breakdown Bridge: real `enrollment.by_state` / `by_role` breakdowns wired into the Identity panel |
+| [VLD17_VOICE_ENGINE_CAPABILITY_DETAIL_BRIDGE.md](docs/VLD17_VOICE_ENGINE_CAPABILITY_DETAIL_BRIDGE.md) | VL-D17 Voice Engine Capability Detail Bridge: real training-provider and embedding-provider detail/missing-requirements wired into the Models workspace |
+| [VLD18_INDICF5_CAPABILITY_HONESTY_BRIDGE.md](docs/VLD18_INDICF5_CAPABILITY_HONESTY_BRIDGE.md) | VL-D18 IndicF5 Capability Honesty Bridge: voice-generation capability detection corrected to IndicF5's real dependencies and HuggingFace gating; no generation implemented |
+| [VLD19_WINDOWS_GPU_DETECTION.md](docs/VLD19_WINDOWS_GPU_DETECTION.md) | VL-D19 Windows GPU Presence Detection: closes the Windows detection gap via WMI (`Win32_VideoController`), verified on real Intel hardware |
+| [VLD20_PORTABLE_RUNTIME_AUDIT.md](docs/VLD20_PORTABLE_RUNTIME_AUDIT.md) | VL-D20 Portable Runtime Discovery and Audit: read-only hardware-independence audit across the runtime stack; corrected stale documentation, no code defect found |
 | [FE1_FRONTEND_POLISH.md](docs/FE1_FRONTEND_POLISH.md) | FE-1 frontend polish pass: Shadow-DOM design-token delivery fix, shared confirmation dialog, responsive desktop shell, real SVG icons, shared CSS utilities, visual identity pass, zero-dependency visual regression harness, real accessibility audit |
 | [FE2_VISUAL_REDESIGN.md](docs/FE2_VISUAL_REDESIGN.md) | FE-2 visual redesign pass: denser dashboard stat-tile/icon-badge/meter primitives, real-data-only headline tiles on Command Center and 6 other workspaces, no fabricated hardware gauges or user identity |
 | [FE3_VISUAL_SYSTEM.md](docs/FE3_VISUAL_SYSTEM.md) | FE-3 Aarya glass surface system: restrained translucent panel/card/dialog/shell tokens, focus-only accent glow, real-data stat tiles for 4 more workspaces, WCAG AA contrast audit, light/dark theme hardening |
