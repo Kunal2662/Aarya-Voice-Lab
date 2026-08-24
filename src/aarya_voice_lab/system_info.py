@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import platform
+import re
 import shutil
 import subprocess
 import sys
@@ -291,6 +292,77 @@ def _detect_gpu_via_sysfs() -> GPUInfo | None:
     )
 
 
+def _detect_gpu_via_windows_wmi() -> GPUInfo | None:
+    """VL-D19 -- vendor-neutral last resort on Windows. `_detect_gpu_via_
+    sysfs()` above reads /sys/class/drm, a Linux-only path that does not
+    exist on Windows at all -- on a Windows machine with no nvidia-smi/
+    rocm-smi on PATH, GPU detection previously fell straight through to
+    the honest "nothing found" negative even when a real GPU (confirmed:
+    an Intel integrated GPU on the machine this was written and verified
+    on) was physically present. This is the Windows equivalent: every
+    video controller Windows itself already enumerates carries a
+    PNPDeviceID containing a PCI vendor id (VEN_XXXX), the same PCI
+    vendor-id scheme _PCI_VENDOR_NAMES already covers for Linux. Unlike
+    sysfs, WMI also reports a real device name, so this can name the
+    device precisely rather than falling back to the generic
+    "model unconfirmed" phrasing sysfs needs."""
+    if platform.system() != "Windows":
+        return None
+    powershell = shutil.which("powershell") or shutil.which("pwsh")
+    if not powershell:
+        return None
+    try:
+        result = subprocess.run(
+            [
+                powershell,
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
+                "Get-CimInstance Win32_VideoController | "
+                "Select-Object Name,PNPDeviceID | ConvertTo-Json -Compress",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if result.returncode != 0 or not result.stdout.strip():
+        return None
+    try:
+        parsed = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        return None
+
+    controllers = parsed if isinstance(parsed, list) else [parsed]
+    devices: list[dict[str, Any]] = []
+    vendor_names: set[str] = set()
+    for controller in controllers:
+        if not isinstance(controller, dict):
+            continue
+        pnp_device_id = controller.get("PNPDeviceID") or ""
+        match = re.search(r"VEN_([0-9A-Fa-f]{4})", pnp_device_id)
+        if not match:
+            continue
+        vendor_id = f"0x{match.group(1).lower()}"
+        vendor_name = _PCI_VENDOR_NAMES.get(vendor_id, f"unknown (PCI vendor {vendor_id})")
+        vendor_names.add(vendor_name)
+        name = controller.get("Name") or f"{vendor_name} GPU (model unconfirmed)"
+        devices.append({"name": name, "vram_mib": None})
+
+    if not devices:
+        return None
+    vendor = vendor_names.pop() if len(vendor_names) == 1 else "mixed"
+    return GPUInfo(
+        available=True,
+        devices=devices,
+        detection_method="windows-wmi",
+        vendor=vendor,
+        note="detected via Windows WMI (Win32_VideoController) enumeration -- driver/VRAM detail not queried",
+    )
+
+
 def get_gpu_info() -> GPUInfo:
     """NVIDIA is checked first only because scripts/install_env.sh's CUDA-
     vs-CPU wheel index decision already depends on that specific signal
@@ -301,7 +373,12 @@ def get_gpu_info() -> GPUInfo:
     nvidia-smi IS present but its own probe fails, that failure is
     reported directly rather than silently falling through to another
     vendor -- a broken NVIDIA tool on an NVIDIA machine is a real signal
-    worth surfacing, not something to paper over."""
+    worth surfacing, not something to paper over.
+
+    VL-D19 -- the sysfs check above only ever succeeds on Linux
+    (/sys/class/drm does not exist on Windows); _detect_gpu_via_windows_
+    wmi() is the platform-appropriate equivalent, tried last for the same
+    reason sysfs is: presence-only, no vendor tool required."""
     nvidia_smi = shutil.which("nvidia-smi")
     if nvidia_smi:
         return _detect_nvidia_gpu(nvidia_smi)
@@ -313,6 +390,10 @@ def get_gpu_info() -> GPUInfo:
     sysfs = _detect_gpu_via_sysfs()
     if sysfs is not None:
         return sysfs
+
+    windows_wmi = _detect_gpu_via_windows_wmi()
+    if windows_wmi is not None:
+        return windows_wmi
 
     return GPUInfo(
         available=False,
