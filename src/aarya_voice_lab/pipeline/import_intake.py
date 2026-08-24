@@ -119,6 +119,11 @@ class ImportItem:
     errors: list[str] = field(default_factory=list)
     duplicate_of: str | None = None
     #: Relative to the data root once accepted and copied. None until then.
+    #: Always POSIX-style (forward slashes), regardless of host OS -- this
+    #: is a serialized manifest field (schemas/import_manifest.schema.json)
+    #: read by both the Python backend and the JS frontend, so it must be
+    #: a stable, canonical string, never the host platform's native
+    #: separator.
     stored_relative_path: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
@@ -305,7 +310,7 @@ class ImportQueue:
                 item.duplicate_of = self.batch_id
                 return
 
-            item.stored_relative_path = str(destination.relative_to(self.data_root.root))
+            item.stored_relative_path = destination.relative_to(self.data_root.root).as_posix()
             item.status = ImportItemStatus.WARNING if item.warnings else ImportItemStatus.ACCEPTED
         except Exception as exc:  # noqa: BLE001 - failure isolation is the whole point of this catch
             item.status = ImportItemStatus.FAILED

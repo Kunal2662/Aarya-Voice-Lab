@@ -9,7 +9,10 @@ nothing is written inside the repository tree.
 from __future__ import annotations
 
 import json
+import shutil
+import sys
 import wave
+from pathlib import Path
 
 import pytest
 
@@ -367,17 +370,42 @@ def test_run_stage_records_block_instead_of_raising(tmp_path):
     assert read_stage_result(run_dir, PipelineStage.SOURCE)["status"] == StageStatus.BLOCKED
 
 
+def _materialize_interpreter_at(target: Path) -> None:
+    """Make `target` a real, directly-executable stand-in for the current
+    interpreter (`sys.executable`) -- used to fabricate a venv-shaped
+    `bin/python` for run_stage() to invoke, without needing a real built
+    ML environment. A symlink is the cheapest, most faithful option and
+    works everywhere on POSIX, but Windows requires an elevated
+    privilege (SeCreateSymbolicLinkPrivilege) or Developer Mode to
+    create one -- neither of which this suite may require. A hard link
+    is the next-cheapest real alternative (no special privilege on
+    Windows, byte-identical to the original), used whenever `target`
+    and `sys.executable` are on the same volume; a real file copy is
+    the final, always-works fallback. Every option here is a genuine
+    filesystem operation the real application could itself perform --
+    never a mock or a fabricated interpreter."""
+    try:
+        target.symlink_to(sys.executable)
+        return
+    except OSError:
+        pass
+    try:
+        target.hardlink_to(sys.executable)
+        return
+    except OSError:
+        pass
+    shutil.copy2(sys.executable, target)
+
+
 def test_run_stage_executes_in_a_real_interpreter(tmp_path):
     """The cross-environment mechanism itself: launch a stage as a subprocess
     using a venv-shaped python path. Uses the current interpreter standing in
     for a built environment, so the test needs no ML install."""
-    import sys
-
     run_dir = tmp_path / "run"
     run_dir.mkdir()
     env_root = tmp_path / "fake-env"
     (env_root / "bin").mkdir(parents=True)
-    (env_root / "bin" / "python").symlink_to(sys.executable)
+    _materialize_interpreter_at(env_root / "bin" / "python")
 
     stage_dir = stage_directory(run_dir, PipelineStage.SOURCE)
     stage_dir.mkdir(parents=True)
@@ -395,13 +423,11 @@ def test_run_stage_executes_in_a_real_interpreter(tmp_path):
 
 
 def test_run_stage_records_nonzero_exit_as_failure(tmp_path):
-    import sys
-
     run_dir = tmp_path / "run"
     run_dir.mkdir()
     env_root = tmp_path / "fake-env"
     (env_root / "bin").mkdir(parents=True)
-    (env_root / "bin" / "python").symlink_to(sys.executable)
+    _materialize_interpreter_at(env_root / "bin" / "python")
 
     result = run_stage(
         PipelineStage.SOURCE,
