@@ -12,6 +12,30 @@ import "./panel.js";
 import "./stat-tile.js";
 import "./status-badge.js";
 
+// VL-D17 -- appends a caption sub-line with `text` if `text` is a
+// non-empty string, otherwise appends nothing. Used for the voice
+// engine capability payload's `detail`/`missing_requirements` fields,
+// which were already fetched into `this._engineCapabilities` but never
+// rendered. A non-string (malformed backend value) is treated the same
+// as absent -- never coerced into a fabricated-looking string.
+function appendCaptionLine(container, text) {
+  if (typeof text !== "string" || text.length === 0) return;
+  const line = document.createElement("p");
+  line.className = "avl-type-caption";
+  line.textContent = text;
+  container.appendChild(line);
+}
+
+// VL-D17 -- formats training_provider.missing_requirements (a real list
+// of package names the provider itself reported) as one honest
+// sentence. Returns null for anything that isn't a non-empty array, so
+// an empty or malformed value renders nothing rather than an invented
+// "no missing requirements" or "missing: " sentence.
+function formatMissingRequirements(value) {
+  if (!Array.isArray(value) || value.length === 0) return null;
+  return `Missing requirements: ${value.map((item) => String(item)).join(", ")}.`;
+}
+
 // FE-3 -- same 5-tone cycle every other workspace dashboard uses.
 const TILE_TONES = ["blue", "teal", "green", "violet", "pink"];
 
@@ -139,6 +163,12 @@ export class AvlWorkspaceModels extends AvlElement {
             row.appendChild(badge);
           }
           engineList.appendChild(row);
+          // VL-D17 -- provider.detail was already fetched here alongside
+          // .name/.state, but never rendered. Real, generic setup/timing/
+          // exception text (see identity.embeddings' capability_state()
+          // implementations) -- never a filesystem path, credential, or
+          // private identifier.
+          appendCaptionLine(engineList, provider.detail);
         }
 
         const generationRow = document.createElement("div");
@@ -162,6 +192,15 @@ export class AvlWorkspaceModels extends AvlElement {
         trainingBadge.setAttribute("state", capabilities.training_provider.state);
         trainingRow.appendChild(trainingBadge);
         engineList.appendChild(trainingRow);
+        // VL-D17 -- training_provider.detail/.missing_requirements were
+        // already fetched here alongside .state, but never rendered.
+        // This is the real, honest explanation of *why* training is
+        // NOT_CONFIGURED (e.g. which packages are missing) -- it does not
+        // change or replace the existing state badge above, and an empty
+        // missing_requirements array renders nothing, never an invented
+        // "no missing requirements" sentence.
+        appendCaptionLine(engineList, capabilities.training_provider.detail);
+        appendCaptionLine(engineList, formatMissingRequirements(capabilities.training_provider.missing_requirements));
       }
       enginePanel.appendChild(engineList);
       wrapper.appendChild(enginePanel);
