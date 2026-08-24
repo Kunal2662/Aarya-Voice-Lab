@@ -222,6 +222,32 @@ export class AvlWorkspaceClaude extends AvlElement {
         : "Voice generation is not implemented — preview loop contracts only.";
       previewRow.appendChild(previewLabel);
       identityPanel.appendChild(previewRow);
+
+      // VL-D15 -- pipeline_status()'s `batches` (real, on-disk batch-ID
+      // strings from core.data_root.list_batches()) was already fetched
+      // here since D11, but never rendered -- the same "real data
+      // fetched every load, silently dropped" gap D13/D14 closed for
+      // their own fields. `pipeline.stages` was audited alongside this
+      // field and deliberately NOT bridged here: it is already real,
+      // live, and rendered by the separate avl-workspace-pipeline /
+      // avl-pipeline-stage-track path (VL-D1 §12), so duplicating it in
+      // this panel would only create a second, redundant surface for the
+      // same data. This row is also intentionally distinct from the
+      // "Batches" workspace (avl-workspace-batches), which still renders
+      // syntheticBatches() fixtures and is unrelated to this real,
+      // gitignored-snapshot-backed list -- never a fabricated batch id,
+      // and never a status/count beyond the bare id (BatchMetadata is
+      // out of scope for this milestone).
+      const batchesRow = document.createElement("div");
+      batchesRow.className = "avl-row avl-row--center";
+      const batchesLabel = document.createElement("span");
+      batchesLabel.className = "avl-type-body-small";
+      const batches = snap.pipeline?.batches ?? [];
+      batchesLabel.textContent = batches.length
+        ? `Batches on disk: ${batches.join(", ")}.`
+        : "No batches recorded yet.";
+      batchesRow.appendChild(batchesLabel);
+      identityPanel.appendChild(batchesRow);
     }
     identitySection.appendChild(identityPanel);
     wrapper.appendChild(identitySection);

@@ -558,6 +558,55 @@ test("23. VL-D14: empty enrollment strategies/providers render an honest 'none d
   });
 });
 
+test("24. VL-D15: real batch ids on disk render verbatim", { timeout: 30_000 }, async () => {
+  const snapshot = realIdentitySnapshotFixture();
+  snapshot.pipeline.batches = ["batch-001", "batch-002"];
+  await withSnapshotFile(JSON.stringify(realSnapshotFixture()), async () => {
+    await withIdentitySnapshotFile(JSON.stringify(snapshot), async () => {
+      await withPage(async (page) => {
+        await goToClaude(page);
+        const text = await identityPanelText(page);
+        assert.match(text, /Batches on disk: batch-001, batch-002\./);
+      });
+    });
+  });
+});
+
+test("25. VL-D15: no batches recorded renders an honest empty state, never fabricated", { timeout: 30_000 }, async () => {
+  // The shared fixture already defaults pipeline.batches to [] -- this
+  // asserts that default renders honestly rather than a fabricated id.
+  await withSnapshotFile(JSON.stringify(realSnapshotFixture()), async () => {
+    await withIdentitySnapshotFile(JSON.stringify(realIdentitySnapshotFixture()), async () => {
+      await withPage(async (page) => {
+        await goToClaude(page);
+        const text = await identityPanelText(page);
+        assert.match(text, /No batches recorded yet\./);
+        assert.doesNotMatch(text, /Batches on disk:/);
+      });
+    });
+  });
+});
+
+test("26. VL-D15: the Identity panel's batch row never renders the synthetic Batches workspace's fixture data", { timeout: 30_000 }, async () => {
+  const snapshot = realIdentitySnapshotFixture();
+  snapshot.pipeline.batches = ["batch-001", "batch-002"];
+  await withSnapshotFile(JSON.stringify(realSnapshotFixture()), async () => {
+    await withIdentitySnapshotFile(JSON.stringify(snapshot), async () => {
+      await withPage(async (page) => {
+        await goToClaude(page);
+        const text = await identityPanelText(page);
+        assert.match(text, /Batches on disk: batch-001, batch-002\./);
+        // avl-workspace-batches (a separate, unrelated workspace) renders
+        // "synthetic-batch-NNN" ids from state/synthetic-fixtures.js's
+        // syntheticBatches() -- this real, desktop_snapshot()-backed row
+        // must never leak that fabricated data in, and must never be
+        // confused with it.
+        assert.doesNotMatch(text, /synthetic-batch/);
+      });
+    });
+  });
+});
+
 test("13. a full create-then-navigate cycle across snapshot states produces zero console errors", { timeout: 30_000 }, async () => {
   await withSnapshotFile(JSON.stringify(realSnapshotFixture()), async () => {
     await withPage(async (page) => {
