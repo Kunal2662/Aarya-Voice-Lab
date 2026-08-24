@@ -10,6 +10,17 @@ Generated: see `Generated at` in the final report accompanying this
 checkpoint. Do not treat this file's contents as current if it is old —
 re-run `git log` and `pytest` before trusting anything below.
 
+> **Reconciliation note (added at `HEAD bb8132e`, doc-only pass).** This
+> file was written just after commit `3b95790` and was not updated
+> through the ~20 commits since (VL-D2 through VL-D20, the Real Voice
+> Model Engine and Real ML Runtime Integration milestones, native-Windows
+> hardening, and the Phase-3 Access-Gate Hardening milestone). §1, §5,
+> and §7 below have been corrected where they were factually superseded;
+> the rest of this document — including its numeric snapshots (§4) and
+> historical git-state description (§2) — is preserved as an accurate
+> record of *that* checkpoint, not of today. For current, authoritative
+> status, see [`README.md`](README.md).
+
 ---
 
 ## 1. Roadmap
@@ -17,15 +28,17 @@ re-run `git log` and `pytest` before trusting anything below.
 | Phase | Scope | Status |
 |---|---|---|
 | 0 | Foundation, architecture, safety, tooling | ✅ Complete |
-| 1 | ML toolchain & environment engineering (specs, no install) | ✅ Complete |
-| 2 | Dataset pipeline (technical prep, speaker-agnostic) | ✅ Complete |
-| 3 | Speaker identity software architecture (synthetic-only) | ✅ Complete (software) |
-| 3.5 (implied) | Real-data enrollment decision, credential/licence sign-off | ⏳ Not started — see §7 |
-| 4 | Real dataset processing (requires the dataset access gate) | ⏳ Blocked on Phase 3.5 |
-| 5+ | Voice model training/experiments, benchmarking | ⏳ Not started |
-| Desktop | Aarya Voice Lab desktop UI (VL-D0–D20) | 🔶 VL-D0 (design system) + VL-D1 (Command Center + operational workspace) + VL-D2 (bulk import + Dataset Workspace, synthetic data only) complete — see docs/VLD2_DATASET_WORKSPACE.md. VL-D3+ not started. |
+| 1 | ML toolchain & environment engineering | ✅ `env-nemo` built and validated — real embedding provider verified (see `docs/REAL_ML_RUNTIME_INTEGRATION.md`); `env-whisperx`/`env-tts` remain not installed, approval-gated |
+| 2 | Dataset pipeline (technical prep, speaker-agnostic) | ✅ Complete — implemented and tested against synthetic audio only |
+| 3 | Speaker identity software architecture | ✅ Complete, including a real (non-synthetic) embedding provider verified end-to-end on synthetic audio (see `docs/REAL_ML_RUNTIME_INTEGRATION.md`). No real recording has ever been accessed by any provider. |
+| 3.5 (implied) | Real-data enrollment decision, credential/licence sign-off | ⏳ Enrollment-methodology decision for the target speaker: **not started, owner decision required.** Embedding-provider licence has been researched and documented (NeMo `titanet_large`, NVIDIA NGC non-commercial research/evaluation terms); the `model_licence_reviewed` **gate attestation** itself is still a separate, unmade owner action (defaults `False`) — see §7 |
+| 4 | Real dataset processing (requires the dataset access gate) | ⏳ Blocked on Phase 3.5 — see §7 for exactly which of the gate's 15 conditions remain unmet |
+| 5+ | Voice model training/experiments, benchmarking | ⏳ Not started. Voice generation was explicitly evaluated and **deferred by direct user decision** (IndicF5 HuggingFace-gated; Piper not substituted without asking) — see `docs/REAL_ML_RUNTIME_INTEGRATION.md` |
+| Desktop | Aarya Voice Lab desktop UI (VL-D0–D20) | ✅ Complete. VL-D0 through VL-D20 all shipped (21 milestones; see `README.md`'s Documentation table for the full list) — this row is far stale in earlier drafts of this file, which described only VL-D0–D2 as done. |
 
-**Current phase: 3, complete (software only).**
+**Current phase: 3, complete — including a real, verified embedding
+provider. Phase 4 is blocked on owner prerequisites only (§7), not on
+any remaining engineering work.**
 
 ---
 
@@ -138,6 +151,10 @@ Phase 3 (identity + e2e + gaps): 145 passed
 Ruff:                clean
 ```
 
+*(Historical snapshot at this checkpoint's original commit. Current, as
+of `HEAD bb8132e`: 808 passed, 0 failed, 5 skipped; ruff clean; verified
+on native Windows — see `README.md`'s Testing section.)*
+
 Security scan (this checkpoint):
 - No secret patterns (`hf_*`, `sk-*`, `ghp_*`, AWS keys, PEM headers) in
   tracked content.
@@ -173,11 +190,18 @@ outcome — that's the synthetic-provenance guard working, not a failure.
 
 Stated plainly, per project convention — never claim more than is true:
 
-1. **No real embedding provider exists.** Only `SyntheticEmbeddingProvider`
-   (arithmetic over waveform shape) is implemented. A real provider
-   (TitaNet, WeSpeaker, etc.) requires a model decision — see the
-   COMPATIBILITY.md / TOOLCHAIN.md research from Phase 1 for the
-   NeMo/WhisperX isolation findings that still apply.
+1. **~~No real embedding provider exists.~~ Superseded — a real provider
+   now exists.** The Real ML Runtime Integration milestone built and
+   verified `identity.embeddings.LocalNeuralEmbeddingProvider` (NVIDIA
+   NeMo `titanet_large`, via `.envs/env-nemo`) — see
+   `docs/REAL_ML_RUNTIME_INTEGRATION.md`. `SyntheticEmbeddingProvider`
+   is unchanged and still what every existing test and frontend runs
+   against by default; the real provider is a second, honestly-labelled
+   path alongside it. It has only ever embedded synthetic (sine-tone)
+   audio — no real recording has been embedded by either provider. A
+   secondary (independent) verification provider remains unchosen (item
+   6 below), and the COMPATIBILITY.md / TOOLCHAIN.md NeMo/WhisperX
+   isolation findings from Phase 1 still apply to that decision.
 2. **The enrollment strategy for the target speaker is undecided.**
    `human_anchored` is implemented as an architecture and enforces its
    rules (human confirmation, `NO_OVERLAP_DETECTED`, `PASS` quality,
@@ -190,21 +214,31 @@ Stated plainly, per project convention — never claim more than is true:
 4. **No real audio has ever been embedded, enrolled, verified, or
    reviewed.** Every profile, score, and review in the test suite and
    the synthetic E2E is built from generated sine/harmonic waveforms.
-5. **The dataset access gate (`aarya-voice dataset-gate`) has not been
-   evaluated for Phase 3** — Phase 2's gate conditions are unchanged;
-   Phase 3 identity-specific gate conditions (operator enrollment
-   recorded, embedding storage verified, model licences reviewed,
-   reviewer availability) were specified in the Phase 3 readiness report
-   but are not yet wired into `dataset_gate.py`.
+5. **~~The dataset access gate has not been evaluated for Phase 3.~~
+   Superseded — done.** The Phase-3 Access-Gate Hardening milestone
+   (commit `80a23b8`) wired exactly the conditions this item named —
+   operator enrollment presence, real embedding provider verification,
+   and a model-licence-review attestation — into `dataset_gate.py`,
+   bringing it from 12 to 15 conditions. This is a **mechanical/attestation
+   gate only**: the operator-enrollment and real-provider checks read
+   real state (and both would fail on a fresh checkout today, since no
+   operator profile has been enrolled), and the licence-review, approval,
+   and other attestations still default to `False` and are never
+   inferred. Wiring the checks is complete; satisfying them (§7) is not.
 6. **No secondary (independent) verification system is chosen.** The
    engine supports one, but nothing has been selected or installed.
-7. **The desktop is partially built.** VL-D0 (design system) and VL-D1
-   (Command Center + operational workspace, synthetic data only) exist —
-   see docs/VLD0_DESIGN_SYSTEM.md and docs/VLD1_COMMAND_CENTER.md.
-   VL-D2 onward (real import, real pipeline execution, a real Claude
-   execution transport) does not exist yet.
-   `command_center.py` and `contracts.py` are the full extent of desktop
-   readiness.
+7. **~~The desktop is partially built (VL-D0/D1 only).~~ Superseded —
+   the full VL-D0 through VL-D20 series is complete.** See `README.md`'s
+   Documentation table for all 21 entries. Desktop readiness now extends
+   well beyond `command_center.py`/`contracts.py` — every workspace
+   (dataset import/review, voice processing/preview/feedback, AI
+   calibration, session persistence, and a series of live-data "bridge"
+   milestones, VL-D10–D20) is implemented and tested. **What this item's
+   original caveat still correctly implies stands, though:** the desktop
+   renders real backend state honestly (including `NOT_CONFIGURED`/
+   gated states) rather than executing anything itself — see
+   `docs/PHASE3_IDENTITY.md`'s Command Center section for the
+   no-execution-surface guarantee, which is unchanged.
 8. **No FFmpeg on the development machine** — Phase 2's normalization
    success path (not just its BLOCKED path) remains unverified end-to-end.
 
@@ -228,7 +262,22 @@ Stated plainly, per project convention — never claim more than is true:
 
 ## 7. Next-phase requirements (before real-data work)
 
-In priority order:
+### Current status of each item (reconciliation pass, `HEAD bb8132e`)
+
+| # | Requirement | Status |
+|---|---|---|
+| 1 | Push this bundle / grant GitHub write access | ✅ **Done — superseded.** This branch has been pushing directly to `origin` throughout the current session; the bundle-recovery situation this item describes no longer applies. |
+| 2 | Decide the enrollment approach for the target speaker | ⏳ **Still open — owner decision required.** No code change resolves this; it remains "an architectural decision for the repo owner, not something to default." |
+| 3 | Choose and licence-check a real embedding provider | ✅ **Done.** NVIDIA NeMo `titanet_large` chosen, built (`.envs/env-nemo`), and licence-documented (NGC non-commercial research/evaluation terms) — see `docs/REAL_ML_RUNTIME_INTEGRATION.md`. A **secondary** provider (different model family) remains unchosen. The `model_licence_reviewed` **gate attestation** is a separate owner action, still not given (defaults `False`) — documenting the licence is not the same as attesting it through the gate, and this file does not mark that attestation complete. |
+| 4 | Wire Phase 3-specific conditions into `dataset_gate.py` | ✅ **Done.** The Phase-3 Access-Gate Hardening milestone (commit `80a23b8`) added the three conditions this item named — operator enrollment presence, real embedding provider verification, model-licence-review attestation — bringing the gate to 15 conditions total. |
+| 5 | Record an operator enrollment sample | ⏳ **Still open — owner action required.** No usable operator-role profile exists in the profile store on any checkout audited this session; `dataset_gate.py`'s "operator enrollment present" condition reads this directly and would fail today. |
+| 6 | Begin Phase 4 only after 1–5 | ⏳ **Blocked on items 2 and 5 only** — 1, 3, and 4 are done. Every other `dataset_gate.py` condition (explicit approval, `phase2_complete`, `tests_passing`, `security_scan_clean`, `processing_config_reviewed`, `model_licence_reviewed`) is a pure operator attestation, "cannot be self-satisfied" by design. None has been fabricated, defaulted, or marked complete by this reconciliation. |
+
+The original numbered list is preserved below for history — its text is
+unchanged from when it was written; read it alongside the table above,
+not in place of it.
+
+### Original list (unchanged, priority order as originally written)
 
 1. **Push this bundle** (or grant GitHub App write access) so Phase 2
    and Phase 3 are recoverable from GitHub, not only from bundles.
@@ -268,8 +317,8 @@ git remote set-url origin https://github.com/Kunal2662/Aarya-Voice-Lab.git
 git ls-remote --heads origin   # do NOT assume the checkpoint's remote status is current
 
 # 3. Verify the checkpoint is accurate
-git log --oneline -6           # expect the "add Phase 3 checkpoint" commit at HEAD
-python -m pytest -q            # expect 472 passed
+git log --oneline -6           # this checkpoint's own commit is now ~20 commits behind HEAD, not at HEAD — see the reconciliation note near the top of this file
+python -m pytest -q            # 472 passed at this checkpoint's original writing; 808 passed, 0 failed, 5 skipped as of HEAD bb8132e (see README.md)
 ruff check .                   # expect clean
 aarya-voice synthetic-e2e      # expect 0 promotions, 0 real identity claims
 

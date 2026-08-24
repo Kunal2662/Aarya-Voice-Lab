@@ -1,7 +1,16 @@
 # Architecture
 
-> Phase 0 status: the structures described here exist as schemas,
-> policies, interfaces, and tests. **No processing stage is implemented.**
+> **Phase 0 (this document's original scope) is complete.** The
+> repository has since progressed through Phase 1 (environment
+> specifications — `env-nemo` built and validated), Phase 2 (dataset
+> pipeline, implemented and tested against synthetic audio), and Phase 3
+> (speaker identity architecture, including a real, verified embedding
+> provider). See the Phase table below,
+> [PHASE3_IDENTITY.md](PHASE3_IDENTITY.md), and
+> [`PHASE3_CHECKPOINT.md`](../PHASE3_CHECKPOINT.md) for current status.
+> Real processing of the private recordings remains gated by
+> [`dataset_gate.py`](../src/aarya_voice_lab/pipeline/dataset_gate.py)
+> and owner-only prerequisites — nothing below describes that as done.
 
 ## Scope boundaries
 
@@ -100,15 +109,28 @@ only from verification, never from the label.
 
 | Phase | Scope | Status |
 |---|---|---|
-| **0** | Foundation: structure, schemas, safety policy, tooling, docs | **Current** |
-| 1 | Environment build-out: install and validate the ML toolchain | Awaiting approval |
-| 2 | Voice dataset: inventory → diarize → verify → review → dataset | Awaiting approval |
-| 3 | Voice model experiments and fidelity benchmarking | Planned |
+| **0** | Foundation: structure, schemas, safety policy, tooling, docs | **Complete** |
+| 1 | Environment build-out: install and validate the ML toolchain | `env-nemo` built and validated — real embedding provider verified (see [REAL_ML_RUNTIME_INTEGRATION.md](REAL_ML_RUNTIME_INTEGRATION.md)); `env-whisperx`/`env-tts` remain not installed, approval-gated |
+| 2 | Voice dataset: inventory → validate → normalize → analyze quality → segment → flag overlap → candidate review (speaker-agnostic throughout — diarization was moved *after* this boundary; see [DATASET_PIPELINE.md](DATASET_PIPELINE.md)'s "correction from Phase 0") | Implemented and tested against synthetic audio only; real-data execution is a separate, later gate (below) |
+| 3 | Speaker identity architecture / verification | Implemented and tested, including a real (verified) embedding provider — see [PHASE3_IDENTITY.md](PHASE3_IDENTITY.md). Real verification against real recordings is blocked on owner prerequisites, not code |
 | 4 | Production voice model + AARYA Core integration | Planned |
 
-Phases 1 and 2 require **explicit approval** before beginning: Phase 1
-installs a large ML stack and Phase 2 is the first phase that touches the
-private recordings.
+Phase 1's ML stack requires **explicit approval** before installing
+`env-whisperx`/`env-tts` (`env-nemo` carries no such gate and has already
+been built). Phase 2's *architecture* needed no approval to build — it
+was implemented and verified entirely against synthetic audio. Touching
+the real recordings is a distinct, later gate
+(`aarya-voice dataset-gate`, fifteen conditions including explicit human
+approval — see
+[DATASET_PIPELINE.md](DATASET_PIPELINE.md#the-real-recording-access-gate)),
+not a property of "Phase 2" itself.
+
+> A separate, later-established step — real-recording access and
+> processing, gated by `aarya-voice dataset-gate` — is also referred to
+> as "Phase 4" elsewhere in the repository (see
+> [`PHASE3_CHECKPOINT.md`](../PHASE3_CHECKPOINT.md)'s roadmap). It
+> precedes this table's Phase 4 in sequence. This table's original
+> phase/scope descriptions are preserved rather than renumbered.
 
 ## Deliberate non-goals for Phase 0
 
