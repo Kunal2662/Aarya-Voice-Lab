@@ -1,12 +1,26 @@
 # Phase 3 — Speaker Identity Architecture
 
-> ## Status: software complete, synthetic-only
+> ## Status: architecture complete, including a real (non-synthetic)
+> ## embedding provider
 >
-> The identity architecture is implemented and tested against generated
-> fixtures. **No real recording has been accessed. No real speaker model
-> is installed. No real embedding has ever been computed. No training has
-> occurred.** The only embedding provider that exists is a deterministic
-> synthetic one.
+> The identity architecture is implemented and tested. A deterministic
+> synthetic embedding provider is always available for development; a
+> real provider (`identity.embeddings.LocalNeuralEmbeddingProvider`,
+> NVIDIA NeMo TitaNet-large, run via a subprocess bridge into
+> `.envs/env-nemo`) is also implemented and has been verified end-to-end
+> — it genuinely loads the model and returns real embedding vectors. See
+> [REAL_ML_RUNTIME_INTEGRATION.md](REAL_ML_RUNTIME_INTEGRATION.md) for
+> the full record.
+>
+> **What remains true regardless of that provider's existence:** no real
+> recording has ever been accessed by any provider — every embedding
+> either provider has ever computed was from synthetic (sine-tone) audio.
+> No training has occurred. No real target-speaker or operator profile
+> has been enrolled, and no real speaker verification has been performed.
+> The real provider is also not present on every checkout — it requires
+> `.envs/env-nemo` to be built locally. See "What still depends on real
+> recordings" below for exactly what its existence does and does not
+> unblock.
 >
 > Phase 3 answers *who is speaking* — the question Phase 2 was
 > structurally forbidden to touch.
@@ -54,10 +68,15 @@ it. Asserted by test.
 
 ## Embedding provider abstraction
 
-`EmbeddingProvider` is an ABC. Real providers (TitaNet, WeSpeaker, …)
-will subclass it **inside their own isolated environment** and
-communicate through the filesystem contract — they are never imported
-into the base interpreter, whose dependency set stays ML-free.
+`EmbeddingProvider` is an ABC. A real provider now subclasses it exactly
+this way: `identity.embeddings.LocalNeuralEmbeddingProvider` (NVIDIA NeMo
+TitaNet-large) runs **inside its own isolated environment**
+(`.envs/env-nemo`) and communicates through a subprocess/filesystem
+contract — it is never imported into the base interpreter, whose
+dependency set stays ML-free. See
+[REAL_ML_RUNTIME_INTEGRATION.md](REAL_ML_RUNTIME_INTEGRATION.md). A
+further real provider (WeSpeaker or similar, for the still-unchosen
+secondary/independent verifier) would follow the identical pattern.
 
 `SyntheticEmbeddingProvider` projects a waveform onto a fixed cosine bank
 and normalises. Measured separation on synthetic fixtures:
@@ -73,10 +92,11 @@ and any similarity it reports is about waveform shape, not identity.
 
 ### Embeddings are biometric data
 
-A *real* embedding derived from the private recordings is a biometric
-identifier of a deceased person; voice characteristics can be partially
-reconstructed from such vectors. Protections, all in place before any
-real provider exists:
+A *real* embedding derived from the private recordings would be a
+biometric identifier of a deceased person; voice characteristics can be
+partially reconstructed from such vectors. Protections, all already in
+place regardless of which provider — synthetic or real — ever produces
+one:
 
 - Stored only under `data/embeddings/`, git-ignored, with behavioural
   tests asking Git directly.
@@ -334,7 +354,7 @@ result. Synthetic provenance blocks dataset entry by design.
 
 | Blocked | Why |
 |---|---|
-| Real speaker verification | No real embedding provider installed — the Real Voice Model Engine milestone (see `docs/REAL_VOICE_MODEL_ENGINE.md`) added `identity.embeddings.LocalNeuralEmbeddingProvider`, a real provider *class* with honest, empirical capability detection, but it reports `NOT_CONFIGURED` in every environment this project runs in today; nothing here changes |
+| Real speaker verification | A real embedding provider now exists and is verified (`identity.embeddings.LocalNeuralEmbeddingProvider`, NVIDIA NeMo TitaNet-large — see `docs/REAL_ML_RUNTIME_INTEGRATION.md`), but only on a checkout with `.envs/env-nemo` built, and it has only ever embedded synthetic audio. Real speaker verification — enrolling and verifying the actual target speaker from her real recordings — has **not** been performed: it additionally requires the enrollment-methodology decision, an operator reference recording, and a pass of the real-recording access gate (`dataset_gate.py`, 15 conditions), none of which has happened |
 | Target profile enrollment | Requires the recordings plus human seed selection |
 | Operator profile enrollment | Requires a fresh recording from the operator |
 | Any statistical calibration | Requires held-out labelled data |
