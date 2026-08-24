@@ -35,6 +35,7 @@ from aarya_voice_lab.core.data_root import (
     validate_batch_id,
 )
 from aarya_voice_lab.core.paths import PROJECT_ROOT
+from aarya_voice_lab.pipeline import dataset_gate as dataset_gate_module
 from aarya_voice_lab.pipeline.dataset import (
     PipelineConfig,
     run_dataset_pipeline,
@@ -909,3 +910,200 @@ def test_gate_checks_offline_protections():
 
 def test_gate_report_is_renderable():
     assert "Access Gate" in format_gate(evaluate_gate())
+
+
+# ==========================================================================
+# Phase-3 Access-Gate Hardening -- operator enrollment, real embedding
+# provider, and model-licence-review conditions. Every profile here is
+# directly constructed (mirrors test_phase3_identity.py's
+# test_superseded_profile_refuses_verification_use), never a real
+# enrollment run -- these tests only need the profile store to contain a
+# profile, never a real embedding.
+# ==========================================================================
+
+
+def _operator_profile(*, usable=True):
+    from aarya_voice_lab.identity.profile import EnrollmentState, ProfileProvenance, SpeakerProfile, SpeakerRole
+
+    return SpeakerProfile(
+        profile_id="operator",
+        role=SpeakerRole.OPERATOR,
+        version=1,
+        enrollment_state=EnrollmentState.ENROLLED if usable else EnrollmentState.DRAFT,
+        provenance=ProfileProvenance(strategy_name="direct_recording", strategy_version="1.0.0"),
+        embedding_id="operator-v1" if usable else None,
+        embedding_sha256=("a" * 64) if usable else None,
+    )
+
+
+def _condition(report, name):
+    return next(c for c in report.conditions if c.name == name)
+
+
+def test_operator_enrollment_condition_fails_on_a_fresh_data_root(tmp_path):
+    data_root = DataRoot(root=tmp_path / "data").create()
+    report = evaluate_gate(data_root=data_root)
+    assert not _condition(report, "operator enrollment present").satisfied
+
+
+def test_operator_enrollment_condition_passes_with_a_usable_operator_profile(tmp_path):
+    from aarya_voice_lab.identity.profile import ProfileStore
+
+    data_root = DataRoot(root=tmp_path / "data").create()
+    ProfileStore(data_root).save(_operator_profile())
+    report = evaluate_gate(data_root=data_root)
+    assert _condition(report, "operator enrollment present").satisfied
+
+
+def test_operator_enrollment_condition_ignores_a_non_operator_profile(tmp_path):
+    from aarya_voice_lab.identity.profile import (
+        EnrollmentState,
+        ProfileProvenance,
+        ProfileStore,
+        SpeakerProfile,
+        SpeakerRole,
+    )
+
+    data_root = DataRoot(root=tmp_path / "data").create()
+    target_profile = SpeakerProfile(
+        profile_id="target",
+        role=SpeakerRole.TARGET_SPEAKER,
+        version=1,
+        enrollment_state=EnrollmentState.ENROLLED,
+        provenance=ProfileProvenance(strategy_name="direct_recording", strategy_version="1.0.0"),
+        embedding_id="target-v1",
+        embedding_sha256="b" * 64,
+    )
+    ProfileStore(data_root).save(target_profile)
+    report = evaluate_gate(data_root=data_root)
+    assert not _condition(report, "operator enrollment present").satisfied
+
+
+def test_real_provider_condition_fails_when_none_available(monkeypatch, tmp_path):
+    monkeypatch.setattr(dataset_gate_module, "any_real_provider_available", lambda: False)
+    data_root = DataRoot(root=tmp_path / "data").create()
+    report = evaluate_gate(data_root=data_root)
+    assert not _condition(report, "real embedding provider verified").satisfied
+
+
+def test_real_provider_condition_passes_when_the_existing_signal_reports_true(monkeypatch, tmp_path):
+    """Mocks the existing any_real_provider_available() signal directly --
+    never fabricates a real model installation or a second detector."""
+    monkeypatch.setattr(dataset_gate_module, "any_real_provider_available", lambda: True)
+    data_root = DataRoot(root=tmp_path / "data").create()
+    report = evaluate_gate(data_root=data_root)
+    assert _condition(report, "real embedding provider verified").satisfied
+
+
+def test_licence_review_condition_defaults_to_unsatisfied():
+    report = evaluate_gate()
+    assert not _condition(report, "model licence reviewed").satisfied
+
+
+def test_licence_review_condition_satisfied_when_explicitly_attested():
+    report = evaluate_gate(model_licence_reviewed=True)
+    assert _condition(report, "model licence reviewed").satisfied
+
+
+def test_licence_review_condition_unsatisfied_when_explicitly_false():
+    report = evaluate_gate(model_licence_reviewed=False)
+    assert not _condition(report, "model licence reviewed").satisfied
+
+
+def test_evaluate_gate_reports_exactly_fifteen_conditions(tmp_path):
+    data_root = DataRoot(root=tmp_path / "data").create()
+    report = evaluate_gate(data_root=data_root)
+    assert len(report.conditions) == 15, [c.name for c in report.conditions]
+
+
+def _fake_git_all_clean(args, root):
+    """Decouples the git-dependent conditions (1-3, 8) from whatever the
+    ambient repository's real state happens to be at test time, so the
+    fully-satisfied scenarios below are hermetic rather than flaky."""
+    if args and args[0] == "status":
+        return (0, "")
+    if args and args[0] == "branch":
+        return (0, "origin/some-branch")
+    return (0, "")  # check-ignore and anything else: success
+
+
+class _CleanScan:
+    ok = True
+    violations: list = []
+
+
+def _fully_satisfied_kwargs(monkeypatch, tmp_path, *, omit: str | None = None):
+    """Builds a data root and monkeypatch state where all 15 conditions
+    would be satisfied, optionally forcing exactly one of the three new
+    Phase-3 conditions to fail -- proving each one independently blocks
+    access without the others being affected."""
+    monkeypatch.setattr(dataset_gate_module, "_git", _fake_git_all_clean)
+    monkeypatch.setattr(dataset_gate_module, "scan_git_repo", lambda root: _CleanScan())
+    monkeypatch.setattr(dataset_gate_module, "any_real_provider_available", lambda: omit != "real_provider")
+
+    data_root = DataRoot(root=tmp_path / "data").create()
+    data_root.source.mkdir(parents=True, exist_ok=True)
+    (data_root.source / "dummy.wav").write_bytes(b"synthetic placeholder, not real audio")
+    if omit != "operator_enrollment":
+        from aarya_voice_lab.identity.profile import ProfileStore
+
+        ProfileStore(data_root).save(_operator_profile())
+
+    return data_root, {
+        "phase2_complete": True,
+        "tests_passing": True,
+        "security_scan_clean": True,
+        "processing_config_reviewed": True,
+        "explicit_approval": True,
+        "model_licence_reviewed": omit != "licence_review",
+    }
+
+
+def test_all_fifteen_conditions_satisfied_allows_access(monkeypatch, tmp_path):
+    data_root, kwargs = _fully_satisfied_kwargs(monkeypatch, tmp_path)
+    report = evaluate_gate(data_root=data_root, **kwargs)
+    assert report.allowed, [c.name for c in report.unsatisfied]
+
+
+def test_missing_operator_enrollment_alone_denies_access(monkeypatch, tmp_path):
+    data_root, kwargs = _fully_satisfied_kwargs(monkeypatch, tmp_path, omit="operator_enrollment")
+    report = evaluate_gate(data_root=data_root, **kwargs)
+    assert not report.allowed
+    assert {c.name for c in report.unsatisfied} == {"operator enrollment present"}
+
+
+def test_missing_real_provider_alone_denies_access(monkeypatch, tmp_path):
+    data_root, kwargs = _fully_satisfied_kwargs(monkeypatch, tmp_path, omit="real_provider")
+    report = evaluate_gate(data_root=data_root, **kwargs)
+    assert not report.allowed
+    assert {c.name for c in report.unsatisfied} == {"real embedding provider verified"}
+
+
+def test_missing_licence_review_alone_denies_access(monkeypatch, tmp_path):
+    data_root, kwargs = _fully_satisfied_kwargs(monkeypatch, tmp_path, omit="licence_review")
+    report = evaluate_gate(data_root=data_root, **kwargs)
+    assert not report.allowed
+    assert {c.name for c in report.unsatisfied} == {"model licence reviewed"}
+
+
+def test_existing_twelve_conditions_retain_their_behavior_alongside_new_ones(tmp_path):
+    """Regression: with none of the operator attestations given and no
+    Phase-3 signal mocked, the same pre-existing conditions that were
+    already unsatisfied before this milestone remain unsatisfied, now
+    joined by the three new ones -- nothing pre-existing was weakened."""
+    data_root = DataRoot(root=tmp_path / "data").create()
+    report = evaluate_gate(data_root=data_root)
+    pre_existing_unsatisfied_names = {
+        "Phase 2 implementation complete",
+        "Phase 2 tests passing",
+        "security scan complete",
+        "processing configuration reviewed",
+        "explicit approval to access recordings",
+        "source directory populated",
+    }
+    unsatisfied_names = {c.name for c in report.unsatisfied}
+    assert pre_existing_unsatisfied_names <= unsatisfied_names
+    # Conditions that were already unconditionally satisfied before this
+    # milestone (no operator input needed) remain satisfied.
+    assert _condition(report, "no cloud upload path").satisfied
+    assert _condition(report, "offline/telemetry protections intact").satisfied

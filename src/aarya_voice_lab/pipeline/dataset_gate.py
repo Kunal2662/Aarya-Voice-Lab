@@ -1,9 +1,12 @@
 """The real-recording access gate.
 
-Before any code may read the private recordings, twelve conditions must
-hold. This module checks them mechanically instead of relying on someone
-remembering, and reports each one individually so a failure names what to
-fix.
+Before any code may read the private recordings, fifteen conditions must
+hold (twelve technical/attestation conditions, plus three Phase-3
+prerequisites added by the Access-Gate Hardening milestone: a usable
+operator enrollment, a verified real embedding provider, and an explicit
+model-licence-review attestation). This module checks them mechanically
+instead of relying on someone remembering, and reports each one
+individually so a failure names what to fix.
 
 The final condition — explicit human approval — cannot be self-satisfied.
 It is supplied by the caller and is never inferred, defaulted, or derived
@@ -23,6 +26,8 @@ from typing import Any
 
 from aarya_voice_lab.core.data_root import DataRoot
 from aarya_voice_lab.core.paths import PROJECT_ROOT
+from aarya_voice_lab.identity.embeddings import any_real_provider_available
+from aarya_voice_lab.identity.profile import ProfileStore, SpeakerRole
 from aarya_voice_lab.pipeline.runner import OFFLINE_ENV, TELEMETRY_OFF_ENV
 from aarya_voice_lab.security.source_protection import scan_git_repo
 
@@ -91,6 +96,26 @@ def _branch_pushed(root: Path, commit_subject_fragment: str) -> GateCondition:
     return GateCondition(name, True, f"HEAD present on: {output.splitlines()[0].strip()}")
 
 
+def _operator_enrollment_present(data_root: DataRoot) -> GateCondition:
+    """Phase-3 Access-Gate Hardening milestone: a usable operator profile
+    must exist before real-recording access is granted -- the approved
+    rejection-first matching approach needs a real operator reference to
+    match candidate segments against. Only checks the existing profile
+    store; never creates, fabricates, or infers an enrollment."""
+    name = "operator enrollment present"
+    store = ProfileStore(data_root)
+    for profile_id in store.list_profiles():
+        latest = store.latest(profile_id)
+        if latest is not None and latest.role is SpeakerRole.OPERATOR and latest.is_usable:
+            return GateCondition(name, True, f"usable operator profile found: {latest.profile_version_key}")
+    return GateCondition(
+        name,
+        False,
+        "no usable operator-role profile found in the profile store -- "
+        "an operator reference recording must be enrolled first",
+    )
+
+
 def evaluate_gate(
     *,
     data_root: DataRoot | None = None,
@@ -100,6 +125,7 @@ def evaluate_gate(
     security_scan_clean: bool = False,
     processing_config_reviewed: bool = False,
     explicit_approval: bool = False,
+    model_licence_reviewed: bool = False,
 ) -> GateReport:
     """Evaluate every access condition.
 
@@ -197,6 +223,32 @@ def evaluate_gate(
             explicit_approval,
             "granted" if explicit_approval else "NOT granted — this cannot be self-satisfied",
         )
+    )
+
+    # 13. Access-Gate Hardening milestone -- operator enrollment. Reads
+    # the existing profile store only; never creates or fabricates one.
+    report.conditions.append(_operator_enrollment_present(data))
+
+    # 14. Access-Gate Hardening milestone -- real embedding provider.
+    # Reuses identity.embeddings.any_real_provider_available() exactly;
+    # never a second detector, never inferred from provider registration.
+    real_provider_available = any_real_provider_available()
+    report.conditions.append(
+        GateCondition(
+            "real embedding provider verified",
+            real_provider_available,
+            "a real (non-synthetic) embedding provider is installed and loadable"
+            if real_provider_available
+            else "no real embedding provider is installed — synthetic-only is not sufficient for real identity work",
+        )
+    )
+
+    # 15. Access-Gate Hardening milestone -- model licence review. A pure
+    # operator attestation, exactly like security_scan_clean/
+    # processing_config_reviewed above -- never inferred from model
+    # presence, name, status, or registry existence.
+    report.conditions.append(
+        GateCondition("model licence reviewed", model_licence_reviewed, "attested by operator")
     )
 
     # Informational: whether source material is even present.
