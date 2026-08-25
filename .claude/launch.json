@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "aarya-voice-lab-frontend",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["frontend/tools/serve.mjs"],
+      "port": 4310
+    }
+  ]
+}

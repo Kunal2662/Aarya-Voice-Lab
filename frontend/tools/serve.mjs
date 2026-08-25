@@ -51,6 +51,12 @@ function main() {
   });
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+// fileURLToPath() normalises both sides to the platform's native path
+// format before comparing -- a direct `import.meta.url === "file://" +
+// process.argv[1]` string comparison never matches on Windows (argv[1]
+// is a backslash path like `C:\...`, while import.meta.url is a
+// forward-slash, percent-encoded file:// URL), which silently made this
+// server exit immediately without starting on every native-Windows run.
+if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
   main();
 }
