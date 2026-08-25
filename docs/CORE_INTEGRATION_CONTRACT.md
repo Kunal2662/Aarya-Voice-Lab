@@ -67,6 +67,38 @@ RUNTIME                 — Core loads and runs the voice
 | Rollback on failure | If any step (validation, compatibility, install, registry) fails, every already-taken action from that install attempt is undone |
 | Clear error reporting | Every rejection names which specific check failed (schema field, checksum mismatch, disallowed entry, incompatible runtime) — mirroring `pipeline.voice_package.validate_package_archive()`'s own "return every problem, not just the first" convention |
 
+## Update semantics (installing a new version of an already-installed voice)
+
+Underspecified in earlier drafts of this document; made explicit here
+since "update" is one of the operations Core's registry must support
+and "just overwrite it" is exactly the kind of silent-overwrite risk
+the requirements table above already forbids for a *different* voice's
+files — the same discipline applies to a *new version of the same*
+voice:
+
+1. Import and validate the new package fully (every step above) as if
+   it were a brand-new voice — a "this is just an update" shortcut that
+   skips validation is how a corrupted/malicious "update" bypasses every
+   other check in this contract.
+2. Install the new version's files to a **separate** location, keyed by
+   `manifest.voice_id` + `manifest.version` — never overwrite the
+   currently-active version's files in place.
+3. Only after the new version is fully installed and validated does the
+   registry's "active version" pointer for that `voice_id` atomically
+   switch to it.
+4. The previous version's files are retained (not deleted) until
+   either: the user explicitly removes it, or Core's own
+   retention/cleanup policy (not defined here — a Core-side decision)
+   reclaims it.
+5. If any step 1–3 fails, the previous version remains active and
+   nothing about it changed — this is what "rollback on failure" means
+   concretely for an update, not just a fresh install.
+
+This mirrors `pipeline.model_artifact.ArtifactStore`'s own
+checksum-addressed, never-overwrite storage discipline on the Voice Lab
+side — Core's registry is a different system, but the same principle
+(new content never silently replaces old content in place) applies.
+
 ## What Voice Lab already guarantees, so Core does not have to
 
 - `manifest.type` can never be `"private_voice"` — the manifest schema's
