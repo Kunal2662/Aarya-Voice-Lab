@@ -98,6 +98,10 @@ rttm/
 *.tar.gz
 *.zip
 *.7z
+# The .arya-voice package format (pipeline.voice_package) is a zip
+# archive under a project-specific extension -- *.zip above does not
+# match it.
+*.arya-voice
 
 # ---------------------------------------------------------------------------
 # Secrets, credentials, API keys
