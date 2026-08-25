@@ -61,3 +61,63 @@ def test_unknown_command_exits_nonzero():
     with pytest.raises(SystemExit) as exc:
         main(["definitely-not-a-command"])
     assert exc.value.code != 0
+
+
+def test_voice_engine_status_command(capsys):
+    """Phase 1 of the 8-phase release plan -- this command had zero
+    test coverage despite being 'the one honest place to see every
+    provider's actual capability state.'"""
+    assert main(["voice-engine-status"]) == 0
+    out = capsys.readouterr().out
+    assert "Real Voice Model Engine" in out
+    assert "Embedding providers:" in out
+    assert "Generation provider" in out
+    assert "Training provider" in out
+
+
+def test_voice_engine_status_json_reports_all_three_provider_kinds(capsys):
+    import json
+
+    assert main(["voice-engine-status", "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert "embedding_providers" in payload
+    assert "generation_provider" in payload
+    assert "training_provider" in payload
+    assert len(payload["embedding_providers"]) >= 2  # synthetic + local-neural-embedding
+
+
+def test_voice_engine_status_never_fabricates_available_on_this_checkout(capsys):
+    """This checkout has no torch/nemo_toolkit/transformers/soundfile
+    installed and no .envs/env-nemo built (confirmed empirically, not
+    assumed) -- the real, non-synthetic providers must honestly report
+    a non-AVAILABLE state, never a fabricated success. A synthetic
+    provider's SYNTHETIC_ONLY state is not a claim of real availability
+    and is excluded from this check."""
+    import json
+
+    assert main(["voice-engine-status", "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+
+    for report in payload["embedding_providers"]:
+        if report["is_synthetic"]:
+            continue
+        assert report["state"] != "AVAILABLE", (
+            f"provider {report['name']!r} reported AVAILABLE but no real embedding "
+            "runtime is installed on this checkout"
+        )
+
+    assert payload["generation_provider"]["backend_state"] != "AVAILABLE"
+    assert payload["training_provider"]["state"] != "AVAILABLE"
+
+
+def test_voice_engine_status_reports_missing_requirements_when_not_configured(capsys):
+    import json
+
+    assert main(["voice-engine-status", "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+
+    if payload["training_provider"]["state"] == "NOT_CONFIGURED":
+        assert payload["training_provider"]["missing_requirements"]
+    if payload["generation_provider"]["backend_state"] not in ("AVAILABLE",):
+        # Real, human-readable explanation must exist -- never a bare state with no detail.
+        assert payload["generation_provider"].get("detail")
