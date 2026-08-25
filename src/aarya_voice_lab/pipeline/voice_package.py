@@ -66,6 +66,33 @@ ALLOWED_PACKAGE_EXTENSIONS: frozenset[str] = frozenset(
 #: metadata but is meant to be interpreted as code by some other tool).
 FORBIDDEN_PACKAGE_ENTRY_NAMES: frozenset[str] = frozenset({"__init__.py", "setup.py"})
 
+#: A voice model this project's own architecture targets (TitaNet
+#: embeddings, small TTS candidates) is realistically well under this.
+#: Refusing anything larger closes a zip-bomb vector: extractall()/read()
+#: decompress an amount proportional to the *declared* uncompressed
+#: size, and a malicious archive can declare an enormous size behind a
+#: tiny compressed payload.
+MAX_PACKAGE_ENTRY_UNCOMPRESSED_BYTES = 2 * 1024 * 1024 * 1024  # 2 GiB
+
+
+def check_entry_sizes(
+    archive: zipfile.ZipFile, *, max_bytes: int = MAX_PACKAGE_ENTRY_UNCOMPRESSED_BYTES
+) -> list[str]:
+    """Check every entry's *declared* uncompressed size against a limit,
+    without decompressing anything -- a zip-bomb defense. Must be called
+    (and its result checked) before any `.read()` or `.extractall()` on
+    an untrusted archive: those decompress an amount proportional to the
+    attacker-declared size, not the file's real size on disk.
+    """
+    problems: list[str] = []
+    for info in archive.infolist():
+        if info.file_size > max_bytes:
+            problems.append(
+                f"{info.filename!r}: declared uncompressed size {info.file_size} bytes exceeds the "
+                f"{max_bytes} byte limit -- refusing to decompress (possible zip bomb)"
+            )
+    return problems
+
 
 class VoicePackageValidationError(ValueError):
     """Raised when a manifest or package entry list fails validation."""
@@ -223,6 +250,12 @@ def validate_package_archive(archive_path: Path) -> list[str]:
         with zipfile.ZipFile(archive_path) as archive:
             names = archive.namelist()
             problems.extend(validate_package_entries(names))
+            size_problems = check_entry_sizes(archive)
+            if size_problems:
+                # A declared-oversized entry must never be decompressed,
+                # not even to read manifest.json -- report and stop here.
+                problems.extend(size_problems)
+                return problems
             if "manifest.json" not in names:
                 problems.append("archive contains no manifest.json")
                 return problems

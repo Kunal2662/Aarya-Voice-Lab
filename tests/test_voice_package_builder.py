@@ -14,9 +14,11 @@ import pytest
 from aarya_voice_lab.core.data_root import DataRoot
 from aarya_voice_lab.pipeline.model_manager import ModelManager
 from aarya_voice_lab.pipeline.voice_package import (
+    MAX_PACKAGE_ENTRY_UNCOMPRESSED_BYTES,
     VoicePackageBuildError,
     build_package_archive,
     build_voice_package_manifest,
+    check_entry_sizes,
     validate_package_archive,
 )
 from aarya_voice_lab.registry.model_registry import ModelRegistry
@@ -82,7 +84,7 @@ def test_build_refuses_invalid_manifest(tmp_path):
 
 
 def test_round_trip_create_validate_extract_revalidate(tmp_path):
-    # 1. Create.
+    # 1. Build.
     output = tmp_path / "voice.arya-voice"
     build_package_archive(output, manifest=_manifest(), model_bytes=MODEL_BYTES, model_filename="model.json")
 
@@ -103,6 +105,15 @@ def test_round_trip_create_validate_extract_revalidate(tmp_path):
     assert manager.verify(artifact.artifact_id) is True
     assert artifact.checksum_sha256 == CHECKSUM
     assert registry.get("built-voice") is not None
+
+    # 5. Status: the final step of the produce-and-register flow -- a
+    #    caller must be able to ask "is this voice actually installed
+    #    and intact" without repeating steps 3-4 itself.
+    status = manager.status(artifact.artifact_id)
+    assert status.artifact_present is True
+    assert status.checksum_valid is True
+    assert status.model_name == "built-voice"
+    assert status.lifecycle_state == "AVAILABLE"
 
 
 def test_validate_package_archive_detects_a_disallowed_entry_added_after_the_fact(tmp_path):
@@ -154,3 +165,48 @@ def test_validate_package_archive_detects_invalid_manifest_json(tmp_path):
 
     problems = validate_package_archive(output)
     assert any("not valid JSON" in p for p in problems)
+
+
+def test_check_entry_sizes_flags_a_declared_oversized_entry(tmp_path):
+    """Simulates the core of a zip-bomb-style archive: a central-
+    directory entry that DECLARES an oversized uncompressed size.
+    check_entry_sizes() must catch this from the declared size alone,
+    without decompressing anything -- proven here by never calling
+    .read() anywhere in this test."""
+    archive_path = tmp_path / "bomb.arya-voice"
+    with zipfile.ZipFile(archive_path, "w") as zf:
+        zf.writestr("payload.bin", b"tiny")
+
+    with zipfile.ZipFile(archive_path) as archive:
+        info = archive.infolist()[0]
+        info.file_size = MAX_PACKAGE_ENTRY_UNCOMPRESSED_BYTES + 1
+        problems = check_entry_sizes(archive)
+
+    assert any("zip bomb" in p for p in problems)
+
+
+def test_check_entry_sizes_passes_for_normal_sized_entries(tmp_path):
+    archive_path = tmp_path / "normal.arya-voice"
+    with zipfile.ZipFile(archive_path, "w") as zf:
+        zf.writestr("manifest.json", json.dumps(_manifest()))
+        zf.writestr("model.json", MODEL_BYTES)
+
+    with zipfile.ZipFile(archive_path) as archive:
+        assert check_entry_sizes(archive) == []
+
+
+def test_validate_package_archive_calls_the_size_check_before_reading_manifest(tmp_path, monkeypatch):
+    """Integration proof that validate_package_archive() is actually
+    wired to check_entry_sizes() and respects a failure from it, rather
+    than only the unit-level check_entry_sizes() behavior above."""
+    import aarya_voice_lab.pipeline.voice_package as voice_package_module
+
+    output = tmp_path / "voice.arya-voice"
+    build_package_archive(output, manifest=_manifest(), model_bytes=MODEL_BYTES, model_filename="model.json")
+
+    monkeypatch.setattr(
+        voice_package_module, "check_entry_sizes", lambda archive: ["simulated declared-oversized entry"]
+    )
+    problems = validate_package_archive(output)
+
+    assert problems == ["simulated declared-oversized entry"]

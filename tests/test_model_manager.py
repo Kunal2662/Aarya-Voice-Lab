@@ -234,3 +234,25 @@ def test_list_installed_reflects_current_store_contents(tmp_path):
     package_dir = _write_package(tmp_path / "package")
     artifact = manager.install_from_directory(package_dir)
     assert manager.list_installed() == [artifact.artifact_id]
+
+
+def test_install_from_archive_refuses_a_declared_oversized_entry_before_extracting(tmp_path, monkeypatch):
+    """Phase 5 of the 8-phase release plan: a zip-bomb-style declared
+    size must be refused before archive.extractall() is ever called."""
+    import aarya_voice_lab.pipeline.model_manager as model_manager_module
+
+    package_dir = _write_package(tmp_path / "package")
+    archive_path = tmp_path / "voice.arya-voice"
+    with zipfile.ZipFile(archive_path, "w") as zf:
+        for file in package_dir.iterdir():
+            zf.write(file, arcname=file.name)
+
+    monkeypatch.setattr(
+        model_manager_module, "check_entry_sizes", lambda archive: ["simulated declared-oversized entry"]
+    )
+
+    manager = _manager(tmp_path)
+    extract_to = tmp_path / "extracted"
+    with pytest.raises(ModelManagerError, match="failed size checks"):
+        manager.install_from_archive(archive_path, extract_to=extract_to)
+    assert not extract_to.exists() or list(extract_to.iterdir()) == []

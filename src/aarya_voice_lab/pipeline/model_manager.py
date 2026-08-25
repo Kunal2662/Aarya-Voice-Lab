@@ -36,7 +36,7 @@ from aarya_voice_lab.pipeline.model_artifact import (
     ModelArtifactType,
 )
 from aarya_voice_lab.pipeline.model_lifecycle import ModelLifecycleState
-from aarya_voice_lab.pipeline.voice_package import validate_package_entries
+from aarya_voice_lab.pipeline.voice_package import check_entry_sizes, validate_package_entries
 from aarya_voice_lab.registry.model_registry import ModelRegistry
 from aarya_voice_lab.schemas.base import SchemaName, ValidationError, validate
 from aarya_voice_lab.schemas.records import build_model_registry_entry
@@ -207,15 +207,21 @@ class ModelManager:
         known_providers: frozenset[str] = DEFAULT_KNOWN_PROVIDERS,
     ) -> ModelArtifact:
         """Install from a zip-format `.arya-voice` archive. Entries are
-        validated against the allowlist *before* extraction, and
-        `zipfile`'s own path-traversal protection (Python 3.6+) is relied
-        on for the extraction itself -- belt and suspenders, not a
-        replacement for it."""
+        validated against the allowlist and a declared-size limit
+        *before* extraction -- the size check closes a zip-bomb vector
+        (extractall() decompresses proportional to the attacker-declared
+        size, not the file's real size on disk) -- and `zipfile`'s own
+        path-traversal protection (Python 3.6+) is relied on for the
+        extraction itself, belt and suspenders, not a replacement for
+        the allowlist check."""
         with zipfile.ZipFile(archive_path) as archive:
             names = archive.namelist()
             entry_problems = validate_package_entries(names)
             if entry_problems:
                 raise ModelManagerError(f"archive {archive_path} contains disallowed entries: {entry_problems}")
+            size_problems = check_entry_sizes(archive)
+            if size_problems:
+                raise ModelManagerError(f"archive {archive_path} failed size checks: {size_problems}")
             extract_to.mkdir(parents=True, exist_ok=True)
             archive.extractall(extract_to)
         return self.install_from_directory(extract_to, known_providers=known_providers)
