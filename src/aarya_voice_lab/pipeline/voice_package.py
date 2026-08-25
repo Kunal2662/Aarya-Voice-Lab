@@ -1,35 +1,42 @@
-"""The `.arya-voice.zip` package contract -- Task 6 of the autonomous
-execution plan.
+"""The `.arya-voice` package contract and builder -- Task 6 (contract)
+and Task 5 of the Phase 4 plan (builder) of the autonomous execution
+record.
 
-Voice Lab and AARYA Core are separate systems. This module defines only
-the versioned manifest contract at the boundary between them:
+Voice Lab and AARYA Core are separate systems. This module defines the
+versioned manifest contract at the boundary between them, and this
+project's own side of producing one:
 
-    Voice Lab -> .arya-voice.zip -> AARYA Core Voice Package Manager
+    Voice Lab -> .arya-voice -> AARYA Core Voice Package Manager
 
 It does **not** implement AARYA Core's importer, installer, or voice
 registry -- those are Core-side responsibilities this repository does
 not contain (see README.md's "AARYA Core integration" row and
-ARCHITECTURE.md's scope boundaries). It also does not create, sign, or
-extract any actual `.zip` file; `*.zip` is git-ignored throughout this
-repository by design (no packaged binary belongs in version control),
-and no package has ever been produced by this project.
+ARCHITECTURE.md's scope boundaries). `*.zip` remains git-ignored
+throughout this repository by design (no packaged binary belongs in
+version control); `build_package_archive()` writes to a caller-supplied
+path outside version control (normally a temp directory in tests), and
+this module never commits or ships one.
 
 Package contents are data/model oriented by design: a manifest, a model
 artifact, and metadata/license files. Arbitrary executable content is
 never permitted by default -- `validate_package_entries()` uses a fixed
 allowlist of extensions, so an unrecognised or executable file type is
-rejected rather than silently passed through.
+rejected rather than silently passed through, and `build_package_archive()`
+refuses to write a package whose own entries would fail that same check.
 
 See docs/VOICE_PACKAGE_SPEC.md for the full contract description.
 """
 
 from __future__ import annotations
 
-from pathlib import PurePosixPath
+import hashlib
+import json
+import zipfile
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 from aarya_voice_lab import SCHEMA_VERSION
-from aarya_voice_lab.schemas.base import SchemaName, validate
+from aarya_voice_lab.schemas.base import SchemaName, ValidationError, validate
 
 PACKAGE_FORMAT_MARKER = "arya-voice-package"
 CURRENT_MANIFEST_FORMAT_VERSION = "1.0.0"
@@ -149,3 +156,99 @@ def validate_package_entries(entry_names: list[str]) -> list[str]:
 
 def package_is_valid(entry_names: list[str]) -> bool:
     return not validate_package_entries(entry_names)
+
+
+class VoicePackageBuildError(ValueError):
+    """Raised when a package cannot be built or fails post-build
+    validation."""
+
+
+def build_package_archive(
+    output_path: Path,
+    *,
+    manifest: dict[str, Any],
+    model_bytes: bytes,
+    model_filename: str,
+    extra_files: dict[str, bytes] | None = None,
+) -> Path:
+    """Build a real `.arya-voice` zip archive at `output_path`.
+
+    `manifest` must already be a validated record (see
+    `build_voice_package_manifest()`) -- this function re-validates it
+    anyway, since a manifest built by hand or mutated after construction
+    must never silently reach disk unchecked. The model file's checksum
+    is verified against `manifest["integrity"]["checksum_sha256"]`
+    before anything is written -- a mismatch is a caller error and is
+    refused, not silently corrected.
+    """
+    try:
+        validate(manifest, SchemaName.VOICE_PACKAGE_MANIFEST)
+    except ValidationError as exc:
+        raise VoicePackageBuildError(f"manifest failed schema validation: {exc}") from exc
+
+    actual_checksum = hashlib.sha256(model_bytes).hexdigest()
+    declared_checksum = manifest["integrity"]["checksum_sha256"]
+    if actual_checksum != declared_checksum:
+        raise VoicePackageBuildError(
+            f"model bytes checksum {actual_checksum} does not match manifest.integrity.checksum_sha256 "
+            f"{declared_checksum} -- refusing to build a package with a false integrity claim"
+        )
+
+    entries = {"manifest.json": json.dumps(manifest, indent=2, sort_keys=True).encode("utf-8")}
+    entries[model_filename] = model_bytes
+    for name, content in (extra_files or {}).items():
+        entries[name] = content
+
+    entry_problems = validate_package_entries(list(entries))
+    if entry_problems:
+        raise VoicePackageBuildError(f"refusing to build package with disallowed entries: {entry_problems}")
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(output_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        for name, content in entries.items():
+            archive.writestr(name, content)
+    return output_path
+
+
+def validate_package_archive(archive_path: Path) -> list[str]:
+    """Read-only validation of an already-built `.arya-voice` archive:
+    entry allowlist, manifest schema, and checksum -- without extracting
+    anything to disk. Returns a list of problems; empty means valid.
+    Never raises on a malformed archive -- reports it as a problem
+    instead, since a caller validating an untrusted file needs the
+    complete list of what is wrong, not an exception on the first one.
+    """
+    problems: list[str] = []
+    try:
+        with zipfile.ZipFile(archive_path) as archive:
+            names = archive.namelist()
+            problems.extend(validate_package_entries(names))
+            if "manifest.json" not in names:
+                problems.append("archive contains no manifest.json")
+                return problems
+            try:
+                manifest = json.loads(archive.read("manifest.json"))
+            except json.JSONDecodeError as exc:
+                problems.append(f"manifest.json is not valid JSON: {exc}")
+                return problems
+            try:
+                validate(manifest, SchemaName.VOICE_PACKAGE_MANIFEST)
+            except ValidationError as exc:
+                problems.append(f"manifest failed schema validation: {exc}")
+                return problems
+
+            model_entries = [n for n in names if n != "manifest.json"]
+            declared_checksum = manifest["integrity"]["checksum_sha256"]
+            matched = False
+            for name in model_entries:
+                actual_checksum = hashlib.sha256(archive.read(name)).hexdigest()
+                if actual_checksum == declared_checksum:
+                    matched = True
+                    break
+            if not matched:
+                problems.append(
+                    f"no package entry's checksum matches manifest.integrity.checksum_sha256 {declared_checksum}"
+                )
+    except zipfile.BadZipFile as exc:
+        problems.append(f"not a valid zip archive: {exc}")
+    return problems
