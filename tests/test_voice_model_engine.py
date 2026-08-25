@@ -720,3 +720,60 @@ def test_artifact_store_list_and_delete(tmp_path):
     assert store.delete(record.artifact_id) is True
     assert record.artifact_id not in store.list_ids()
     assert store.delete(record.artifact_id) is False
+
+
+def test_artifact_store_save_leaves_no_temp_file_behind_on_success(tmp_path):
+    data_root = DataRoot(root=tmp_path / "data").create()
+    store = ArtifactStore(data_root)
+    store.save(
+        b"x",
+        artifact_format=ModelArtifactFormat.JSON_METADATA,
+        artifact_type=ModelArtifactType.EVALUATION_REPORT,
+        model_name="m",
+        model_version="1",
+        provider_name="p",
+    )
+    remaining = sorted(p.name for p in store.directory.iterdir())
+    assert all(not name.startswith(".write-") for name in remaining), remaining
+
+
+def test_artifact_store_save_heals_a_bin_file_orphaned_by_an_earlier_interrupted_write(tmp_path):
+    """Real defect class this guards against: save() used to write
+    bin_path then meta_path as two separate, non-atomic steps. A crash
+    between them left a stray bin_path with no meta_path -- and since
+    the old duplicate-check was `bin_path.is_file() or meta_path.is_file()`,
+    every future save() of those exact bytes was permanently refused as
+    "already exists" while load_metadata() simultaneously said the
+    artifact didn't exist. Reproduced here by writing bin_path directly
+    (simulating the crash) before calling save() with the same payload."""
+    import hashlib
+
+    from aarya_voice_lab.pipeline.model_artifact import artifact_id_from_checksum
+
+    data_root = DataRoot(root=tmp_path / "data").create()
+    store = ArtifactStore(data_root)
+    payload = b"payload from an interrupted prior write"
+    artifact_id = artifact_id_from_checksum(hashlib.sha256(payload).hexdigest())
+    store.directory.mkdir(parents=True, exist_ok=True)
+    store._bin_path(artifact_id).write_bytes(payload)
+
+    record = store.save(
+        payload,
+        artifact_format=ModelArtifactFormat.JSON_METADATA,
+        artifact_type=ModelArtifactType.EVALUATION_REPORT,
+        model_name="m",
+        model_version="1",
+        provider_name="p",
+    )
+
+    assert record.artifact_id == artifact_id
+    assert store.load_bytes(artifact_id) == payload
+    with pytest.raises(ArtifactError, match="already exists"):
+        store.save(
+            payload,
+            artifact_format=ModelArtifactFormat.JSON_METADATA,
+            artifact_type=ModelArtifactType.EVALUATION_REPORT,
+            model_name="m",
+            model_version="1",
+            provider_name="p",
+        )

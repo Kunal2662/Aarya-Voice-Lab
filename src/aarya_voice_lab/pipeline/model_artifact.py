@@ -17,6 +17,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import tempfile
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -45,6 +47,20 @@ class ModelArtifactType(StrEnum):
     TRAINING_CHECKPOINT = "training_checkpoint"
     GENERATED_AUDIO = "generated_audio"
     EVALUATION_REPORT = "evaluation_report"
+
+
+def _atomic_write_bytes(path: Path, data: bytes) -> None:
+    """Write via a same-directory temp file + os.replace() so a crash or
+    error partway through never leaves a truncated file at `path`."""
+    fd, tmp_name = tempfile.mkstemp(dir=path.parent, prefix=".write-", suffix=".tmp")
+    tmp_path = Path(tmp_name)
+    try:
+        with os.fdopen(fd, "wb") as handle:
+            handle.write(data)
+        os.replace(tmp_path, path)
+    except BaseException:
+        tmp_path.unlink(missing_ok=True)
+        raise
 
 
 class ArtifactError(RuntimeError):
@@ -138,7 +154,17 @@ class ArtifactStore:
         meta_path = self._meta_path(artifact_id)
 
         assert_source_writable(self.data_root, bin_path)
-        if bin_path.is_file() or meta_path.is_file():
+        # meta_path is the store's own authoritative existence signal (see
+        # exists() and list_ids() below, which both key off *.meta.json
+        # only) -- checking bin_path here too would make a save() that
+        # crashed between writing bin_path and meta_path permanently
+        # unrecoverable: the retry would see the stray bin_path and refuse
+        # as "already exists", while load_metadata() would still say the
+        # artifact doesn't exist, with no way to complete or clean it up.
+        # Since identity is the checksum, a stray bin_path left over from
+        # an interrupted write always holds these exact bytes already, so
+        # it's always safe to rewrite it as part of finishing the save.
+        if meta_path.is_file():
             raise ArtifactError(
                 f"artifact {artifact_id!r} (checksum {checksum}) already exists — "
                 "refusing to overwrite; artifact identity is its checksum, not its filename"
@@ -159,8 +185,10 @@ class ArtifactStore:
             source_dataset_id=source_dataset_id,
             compatibility_metadata=compatibility_metadata or {},
         )
-        bin_path.write_bytes(payload)
-        meta_path.write_text(json.dumps(record.to_dict(), indent=2, sort_keys=True), encoding="utf-8")
+        _atomic_write_bytes(bin_path, payload)
+        _atomic_write_bytes(
+            meta_path, json.dumps(record.to_dict(), indent=2, sort_keys=True).encode("utf-8")
+        )
         return record
 
     def load_metadata(self, artifact_id: str) -> ModelArtifact:
