@@ -43,6 +43,8 @@ from typing import Any
 
 from aarya_voice_lab.core.data_root import DataRoot, assert_source_writable
 from aarya_voice_lab.core.paths import PROJECT_ROOT
+from aarya_voice_lab.environment.specs import EnvironmentId
+from aarya_voice_lab.pipeline.runner import default_environment_root
 
 #: Bump when a provider's output changes meaning; invalidates cached work.
 SYNTHETIC_PROVIDER_VERSION = "1.0.0"
@@ -256,7 +258,11 @@ class SyntheticEmbeddingProvider(EmbeddingProvider):
 #: imported directly -- nemo_toolkit is deliberately not a base-interpreter
 #: dependency (see module docstring). Communication happens entirely
 #: through scripts/ml_workers/nemo_embedding_worker.py and two JSON files.
-_ENV_NEMO_PYTHON = PROJECT_ROOT / ".envs" / "env-nemo" / "bin" / "python"
+#: Resolved via the same cross-platform EnvironmentPaths.python property
+#: pipeline.runner already uses (Scripts/python.exe on Windows,
+#: bin/python on POSIX) -- a hardcoded bin/python here would silently
+#: never find a real env-nemo build on native Windows.
+_ENV_NEMO_PYTHON = default_environment_root(EnvironmentId.NEMO, base=PROJECT_ROOT).python
 _NEMO_WORKER_SCRIPT = PROJECT_ROOT / "scripts" / "ml_workers" / "nemo_embedding_worker.py"
 
 #: Telemetry opt-out, mirrored from scripts/disable_telemetry.sh so every
