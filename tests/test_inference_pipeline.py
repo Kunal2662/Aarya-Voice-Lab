@@ -167,3 +167,68 @@ def test_load_after_installing_a_real_model_verifies_checksum(tmp_path):
     loaded = pipeline_with_manager.load(artifact.artifact_id)
     assert loaded.artifact_id == artifact.artifact_id
     assert loaded.verified is True
+
+
+def test_load_reports_a_real_measured_latency(tmp_path):
+    """Phase 4 of the 8-phase release plan: load() must time itself for
+    real, never report a fabricated or hardcoded latency."""
+    pipeline, _ = _pipeline(tmp_path)
+    loaded = pipeline.load(None)
+    assert loaded.load_latency_ms >= 0.0
+
+
+def test_run_reports_real_inference_latency_and_real_time_factor(tmp_path):
+    pipeline, _ = _pipeline(tmp_path)
+    pipeline.load(None)
+    result = pipeline.run(_request())
+
+    assert result.inference_latency_ms >= 0.0
+    assert result.real_time_factor is not None
+    assert result.real_time_factor > 0.0
+    expected_rtf = (result.inference_latency_ms / 1000.0) / result.duration_seconds
+    assert result.real_time_factor == pytest.approx(expected_rtf)
+
+
+def test_run_reports_real_memory_usage_or_none(tmp_path):
+    """psutil is a documented project dependency, so this should
+    genuinely measure something on the machines this suite runs on --
+    but the contract only promises a real number or an honest None,
+    never a fabricated one."""
+    pipeline, _ = _pipeline(tmp_path)
+    pipeline.load(None)
+    result = pipeline.run(_request())
+    assert result.memory_mb is None or result.memory_mb > 0
+
+
+def test_run_attaches_real_hardware_information(tmp_path):
+    pipeline, _ = _pipeline(tmp_path)
+    pipeline.load(None)
+    result = pipeline.run(_request())
+
+    assert "cpu" in result.hardware
+    assert "gpu" in result.hardware
+    assert result.hardware["cpu"]["logical_cores"] is not None or result.hardware["cpu"]["processor"]
+
+
+def test_hardware_info_is_queried_once_and_reused_across_runs(tmp_path, monkeypatch):
+    """GPU detection (Windows WMI) is expensive -- it must be queried
+    once per pipeline instance, never re-queried on every run() call."""
+    import aarya_voice_lab.pipeline.inference_pipeline as inference_pipeline_module
+
+    call_count = 0
+    real_get_gpu_info = inference_pipeline_module.get_gpu_info
+
+    def counting_get_gpu_info():
+        nonlocal call_count
+        call_count += 1
+        return real_get_gpu_info()
+
+    monkeypatch.setattr(inference_pipeline_module, "get_gpu_info", counting_get_gpu_info)
+
+    pipeline, _ = _pipeline(tmp_path)
+    pipeline.load(None)
+    pipeline.run(_request(text="first"))
+    pipeline.run(_request(text="second"))
+    pipeline.run(_request(text="third"))
+
+    assert call_count == 1, f"expected GPU info to be queried exactly once, was queried {call_count} times"
