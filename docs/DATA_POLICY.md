@@ -54,6 +54,31 @@ enrollment/verification architecture. Nothing in this document changes
 any of those rules, and nothing in the public-dataset registry may
 reference or substitute for them.
 
+## Pending decision: no external public dataset has been acquired
+
+Training-pipeline validation work (see the autonomous execution record
+that produced this file) considered using a real, well-documented public
+corpus (VCTK, LibriSpeech, or similar) to exercise the pipeline against
+non-synthetic audio. **No such dataset has been downloaded.** Two
+separate gates apply, and neither has been cleared:
+
+1. **Licensing decision** — even a permissively licensed corpus requires
+   its license, permitted uses, and any speaker/identity restrictions to
+   be read and recorded in the public dataset registry *before* use, per
+   this document's core rule. That review has not been performed.
+2. **Download authorization** — downloading any file (a multi-hundred-
+   megabyte-to-gigabyte dataset archive, in this case) requires the
+   repository owner's explicit permission, requested in chat and given
+   as a clear yes, before it happens. That permission has not been
+   sought or given.
+
+Pipeline-validation work in the interim uses only repository-controlled
+synthetic fixtures (`aarya_voice_lab.testing.synthetic_audio`,
+`aarya_voice_lab.pipeline.dataset_adapter.FixtureDatasetAdapter`), which
+belong to the synthetic track below, not this one. Registering and
+approving a real public dataset remains a legitimate, well-scoped future
+task once the owner decides to proceed.
+
 ## Synthetic data
 
 Used throughout this project's own test suite and architecture
