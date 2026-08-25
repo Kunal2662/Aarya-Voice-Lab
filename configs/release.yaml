@@ -1,0 +1,48 @@
+# AARYA Voice Lab — Windows release/packaging metadata.
+#
+# Task 6 of the Phase 4 autonomous execution plan. This describes what a
+# future installer WOULD need to know -- it does not build, sign, or
+# ship an installer. See docs/WINDOWS_RELEASE.md for the full picture.
+#
+# No secrets, credentials, or API keys belong in this file. See
+# docs/SECURITY.md.
+
+product_name: "AARYA Voice Lab"
+# Mirrors aarya_voice_lab.__version__ -- kept in sync by test, not by
+# reference, since a release manifest should read correctly even
+# without importing the package.
+version: "0.1.0"
+schema_version: "0.1.0"
+publisher: "AARYA"
+platform: "windows"
+# Minimum Windows version this project has actually been verified on
+# during development -- not a marketing claim, a stated fact about what
+# has been tested (see PHASE3_CHECKPOINT.md's native-Windows verification).
+min_os_version: "Windows 10"
+architecture: "x64"
+
+# Directories a release must create/verify on first run. Mirrors
+# aarya_voice_lab.core.paths.PROTECTED_DIRECTORIES exactly -- kept in
+# sync by test, the same discipline configs/default.yaml already
+# applies to protected_directories.
+data_directories:
+  - source
+  - datasets
+  - public_datasets
+  - models
+  - experiments
+  - benchmarks
+  - reports
+  - logs
+  - manifests
+  - data
+
+# Directories an uninstaller must NEVER delete without explicit,
+# separate user confirmation -- they may contain real recordings,
+# embeddings, or trained models. See docs/WINDOWS_RELEASE.md's
+# "Uninstall safety" section and docs/PRIVACY.md.
+uninstall_protected_directories:
+  - source
+  - data
+  - models
+  - public_datasets
