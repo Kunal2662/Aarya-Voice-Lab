@@ -239,6 +239,16 @@ class TrainingJob:
     started_at: str | None = None
     finished_at: str | None = None
     duration_seconds: float | None = None
+    #: Structured, timestamped phase history -- Task 3 of the Phase 4
+    #: autonomous execution plan. Every entry is real: appended exactly
+    #: when TrainingQueue actually transitions the job through a phase,
+    #: never backfilled or estimated.
+    log_entries: list[dict[str, Any]] = field(default_factory=list)
+
+    def log(self, message: str, *, level: str = "INFO") -> None:
+        self.log_entries.append(
+            {"timestamp": datetime.now(UTC).isoformat(), "level": level, "message": message}
+        )
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -257,6 +267,7 @@ class TrainingJob:
             "started_at": self.started_at,
             "finished_at": self.finished_at,
             "duration_seconds": self.duration_seconds,
+            "log_entries": list(self.log_entries),
         }
 
 
@@ -481,29 +492,102 @@ class TrainingQueue:
 
         started = datetime.now(UTC)
         job.started_at = started.isoformat()
+        job.log(f"processing started (provider={self._provider.name})")
         try:
             job.status = TrainingJobStatus.VALIDATING
             job.current_operation = "validating training configuration"
+            job.log("phase: VALIDATING")
             capabilities = self._provider.capabilities()
             if capabilities.state is not TrainingProviderState.AVAILABLE:
                 job.status = TrainingJobStatus.FAILED
                 job.failure_reason = TrainingFailureReason.MODEL_UNAVAILABLE
                 job.errors.append(capabilities.detail or f"provider not available: {capabilities.state.value}")
+                job.log(f"failed: provider not available ({capabilities.state.value})", level="ERROR")
                 return job
             errors = self._provider.validate(job.config)
             if errors:
                 job.status = TrainingJobStatus.FAILED
                 job.failure_reason = TrainingFailureReason.INCOMPATIBLE_MODEL
                 job.errors.extend(errors)
+                job.log(f"failed: configuration invalid ({errors})", level="ERROR")
                 return job
 
             job.status = TrainingJobStatus.PREPARING
             job.current_operation = "preparing dataset and model"
+            job.log("phase: PREPARING")
             self._provider.prepare(job)
 
             job.status = TrainingJobStatus.TRAINING
             job.current_operation = "training"
+            job.log("phase: TRAINING")
             self._provider.train(job)
+
+            job.status = TrainingJobStatus.CHECKPOINTING
+            job.current_operation = "checkpointing"
+            job.log("phase: CHECKPOINTING")
+            checkpoint = self._provider.checkpoint(job)
+            if checkpoint is not None:
+                job.checkpoints.append(checkpoint)
+
+            job.status = TrainingJobStatus.EVALUATING
+            job.current_operation = "evaluating"
+            job.log("phase: EVALUATING")
+            job.output_artifact_id = self._provider.artifact(job)
+
+            job.status = TrainingJobStatus.COMPLETED
+            job.log("completed successfully")
+        except TrainingBlockedError as exc:
+            job.status = TrainingJobStatus.FAILED
+            job.failure_reason = exc.reason
+            job.errors.append(str(exc))
+            job.log(f"failed: {exc}", level="ERROR")
+        except Exception as exc:  # noqa: BLE001 -- one job's failure must never crash the queue
+            job.status = TrainingJobStatus.FAILED
+            job.failure_reason = TrainingFailureReason.TRAINING_FAILED
+            job.errors.append(str(exc))
+            job.log(f"failed with an unexpected error: {exc}", level="ERROR")
+        finally:
+            job.current_operation = None
+            finished = datetime.now(UTC)
+            job.finished_at = finished.isoformat()
+            job.duration_seconds = (finished - started).total_seconds()
+            if is_terminal_training_status(job.status):
+                self._record(job)
+        return job
+
+    def resume_job(self, job_id: str) -> TrainingJob:
+        """Resume a CANCELLED job by calling the provider's own
+        `resume()` hook directly -- distinct from `process_one()`, which
+        always restarts the full VALIDATING->PREPARING pipeline.
+        `resume()` picks up from wherever the provider itself left off
+        (e.g. a checkpoint), so this method never re-validates or
+        re-prepares.
+
+        This is provider-level resumability, not fabricated
+        mid-training-state recovery: `LocalTrainingProvider.resume()`
+        honestly raises MODEL_UNAVAILABLE in this environment, exactly
+        like every other entry point, because there is no real training
+        run to resume. A future real provider implements genuine
+        checkpoint-based resume without any change to this method.
+
+        Persistence note: `TrainingJobLog` is append-only, one entry per
+        `job_id` -- the same discipline every other registry in this
+        project follows (history is never overwritten). A resume's new
+        terminal outcome is always reflected in the in-memory job this
+        method returns and in `TrainingQueue.get(job_id)`; the log keeps
+        its original CANCELLED record as permanent history rather than
+        being silently rewritten.
+        """
+        job = self._jobs[job_id]
+        if job.status is not TrainingJobStatus.CANCELLED:
+            raise ValueError(f"job {job_id!r} is not CANCELLED (status={job.status.value}); nothing to resume")
+        job.log(f"resume requested (provider={self._provider.name})")
+        resumed_start = datetime.now(UTC)
+        try:
+            job.status = TrainingJobStatus.TRAINING
+            job.current_operation = "resuming training"
+            job.failure_reason = None
+            self._provider.resume(job)
 
             job.status = TrainingJobStatus.CHECKPOINTING
             job.current_operation = "checkpointing"
@@ -516,22 +600,78 @@ class TrainingQueue:
             job.output_artifact_id = self._provider.artifact(job)
 
             job.status = TrainingJobStatus.COMPLETED
+            job.log("resumed and completed successfully")
         except TrainingBlockedError as exc:
             job.status = TrainingJobStatus.FAILED
             job.failure_reason = exc.reason
             job.errors.append(str(exc))
+            job.log(f"resume failed: {exc}", level="ERROR")
         except Exception as exc:  # noqa: BLE001 -- one job's failure must never crash the queue
             job.status = TrainingJobStatus.FAILED
             job.failure_reason = TrainingFailureReason.TRAINING_FAILED
             job.errors.append(str(exc))
+            job.log(f"resume failed with an unexpected error: {exc}", level="ERROR")
         finally:
             job.current_operation = None
             finished = datetime.now(UTC)
             job.finished_at = finished.isoformat()
-            job.duration_seconds = (finished - started).total_seconds()
+            job.duration_seconds = (job.duration_seconds or 0.0) + (finished - resumed_start).total_seconds()
             if is_terminal_training_status(job.status):
                 self._record(job)
         return job
+
+    def restore_from_log(self, job_log: TrainingJobLog) -> list[TrainingJob]:
+        """Reconstruct this queue's job history from a persisted
+        TrainingJobLog -- what makes a fresh TrainingQueue instance (a
+        new process, after a restart) able to see prior terminal job
+        state rather than starting with empty history. Only terminal
+        jobs are ever persisted (see TrainingJobLog's own docstring), so
+        this restores history, not in-flight progress -- a CANCELLED job
+        restored this way can still be handed to resume_job()."""
+        restored: list[TrainingJob] = []
+        for record in job_log.list():
+            if record["job_id"] in self._jobs:
+                continue
+            config = TrainingConfig(
+                job_id=record["config"]["job_id"],
+                model_name=record["config"]["model_name"],
+                model_version=record["config"]["model_version"],
+                speaker_profile_id=record["config"]["speaker_profile_id"],
+                dataset_id=record["config"]["dataset_id"],
+                provider_name=record["config"]["provider_name"],
+                language=record["config"]["language"],
+                hyperparameters=record["config"]["hyperparameters"],
+            )
+            job = TrainingJob(
+                job_id=record["job_id"],
+                config=config,
+                status=TrainingJobStatus(record["status"]),
+                progress=record["progress"],
+                current_operation=record["current_operation"],
+                warnings=list(record["warnings"]),
+                errors=list(record["errors"]),
+                failure_reason=TrainingFailureReason(record["failure_reason"]) if record["failure_reason"] else None,
+                checkpoints=[
+                    CheckpointInfo(
+                        checkpoint_id=c["checkpoint_id"],
+                        step=c["step"],
+                        elapsed_seconds=c["elapsed_seconds"],
+                        artifact_id=c["artifact_id"],
+                    )
+                    for c in record["checkpoints"]
+                ],
+                output_artifact_id=record["output_artifact_id"],
+                evaluation_result=record["evaluation_result"],
+                queued_at=record["queued_at"],
+                started_at=record["started_at"],
+                finished_at=record["finished_at"],
+                duration_seconds=record["duration_seconds"],
+                log_entries=list(record.get("log_entries", [])),
+            )
+            self._jobs[job.job_id] = job
+            self._order.append(job.job_id)
+            restored.append(job)
+        return restored
 
     def process_all(self) -> list[TrainingJob]:
         queued_ids = [job_id for job_id in self._order if self._jobs[job_id].status == TrainingJobStatus.QUEUED]

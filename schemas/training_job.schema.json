@@ -7,7 +7,7 @@
   "required": [
     "job_id", "config", "status", "progress", "current_operation", "warnings", "errors",
     "failure_reason", "checkpoints", "output_artifact_id", "evaluation_result",
-    "queued_at", "started_at", "finished_at", "duration_seconds"
+    "queued_at", "started_at", "finished_at", "duration_seconds", "log_entries"
   ],
   "additionalProperties": false,
   "properties": {
@@ -71,6 +71,20 @@
     "queued_at": { "type": "string" },
     "started_at": { "type": ["string", "null"] },
     "finished_at": { "type": ["string", "null"] },
-    "duration_seconds": { "type": ["number", "null"], "minimum": 0 }
+    "duration_seconds": { "type": ["number", "null"], "minimum": 0 },
+    "log_entries": {
+      "type": "array",
+      "description": "Structured, timestamped phase history (Task 3, Phase 4 autonomous execution plan). Real entries appended exactly when TrainingQueue transitions the job through a phase -- never backfilled or estimated.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["timestamp", "level", "message"],
+        "properties": {
+          "timestamp": { "type": "string" },
+          "level": { "type": "string", "enum": ["INFO", "ERROR"] },
+          "message": { "type": "string" }
+        }
+      }
+    }
   }
 }
