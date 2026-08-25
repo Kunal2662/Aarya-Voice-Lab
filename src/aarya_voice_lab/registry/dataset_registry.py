@@ -25,6 +25,20 @@ DEFAULT_PUBLIC_DATASET_REGISTRY_PATH = PROJECT_ROOT / "public_datasets" / "regis
 
 
 class PublicDatasetRegistry(JsonLinesRegistry):
+    """A dataset's `status` is decided once and recorded at registration
+    time -- review (license, provenance, permitted-use checks) happens
+    *before* calling `add()`, not after. Like every registry in this
+    project, entries here are refuse-to-overwrite by `dataset_id`
+    (`JsonLinesRegistry.add()`'s own duplicate-id protection): there is
+    no `update_status()` method, and none is planned. To change a
+    dataset's status once it already has an entry (e.g. a later review
+    reverses an earlier decision), register a new entry under an
+    incremented `dataset_id` or `version` (e.g. `"corpus-v1"` ->
+    `"corpus-v2"`) rather than attempting to mutate the existing one --
+    the original registration remains permanent history, exactly like
+    every other registry here.
+    """
+
     def __init__(self, path=DEFAULT_PUBLIC_DATASET_REGISTRY_PATH):
         super().__init__(path=path, schema_name=SchemaName.PUBLIC_DATASET_REGISTRY, id_field="dataset_id")
 
