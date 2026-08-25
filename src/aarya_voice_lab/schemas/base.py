@@ -53,6 +53,7 @@ class SchemaName(StrEnum):
     CALIBRATION_PROFILE = "calibration_profile"
     TRAINING_JOB = "training_job"
     PUBLIC_DATASET_REGISTRY = "public_dataset_registry"
+    VOICE_PACKAGE_MANIFEST = "voice_package_manifest"
 
 
 class ValidationError(ValueError):
