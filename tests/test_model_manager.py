@@ -256,3 +256,39 @@ def test_install_from_archive_refuses_a_declared_oversized_entry_before_extracti
     with pytest.raises(ModelManagerError, match="failed size checks"):
         manager.install_from_archive(archive_path, extract_to=extract_to)
     assert not extract_to.exists() or list(extract_to.iterdir()) == []
+
+
+def test_installing_a_new_version_of_an_already_registered_voice_is_refused_cleanly(tmp_path):
+    """Real defect this test locks in: ArtifactStore.save() used to run
+    before model_registry.add(), so a second, DIFFERENT-checksum package
+    for an already-registered voice_id would write a real artifact to
+    disk and only then fail at the registry step (ModelRegistry's
+    id_field is voice_id alone, refuse-duplicate) -- orphaning the
+    artifact. Reproduced and confirmed before the fix; this proves it no
+    longer happens."""
+    manager = _manager(tmp_path)
+    first_dir = _write_package(tmp_path / "package_v1")
+    first_artifact = manager.install_from_directory(first_dir)
+
+    v2_payload = b"different bytes entirely for v2"
+    v2_checksum = hashlib.sha256(v2_payload).hexdigest()
+    second_manifest = _manifest(version="2.0.0", integrity={"algorithm": "sha256", "checksum_sha256": v2_checksum})
+    second_dir = _write_package(tmp_path / "package_v2", manifest=second_manifest, payload=v2_payload)
+    with pytest.raises(ModelManagerError, match="already registered"):
+        manager.install_from_directory(second_dir)
+
+    # The critical assertion: no orphaned artifact from the failed second
+    # install -- exactly one artifact, the first one, remains.
+    assert manager.list_installed() == [first_artifact.artifact_id]
+
+
+def test_installing_a_new_version_error_names_the_existing_version(tmp_path):
+    manager = _manager(tmp_path)
+    manager.install_from_directory(_write_package(tmp_path / "package_v1"))
+
+    v2_payload = b"different bytes for v2"
+    v2_checksum = hashlib.sha256(v2_payload).hexdigest()
+    second_manifest = _manifest(version="2.0.0", integrity={"algorithm": "sha256", "checksum_sha256": v2_checksum})
+    second_dir = _write_package(tmp_path / "package_v2", manifest=second_manifest, payload=v2_payload)
+    with pytest.raises(ModelManagerError, match="1.0.0"):
+        manager.install_from_directory(second_dir)

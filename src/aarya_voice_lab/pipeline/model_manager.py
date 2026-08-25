@@ -36,7 +36,11 @@ from aarya_voice_lab.pipeline.model_artifact import (
     ModelArtifactType,
 )
 from aarya_voice_lab.pipeline.model_lifecycle import ModelLifecycleState
-from aarya_voice_lab.pipeline.voice_package import check_entry_sizes, validate_package_entries
+from aarya_voice_lab.pipeline.voice_package import (
+    check_entry_sizes,
+    reject_symlink_entries,
+    validate_package_entries,
+)
 from aarya_voice_lab.registry.model_registry import ModelRegistry
 from aarya_voice_lab.schemas.base import SchemaName, ValidationError, validate
 from aarya_voice_lab.schemas.records import build_model_registry_entry
@@ -157,6 +161,26 @@ class ModelManager:
         if not compatibility.compatible:
             raise ModelManagerError(f"incompatible package: {list(compatibility.problems)}")
 
+        # 3.5. refuse an already-registered voice_id *before* writing
+        #      anything. Real defect this check closes: ArtifactStore.save()
+        #      used to run before model_registry.add(), so installing a
+        #      second, different version of an already-installed voice_id
+        #      would write a real artifact to disk and only then fail at
+        #      the registry step (ModelRegistry's id_field is voice_id
+        #      alone) -- leaving an orphaned, unregistered artifact behind.
+        #      Reproduced and confirmed empirically before this fix.
+        #      ModelManager does not yet support multi-version updates for
+        #      the same voice_id (see docs/CORE_INTEGRATION_CONTRACT.md's
+        #      "Update semantics" for what that would require); until it
+        #      does, failing closed here -- before any write -- is the
+        #      honest behavior, not a partial, silently-orphaning one.
+        existing = self.model_registry.get(manifest["voice_id"])
+        if existing is not None:
+            raise ModelManagerError(
+                f"voice_id {manifest['voice_id']!r} is already registered (version {existing['version']!r}); "
+                "installing a new version of an already-registered voice is not yet supported by this API"
+            )
+
         # 4. verify checksum -- recompute from the real bytes, compare to
         #    what the manifest declares. A mismatch means corruption or
         #    tampering and must refuse, never warn-and-continue.
@@ -219,6 +243,9 @@ class ModelManager:
             entry_problems = validate_package_entries(names)
             if entry_problems:
                 raise ModelManagerError(f"archive {archive_path} contains disallowed entries: {entry_problems}")
+            symlink_problems = reject_symlink_entries(archive)
+            if symlink_problems:
+                raise ModelManagerError(f"archive {archive_path} contains symlink entries: {symlink_problems}")
             size_problems = check_entry_sizes(archive)
             if size_problems:
                 raise ModelManagerError(f"archive {archive_path} failed size checks: {size_problems}")
