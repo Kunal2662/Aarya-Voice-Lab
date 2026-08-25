@@ -23,6 +23,15 @@ def test_default_release_config_loads():
     assert metadata.platform == "windows"
 
 
+def test_default_release_config_has_a_stable_reverse_dns_app_id():
+    """Phase 7 of the 8-phase release plan: a future installer needs a
+    stable product identity across upgrades, distinct from the
+    human-readable product_name."""
+    metadata = load_release_metadata()
+    assert metadata.app_id == "com.aarya.voicelab"
+    assert metadata.app_id.count(".") >= 2
+
+
 def test_default_release_config_version_matches_package_version():
     """The release manifest's version field must not silently drift from
     the actual installed package version."""

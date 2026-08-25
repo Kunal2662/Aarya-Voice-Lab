@@ -91,6 +91,65 @@ def _cmd_validate_environment(args: argparse.Namespace) -> int:
     return 0 if ok else 1
 
 
+def _cmd_release_check(args: argparse.Namespace) -> int:
+    """Phase 7 of the 8-phase release plan -- wires release.py's
+    metadata/layout/compatibility checks into something an operator can
+    actually run, instead of leaving them only exercised by tests."""
+    from aarya_voice_lab import SCHEMA_VERSION
+    from aarya_voice_lab.release import (
+        ReleaseConfigError,
+        check_schema_compatibility,
+        load_release_metadata,
+        validate_release_layout,
+    )
+
+    try:
+        metadata = load_release_metadata()
+    except ReleaseConfigError as exc:
+        print(f"[FAIL] could not load release configuration: {exc}", file=sys.stderr)
+        return 1
+
+    layout_problems = validate_release_layout(PROJECT_ROOT, metadata)
+    compatibility = check_schema_compatibility(metadata.schema_version, SCHEMA_VERSION)
+    ok = not layout_problems and compatibility.compatible
+
+    if args.json:
+        print(
+            json.dumps(
+                {
+                    "ok": ok,
+                    "product_name": metadata.product_name,
+                    "version": metadata.version,
+                    "layout_problems": layout_problems,
+                    "schema_compatible": compatibility.compatible,
+                    "schema_reason": compatibility.reason,
+                },
+                indent=2,
+            )
+        )
+        return 0 if ok else 1
+
+    print("AARYA Voice Lab — Release Readiness Check")
+    print("=" * 40)
+    print(f"  product : {metadata.product_name} {metadata.version} ({metadata.platform}/{metadata.architecture})")
+
+    if layout_problems:
+        print(f"[FAIL] release layout: {len(layout_problems)} problem(s):")
+        for problem in layout_problems:
+            print(f"         - {problem}")
+    else:
+        print(f"[OK]   release layout: all {len(metadata.data_directories)} declared directories present/writable")
+
+    if compatibility.compatible:
+        print(f"[OK]   schema compatibility: {compatibility.reason}")
+    else:
+        print(f"[FAIL] schema compatibility: {compatibility.reason}")
+
+    print()
+    print("Release readiness: " + ("PASSED" if ok else "FAILED"))
+    return 0 if ok else 1
+
+
 def _cmd_validate_manifest(args: argparse.Namespace) -> int:
     path = Path(args.path)
     if not path.is_file():
@@ -237,6 +296,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = subparsers.add_parser("validate-environment", help="Validate the environment is safe/ready for Phase 0 work.")
     p.set_defaults(func=_cmd_validate_environment)
+
+    p = subparsers.add_parser("release-check", help="Check Windows release readiness (layout, schema compatibility).")
+    p.add_argument("--json", action="store_true", help="Emit JSON instead of text.")
+    p.set_defaults(func=_cmd_release_check)
 
     p = subparsers.add_parser("validate-manifest", help="Validate a manifest/record JSON file against its schema.")
     p.add_argument("path", help="Path to a JSON file (single record or a list of records).")

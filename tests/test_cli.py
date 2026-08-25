@@ -110,6 +110,26 @@ def test_voice_engine_status_never_fabricates_available_on_this_checkout(capsys)
     assert payload["training_provider"]["state"] != "AVAILABLE"
 
 
+def test_release_check_command_passes_on_the_real_checkout(capsys):
+    """Phase 7 of the 8-phase release plan: this checkout's own
+    directories and schema version already satisfy its declared release
+    layout -- a real, current-state assertion, not a fixture."""
+    assert main(["release-check"]) == 0
+    out = capsys.readouterr().out
+    assert "Release Readiness Check" in out
+    assert "Release readiness: PASSED" in out
+
+
+def test_release_check_json(capsys):
+    import json
+
+    assert main(["release-check", "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["ok"] is True
+    assert payload["layout_problems"] == []
+    assert payload["schema_compatible"] is True
+
+
 def test_voice_engine_status_reports_missing_requirements_when_not_configured(capsys):
     import json
 

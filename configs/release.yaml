@@ -8,6 +8,10 @@
 # docs/SECURITY.md.
 
 product_name: "AARYA Voice Lab"
+# Reverse-DNS-style application identity -- what a future Windows
+# installer (MSIX/WiX/Inno Setup) would use as its stable product/app
+# identifier across upgrades. Never reused for any other AARYA product.
+app_id: "com.aarya.voicelab"
 # Mirrors aarya_voice_lab.__version__ -- kept in sync by test, not by
 # reference, since a release manifest should read correctly even
 # without importing the package.

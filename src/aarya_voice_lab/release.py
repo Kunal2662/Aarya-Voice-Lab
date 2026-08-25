@@ -27,6 +27,7 @@ class ReleaseConfigError(ValueError):
 @dataclass
 class ReleaseMetadata:
     product_name: str
+    app_id: str
     version: str
     schema_version: str
     publisher: str
@@ -41,6 +42,7 @@ class ReleaseMetadata:
     def from_dict(cls, data: dict[str, Any]) -> ReleaseMetadata:
         required = [
             "product_name",
+            "app_id",
             "version",
             "schema_version",
             "publisher",
@@ -55,6 +57,7 @@ class ReleaseMetadata:
             raise ReleaseConfigError(f"release config missing required keys: {missing}")
         return cls(
             product_name=data["product_name"],
+            app_id=data["app_id"],
             version=data["version"],
             schema_version=data["schema_version"],
             publisher=data["publisher"],
