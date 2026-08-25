@@ -107,16 +107,31 @@ conventions exactly (`monkeypatch.setattr(system_info.X, "Y", ...)`):
    — integration-level: `get_gpu_info()` itself reaches and returns the
    new tier's result when every earlier tier is exhausted.
 
-All five were also verified by hand-executing the equivalent monkeypatch
-logic directly against the real, unmodified module on this machine
-(outside of pytest, since pytest itself could not be run here — see
-Environment Limitations), each producing the expected result. A sixth,
-explicit regression check was run the same way: `shutil.which` mocked to
-return `None` for every name (the exact shape of the pre-existing
-`test_gpu_detection_handles_missing_nvidia_smi`/`test_gpu_detection_reports_honest_negative_when_nothing_found`
-tests) still produces `available is False` on this real machine — proving
-the new tier does not silently break those two pre-existing tests when
-actually executed on Windows.
+All five were originally verified by hand-executing the equivalent
+monkeypatch logic directly against the real, unmodified module on this
+machine, outside of pytest, since pytest itself could not be run at the
+time this milestone was written (see Environment Limitations below for
+why, and Verification Update for how that gap has since closed).
+
+## Verification Update
+
+`core.file_lock`'s Windows-portability fix (`75933a1`, landed after this
+milestone) removed the `fcntl`-import blocker that had prevented
+`pytest` from running on native Windows at all. With that gap closed,
+`pytest tests/test_system_info.py -v` was run for real on this same
+machine: **18 passed**, including all 5 tests listed above plus the two
+pre-existing regression-risk tests
+(`test_gpu_detection_handles_missing_nvidia_smi`,
+`test_gpu_detection_reports_honest_negative_when_nothing_found`) — the
+same result the original hand-verification predicted, now confirmed by
+the real test runner rather than manual re-execution. Real-hardware
+detection was independently re-confirmed the same session:
+`collect_system_report().gpu` still reports `available=True,
+vendor="Intel", detection_method="windows-wmi"`, device name
+`"Intel(R) Iris(R) Xe Graphics"` — unchanged from this milestone's
+original findings. `ruff check` on both changed files also now passes
+(ruff was not installed on the machine this milestone was originally
+written on).
 
 ## Real Runtime Verification
 
@@ -177,21 +192,25 @@ environment this project had run in).
   "VL-D19/D20" theme (shipping a portable runtime to a CPU-only machine)
   is untouched.
 
-## Environment Limitations
+## Environment Limitations (at the time this milestone was written)
 
-- Backend `pytest` could not be run: `.venv/bin/python` remains a broken
-  symlink to a non-Windows path, and (confirmed again this milestone)
-  importing the full `aarya_voice_lab` package on native Windows Python
-  fails regardless, because `core.file_lock` imports the POSIX-only
-  `fcntl` module. `system_info.py` itself has zero project-internal or
-  third-party dependencies (stdlib only), so it — and this milestone's
-  tests, which import only `system_info` — could be exercised directly;
-  the full suite could not.
+- Backend `pytest` could not be run: `.venv/bin/python` remained a broken
+  symlink to a non-Windows path, and importing the full `aarya_voice_lab`
+  package on native Windows Python failed regardless, because
+  `core.file_lock` imported the POSIX-only `fcntl` module unconditionally.
+  `system_info.py` itself has zero project-internal or third-party
+  dependencies (stdlib only), so it — and this milestone's tests, which
+  import only `system_info` — could be exercised directly; the full suite
+  could not.
 - In place of pytest, every new test's logic was verified by hand,
   executing the identical monkeypatch sequence directly against the real,
   unmodified module in a plain Python process on this machine, including
   an explicit regression check against the two pre-existing tests most
   at risk of being affected.
+- **Closed** — see Verification Update above. `core.file_lock` gained
+  real native-Windows support in a later, unrelated commit (`75933a1`),
+  and the full test suite (including this file's tests, run for real
+  through pytest) now runs cleanly on native Windows.
 - `ruff` is not installed anywhere on this machine; the diff was
   reviewed manually for style/lint issues (line length checked against
   the project's configured 120-character limit; no unused imports;
