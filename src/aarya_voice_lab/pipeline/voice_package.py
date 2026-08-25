@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import stat
 import zipfile
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -185,6 +186,30 @@ def package_is_valid(entry_names: list[str]) -> bool:
     return not validate_package_entries(entry_names)
 
 
+def reject_symlink_entries(archive: zipfile.ZipFile) -> list[str]:
+    """Reject any entry whose Unix mode bits (`ZipInfo.external_attr`)
+    mark it as a symlink.
+
+    Python's own `zipfile.extractall()` does not restore Unix mode bits
+    at all -- a symlink-mode entry extracts as a plain file containing
+    the link-target string as literal bytes, verified empirically, not
+    assumed. This check exists as defense in depth regardless: a
+    different consumer of this same package format (a future Core-side
+    importer using a different extraction library, or a command-line
+    `unzip`/`7z` on a Unix host, both of which *do* restore symlinks)
+    must never be handed an archive that could plant one. Never raises
+    on an entry with no Unix mode information (`external_attr == 0`,
+    e.g. an archive built on Windows) -- absence of the bit is not
+    evidence of a symlink.
+    """
+    problems: list[str] = []
+    for info in archive.infolist():
+        mode = info.external_attr >> 16
+        if mode and stat.S_ISLNK(mode):
+            problems.append(f"{info.filename!r}: symlink-mode package entries are never permitted")
+    return problems
+
+
 class VoicePackageBuildError(ValueError):
     """Raised when a package cannot be built or fails post-build
     validation."""
@@ -250,6 +275,7 @@ def validate_package_archive(archive_path: Path) -> list[str]:
         with zipfile.ZipFile(archive_path) as archive:
             names = archive.namelist()
             problems.extend(validate_package_entries(names))
+            problems.extend(reject_symlink_entries(archive))
             size_problems = check_entry_sizes(archive)
             if size_problems:
                 # A declared-oversized entry must never be decompressed,

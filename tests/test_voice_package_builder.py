@@ -19,6 +19,7 @@ from aarya_voice_lab.pipeline.voice_package import (
     build_package_archive,
     build_voice_package_manifest,
     check_entry_sizes,
+    reject_symlink_entries,
     validate_package_archive,
 )
 from aarya_voice_lab.registry.model_registry import ModelRegistry
@@ -210,3 +211,88 @@ def test_validate_package_archive_calls_the_size_check_before_reading_manifest(t
     problems = validate_package_archive(output)
 
     assert problems == ["simulated declared-oversized entry"]
+
+
+def test_reject_symlink_entries_flags_a_real_symlink_mode_entry(tmp_path):
+    """Verified empirically (not assumed) before this test was written:
+    Python's own zipfile.extractall() does NOT restore Unix mode bits --
+    a symlink-mode entry extracts as a plain file containing the
+    link-target string as literal bytes. This check is defense in depth
+    against a *different* future consumer of this same archive format
+    (a Core-side importer using a different library, or command-line
+    unzip/7z on a Unix host) that might actually restore it."""
+    import stat
+
+    archive_path = tmp_path / "symlink.arya-voice"
+    with zipfile.ZipFile(archive_path, "w") as zf:
+        info = zipfile.ZipInfo("model.onnx")
+        info.create_system = 3  # Unix
+        info.external_attr = (stat.S_IFLNK | 0o777) << 16
+        zf.writestr(info, "/etc/passwd")
+
+    with zipfile.ZipFile(archive_path) as archive:
+        problems = reject_symlink_entries(archive)
+
+    assert any("symlink" in p for p in problems)
+
+
+def test_reject_symlink_entries_passes_for_ordinary_entries(tmp_path):
+    archive_path = tmp_path / "normal.arya-voice"
+    with zipfile.ZipFile(archive_path, "w") as zf:
+        zf.writestr("manifest.json", json.dumps(_manifest()))
+        zf.writestr("model.json", MODEL_BYTES)
+
+    with zipfile.ZipFile(archive_path) as archive:
+        assert reject_symlink_entries(archive) == []
+
+
+def test_reject_symlink_entries_does_not_misfire_on_windows_built_archives(tmp_path):
+    """An archive built on Windows carries external_attr == 0 for every
+    entry (no Unix mode bits at all) -- must never be misread as 'every
+    entry is a symlink.'"""
+    archive_path = tmp_path / "windows_built.arya-voice"
+    with zipfile.ZipFile(archive_path, "w") as zf:
+        zf.writestr("manifest.json", json.dumps(_manifest()))  # create_system defaults to Windows (0) here
+
+    with zipfile.ZipFile(archive_path) as archive:
+        assert reject_symlink_entries(archive) == []
+
+
+def test_validate_package_archive_rejects_a_symlink_entry(tmp_path):
+    import stat
+
+    archive_path = tmp_path / "symlink.arya-voice"
+    with zipfile.ZipFile(archive_path, "w") as zf:
+        zf.writestr("manifest.json", json.dumps(_manifest()))
+        info = zipfile.ZipInfo("model.json")
+        info.create_system = 3
+        info.external_attr = (stat.S_IFLNK | 0o777) << 16
+        zf.writestr(info, MODEL_BYTES.decode("utf-8", errors="replace"))
+
+    problems = validate_package_archive(archive_path)
+    assert any("symlink" in p for p in problems)
+
+
+def test_install_from_archive_rejects_a_symlink_entry_before_extracting(tmp_path):
+    import stat
+
+    from aarya_voice_lab.core.data_root import DataRoot
+    from aarya_voice_lab.pipeline.model_manager import ModelManager, ModelManagerError
+    from aarya_voice_lab.registry.model_registry import ModelRegistry
+
+    archive_path = tmp_path / "symlink.arya-voice"
+    with zipfile.ZipFile(archive_path, "w") as zf:
+        zf.writestr("manifest.json", json.dumps(_manifest()))
+        info = zipfile.ZipInfo("model.json")
+        info.create_system = 3
+        info.external_attr = (stat.S_IFLNK | 0o777) << 16
+        zf.writestr(info, "/etc/passwd")
+
+    data_root = DataRoot(root=tmp_path / "data").create()
+    registry = ModelRegistry(tmp_path / "models" / "registry.jsonl")
+    manager = ModelManager(data_root, model_registry=registry)
+    extract_to = tmp_path / "extracted"
+
+    with pytest.raises(ModelManagerError, match="symlink"):
+        manager.install_from_archive(archive_path, extract_to=extract_to)
+    assert not extract_to.exists() or list(extract_to.iterdir()) == []
