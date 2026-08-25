@@ -31,7 +31,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import stat
+import tempfile
 import zipfile
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -255,10 +257,26 @@ def build_package_archive(
     if entry_problems:
         raise VoicePackageBuildError(f"refusing to build package with disallowed entries: {entry_problems}")
 
+    # Atomic write: build the archive under a temp name in the *same*
+    # directory as output_path, then os.replace() it into place. Both
+    # steps must be on the same filesystem for the rename to be atomic
+    # (guaranteed by writing the temp file alongside the real target,
+    # never under a different temp directory/drive). A crash or error
+    # partway through writing the zip leaves the temp file incomplete
+    # and output_path untouched -- never a half-written, corrupt
+    # .arya-voice at the real path.
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    with zipfile.ZipFile(output_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
-        for name, content in entries.items():
-            archive.writestr(name, content)
+    fd, tmp_name = tempfile.mkstemp(dir=output_path.parent, prefix=".build-", suffix=".tmp")
+    tmp_path_local = Path(tmp_name)
+    try:
+        os.close(fd)
+        with zipfile.ZipFile(tmp_path_local, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+            for name, content in entries.items():
+                archive.writestr(name, content)
+        os.replace(tmp_path_local, output_path)
+    except BaseException:
+        tmp_path_local.unlink(missing_ok=True)
+        raise
     return output_path
 
 

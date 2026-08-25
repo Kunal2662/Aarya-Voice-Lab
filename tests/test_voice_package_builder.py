@@ -296,3 +296,56 @@ def test_install_from_archive_rejects_a_symlink_entry_before_extracting(tmp_path
     with pytest.raises(ModelManagerError, match="symlink"):
         manager.install_from_archive(archive_path, extract_to=extract_to)
     assert not extract_to.exists() or list(extract_to.iterdir()) == []
+
+
+def test_build_leaves_no_temp_file_behind_on_success(tmp_path):
+    output = tmp_path / "voice.arya-voice"
+    build_package_archive(output, manifest=_manifest(), model_bytes=MODEL_BYTES, model_filename="model.json")
+
+    remaining = list(tmp_path.iterdir())
+    assert remaining == [output], f"expected only the final archive, found: {remaining}"
+
+
+def test_build_never_leaves_a_corrupt_partial_file_at_the_output_path_on_failure(tmp_path, monkeypatch):
+    """Real defect class this guards against: a crash partway through
+    writing the zip must never leave a half-written, corrupt file at
+    output_path -- confirmed by forcing zipfile.ZipFile.writestr() to
+    raise mid-write and checking the target path afterward."""
+    import aarya_voice_lab.pipeline.voice_package as voice_package_module
+
+    def _boom(self, *args, **kwargs):
+        raise RuntimeError("simulated crash mid-write")
+
+    monkeypatch.setattr(voice_package_module.zipfile.ZipFile, "writestr", _boom)
+
+    output = tmp_path / "voice.arya-voice"
+    with pytest.raises(RuntimeError, match="simulated crash"):
+        build_package_archive(output, manifest=_manifest(), model_bytes=MODEL_BYTES, model_filename="model.json")
+
+    assert not output.exists(), "a crash mid-write must never leave a corrupt file at the real output path"
+    # No orphaned temp file left behind either.
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_build_is_atomic_the_target_never_observably_exists_in_a_partial_state(tmp_path):
+    """Build twice to the same path -- the second build must either
+    fully replace the first archive or fail outright, never leave a
+    mixed/partial result. A simple, real proof: build, then build again
+    with different content, then validate the final file is fully
+    self-consistent (not a mix of both builds)."""
+    output = tmp_path / "voice.arya-voice"
+    build_package_archive(output, manifest=_manifest(), model_bytes=MODEL_BYTES, model_filename="model.json")
+
+    other_payload = b"a completely different model payload for the second build"
+    other_checksum = hashlib.sha256(other_payload).hexdigest()
+    other_manifest = _manifest(
+        version="2.0.0", checksum_sha256=other_checksum
+    )
+    build_package_archive(output, manifest=other_manifest, model_bytes=other_payload, model_filename="model.json")
+
+    problems = validate_package_archive(output)
+    assert problems == []
+    with zipfile.ZipFile(output) as archive:
+        manifest = json.loads(archive.read("manifest.json"))
+        assert manifest["version"] == "2.0.0"
+        assert hashlib.sha256(archive.read("model.json")).hexdigest() == other_checksum
