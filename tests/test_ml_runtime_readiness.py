@@ -38,6 +38,8 @@ only how an already-real check resolves its interpreter path.
 
 from __future__ import annotations
 
+import pytest
+
 from aarya_voice_lab.environment.specs import EnvironmentId
 from aarya_voice_lab.identity.embeddings import _ENV_NEMO_PYTHON
 from aarya_voice_lab.pipeline.runner import default_environment_root
@@ -124,3 +126,86 @@ def test_calibration_engine_does_not_reference_ml_provider_state():
     source = inspect.getsource(calibration_engine)
     for forbidden in ("LocalNeuralEmbeddingProvider", "LocalTrainingProvider", "any_real_provider_available"):
         assert forbidden not in source
+
+
+# ---------------------------------------------------------------------------
+# ML environment reconciliation -- a second, real defect found by auditing
+# the actual .envs/env-tts left on this machine (see docs/ENVIRONMENT.md's
+# "A .envs/<name> built from WSL is not usable from native Windows"):
+# Path.is_file() and even Path.exists() *raise* OSError (WinError 1920) for
+# a broken symlink of exactly this kind on native Windows, rather than
+# returning False. Every capability check in this project that asked a
+# path "are you a usable file" would have crashed instead of honestly
+# reporting NOT_CONFIGURED if it ever encountered one.
+# ---------------------------------------------------------------------------
+
+
+def test_safe_path_is_file_returns_false_never_raises_on_a_broken_path(tmp_path, monkeypatch):
+    """Portable, always-runnable proof of the defensive behavior: forces
+    Path.is_file() to raise OSError (exactly what WinError 1920 does on
+    a real broken symlink) and confirms safe_path_is_file() reports
+    False instead of propagating the exception."""
+    from pathlib import Path
+
+    from aarya_voice_lab.pipeline.runner import safe_path_is_file
+
+    def _raise_oserror(self, *, follow_symlinks=True):
+        raise OSError("[WinError 1920] simulated: the file cannot be accessed by the system")
+
+    monkeypatch.setattr(Path, "is_file", _raise_oserror)
+    assert safe_path_is_file(tmp_path / "anything") is False
+
+
+def test_safe_path_is_file_still_correctly_detects_a_real_file(tmp_path):
+    real_file = tmp_path / "python"
+    real_file.write_text("", encoding="utf-8")
+    from aarya_voice_lab.pipeline.runner import safe_path_is_file
+
+    assert safe_path_is_file(real_file) is True
+
+
+def test_safe_path_is_file_returns_false_for_a_missing_path(tmp_path):
+    from aarya_voice_lab.pipeline.runner import safe_path_is_file
+
+    assert safe_path_is_file(tmp_path / "does-not-exist") is False
+
+
+def test_environment_paths_exists_never_raises_on_a_broken_symlink_class_of_path(tmp_path, monkeypatch):
+    """EnvironmentPaths.exists() and its .python property both route
+    through safe_path_is_file() now -- this proves the *real* class
+    this project uses, not just the helper in isolation."""
+    from pathlib import Path
+
+    from aarya_voice_lab.pipeline.runner import EnvironmentPaths
+
+    def _raise_oserror(self, *, follow_symlinks=True):
+        raise OSError("[WinError 1920] simulated")
+
+    monkeypatch.setattr(Path, "is_file", _raise_oserror)
+    paths = EnvironmentPaths(root=tmp_path / "env-broken")
+    assert paths.exists() is False  # must not raise
+
+
+def test_capability_state_never_crashes_on_the_real_broken_env_tts_symlink_if_present():
+    """This checkout has a real, broken .envs/env-tts left from a WSL
+    build (see docs/ENVIRONMENT.md) -- if present, use it directly as
+    the most realistic possible regression fixture rather than a
+    simulation. Skips honestly if this specific machine state isn't
+    present (e.g. a clean checkout, or after the directory is rebuilt
+    natively)."""
+    from pathlib import Path
+
+    from aarya_voice_lab.identity import embeddings as embeddings_module
+
+    broken_python = Path(".envs/env-tts/bin/python")
+    if not broken_python.parent.is_dir():
+        pytest.skip(".envs/env-tts is not present on this checkout -- nothing to reproduce against")
+
+    provider = embeddings_module.LocalNeuralEmbeddingProvider()
+    saved = embeddings_module._ENV_NEMO_PYTHON
+    embeddings_module._ENV_NEMO_PYTHON = broken_python
+    try:
+        state = provider.capability_state()  # must not raise
+    finally:
+        embeddings_module._ENV_NEMO_PYTHON = saved
+    assert state["state"] == "NOT_CONFIGURED"

@@ -191,3 +191,28 @@ suit this project's 2-speaker material well.
 
 Install nothing GPU-related automatically — always pick the wheel index
 that matches the driver reported by `aarya-voice system-info`.
+
+## A `.envs/<name>` built from WSL is not usable from native Windows
+
+`python -m venv` always writes the POSIX layout (`bin/python`, symlinks
+to `/usr/bin/python3`) when run from a WSL/Linux interpreter — even
+against a Windows-mounted path like `/mnt/c/Users/.../.envs/env-tts`.
+Opening that same `.envs/env-tts` from a native-Windows session later
+shows a directory that looks built (packages present under `lib/`) but
+whose `bin/python` is a broken symlink pointing at a path
+(`/usr/bin/python3`) that does not exist on Windows — every real
+provider capability check correctly reports `NOT_CONFIGURED` for it,
+which is the honest and correct outcome, not a bug to work around.
+
+This project's own environment-path resolution
+(`pipeline.runner.EnvironmentPaths.python`) already looks for
+`Scripts/python.exe` first and only falls back to `bin/python`, so a
+genuinely native-Windows-built environment is picked up correctly; a
+WSL-built one simply never was, and is not silently substituted for.
+
+**If you hit this:** the environment was built from WSL. Delete
+`.envs/<name>` and rebuild it from a native Windows shell
+(`scripts/install_env.sh` via Git Bash/PowerShell, not `wsl`/`bash`
+against the WSL interpreter) — do not attempt to repair the broken
+symlinks in place. `.envs/` is git-ignored local machine state; nothing
+about this is repository state to fix in code.

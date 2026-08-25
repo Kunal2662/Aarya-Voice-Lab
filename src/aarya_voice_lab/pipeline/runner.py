@@ -65,6 +65,24 @@ class StageBlocked(RuntimeError):
         self.remediation = remediation
 
 
+def safe_path_is_file(path: Path) -> bool:
+    """`Path.exists()`/`Path.is_file()` can *raise* `OSError` rather than
+    return `False` for a broken symlink/junction on native Windows --
+    confirmed empirically (WinError 1920, "The file cannot be accessed
+    by the system") for a `.envs/<name>` environment that was built from
+    WSL against a Windows-mounted path: its `bin/python` symlink points
+    at `/usr/bin/python3`, which does not exist here. Any such OSError
+    means the path is not a usable file, which is exactly what this
+    function reports -- never propagated as a crash. See
+    docs/ENVIRONMENT.md's "A `.envs/<name>` built from WSL is not usable
+    from native Windows" section.
+    """
+    try:
+        return path.is_file()
+    except OSError:
+        return False
+
+
 @dataclass(frozen=True)
 class EnvironmentPaths:
     """Where a built environment lives on this machine."""
@@ -74,10 +92,10 @@ class EnvironmentPaths:
     @property
     def python(self) -> Path:
         windows = self.root / "Scripts" / "python.exe"
-        return windows if windows.exists() else self.root / "bin" / "python"
+        return windows if safe_path_is_file(windows) else self.root / "bin" / "python"
 
     def exists(self) -> bool:
-        return self.python.is_file()
+        return safe_path_is_file(self.python)
 
 
 def default_environment_root(env_id: EnvironmentId, base: Path | None = None) -> EnvironmentPaths:

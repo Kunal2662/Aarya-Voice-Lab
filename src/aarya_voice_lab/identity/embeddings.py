@@ -44,7 +44,7 @@ from typing import Any
 from aarya_voice_lab.core.data_root import DataRoot, assert_source_writable
 from aarya_voice_lab.core.paths import PROJECT_ROOT
 from aarya_voice_lab.environment.specs import EnvironmentId
-from aarya_voice_lab.pipeline.runner import default_environment_root
+from aarya_voice_lab.pipeline.runner import default_environment_root, safe_path_is_file
 
 #: Bump when a provider's output changes meaning; invalidates cached work.
 SYNTHETIC_PROVIDER_VERSION = "1.0.0"
@@ -369,7 +369,7 @@ class LocalNeuralEmbeddingProvider(EmbeddingProvider):
         `embed()` to decide whether to attempt it at all. Actually loads
         the real model in the isolated interpreter; this is not a cheap
         check."""
-        if not _ENV_NEMO_PYTHON.is_file():
+        if not safe_path_is_file(_ENV_NEMO_PYTHON):
             return {
                 "state": "NOT_CONFIGURED",
                 "missing_requirements": ["env-nemo"],
@@ -398,7 +398,7 @@ class LocalNeuralEmbeddingProvider(EmbeddingProvider):
             # today uses 16-bit PCM (see testing.synthetic_audio), and
             # this bridge has only been verified against that width.
             raise EmbeddingProviderError(f"{self.name}: only 16-bit PCM is currently supported (got {bit_depth})")
-        if not _ENV_NEMO_PYTHON.is_file():
+        if not safe_path_is_file(_ENV_NEMO_PYTHON):
             raise EmbeddingProviderError(
                 f"{self.name} is not configured: `.envs/env-nemo` has not been built. "
                 "Run `scripts/install_env.sh env-nemo --cpu` first."
