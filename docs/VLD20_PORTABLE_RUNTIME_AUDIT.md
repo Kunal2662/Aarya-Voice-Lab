@@ -142,7 +142,26 @@ since `"nvidia-smi"` remains present — confirmed by inspection.
 | `node tools/build-css-variables.mjs --check` | **Automated, executed** | PASS |
 | `python -m py_compile` on both modified `.py` files | **Static** | PASS |
 | `node --check` on the modified `.js` file | **Static** | PASS |
-| Backend `pytest` (`test_hardware_snapshot_assembly_reuses_environment_audit` and siblings) | **Environment-blocked** | Could not execute — `.venv` broken symlink; `core.file_lock`'s `fcntl` import blocks any native-Windows import of `pipeline.calibration_engine`. Verified instead by direct inspection: the one assertion referencing this string (`"nvidia-smi" in ...`) still holds. |
+| Backend `pytest` (`test_hardware_snapshot_assembly_reuses_environment_audit` and siblings) | **Automated, executed** *(closed since original writing — see Verification Update)* | 4/4 hardware-snapshot tests pass for real, plus the full suite. Originally blocked by `.venv`'s broken symlink and `core.file_lock`'s then-unconditional `fcntl` import; verified only by direct inspection at the time. |
+
+## Verification Update
+
+`core.file_lock`'s Windows-portability fix (`75933a1`, landed after this
+milestone, independently of VL-D19/D20) removed the `fcntl`-import
+blocker that had prevented `pytest` from running on native Windows at
+all. With that gap closed, the exact cited test and its three siblings
+in the same "hardware snapshot" group were run for real:
+`test_hardware_snapshot_assembly_reuses_environment_audit`,
+`test_hardware_snapshot_never_claims_confirmed_accelerator_without_evidence`,
+`test_hardware_snapshot_cuda_confirmed_only_when_both_gpu_and_cuda_available`,
+`test_hardware_snapshot_confirms_non_nvidia_accelerator_as_other_backend`
+— **4/4 passed**, confirming the inspection-only claim this table
+originally recorded (`"nvidia-smi" in snapshot.limitation.lower()`
+holds). The full suite was also run for real: **986 passed, 5 skipped,
+0 failed**, identical to the VL-D19 baseline — zero regressions. `ruff
+check .` passes project-wide. No production code was changed to close
+this gap; `HARDWARE_DETECTION_LIMITATION` already named the Windows WMI
+path exactly as this milestone originally implemented it.
 
 ## VL-19 Regression
 
