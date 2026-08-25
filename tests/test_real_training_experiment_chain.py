@@ -11,6 +11,7 @@ real ML training occurred anywhere.
 Full chain exercised, in order:
 
     Dataset -> Registry -> License Gate -> Adapter -> Preprocessing
+    -> Training Manifest (real audio validation + transcript presence)
     -> Training Job -> Checkpoint -> Persisted Job State -> Evaluation
 
 Every stage produces real, non-fabricated output for what it actually
@@ -37,6 +38,7 @@ from aarya_voice_lab.pipeline.training import (
     TrainingQueue,
     build_training_config,
 )
+from aarya_voice_lab.pipeline.training_manifest import build_training_manifest
 from aarya_voice_lab.registry.dataset_registry import PublicDatasetRegistry
 from aarya_voice_lab.schemas.records import build_public_dataset_entry
 from aarya_voice_lab.testing.synthetic_audio import generate_speech_like
@@ -73,7 +75,17 @@ def test_full_chain_dataset_to_persisted_evaluation(tmp_path):
             wav_path = generate_speech_like(
                 audio_dir / f"utt-{i}.wav", frequency_hz=160.0 + i * 25, duration_seconds=1.2
             )
-            fh.write(json.dumps({"record_id": f"utt-{i}", "audio_ref": str(wav_path), "language": "und"}) + "\n")
+            fh.write(
+                json.dumps(
+                    {
+                        "record_id": f"utt-{i}",
+                        "audio_ref": str(wav_path),
+                        "language": "und",
+                        "transcript": f"synthetic utterance number {i}",
+                    }
+                )
+                + "\n"
+            )
 
     adapter = FixtureDatasetAdapter(
         manifest_path, dataset_id="experiment-fixture-v1", license="internal-synthetic-fixture-not-for-distribution"
@@ -87,6 +99,12 @@ def test_full_chain_dataset_to_persisted_evaluation(tmp_path):
         result = measure(samples, sample_rate)
         assert result.duration_seconds > 0
         assert result.sample_count > 0
+
+    # 5.5. Training Manifest: real audio validation + transcript
+    #      presence checks decide eligibility, never a guess.
+    training_manifest = build_training_manifest("experiment-fixture-v1", records)
+    assert training_manifest.eligible_record_ids == ("utt-0", "utt-1", "utt-2")
+    assert training_manifest.excluded == ()
 
     # 6. Training Job: enqueue and process against the real, current
     #    provider state.
