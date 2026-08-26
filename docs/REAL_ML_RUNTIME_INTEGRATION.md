@@ -228,6 +228,58 @@ persistent worker process would remove this per-call reload cost but was
 out of scope for this milestone (the architecture explicitly calls for
 one-shot subprocess isolation, not a long-lived ML service).
 
+## Reliability investigation — one real, non-reproducible embedding timeout
+
+A 218-embedding real run (`docs/BENCHMARKING.md`'s expanded speaker-
+similarity baseline) hit exactly one failure: record `5895-34615-0008`
+raised `EmbeddingProviderError: ...worker timed out after 90s` (99.5%
+single-attempt success rate; 217/218 succeeded). Investigated rather
+than dismissed:
+
+- **The audio itself is ordinary**: 3.055s, 16kHz/mono/16-bit FLAC,
+  `pipeline.validation.validate_audio_file()` reports `VALID` with no
+  findings — nothing about the file is anomalous.
+- **Did not reproduce.** The exact same record, embedded 3 more times
+  under controlled conditions: 27.27s, 28.66s, 31.97s — all succeeded,
+  all returned bit-identical 192-dimensional output (the model is
+  deterministic in eval mode, as expected).
+- **Four neighboring/comparison records** (2 from the same chapter, 2
+  from different speakers, durations 2.78s–10.06s) all succeeded too,
+  27–34s each, with **no correlation between audio duration and
+  runtime** — a 10.06s clip embedded faster (29.69s) than a 5.71s clip
+  (34.17s), confirming elapsed time is dominated by the fixed
+  subprocess-startup + model-reload cost documented above, not by
+  input length or inference itself (~0.13s, per the table above).
+- **The timeout wraps the entire subprocess**, not just inference:
+  `LocalNeuralEmbeddingProvider._run_worker()`'s `subprocess.run(...,
+  timeout=...)` spans process launch, the `torch`/`nemo_toolkit` import,
+  full model reload from disk, inference, and the JSON response
+  round-trip. Confirmed by inspection of both `_run_worker()` and
+  `scripts/ml_workers/nemo_embedding_worker.py` — the 90s ceiling was
+  never intended to bound inference alone.
+- **Root cause classification: `INTERMITTENT_RUNTIME_FAILURE`,
+  moderate confidence.** Conclusively ruled out: `RECORD_SPECIFIC_AUDIO_PROBLEM`,
+  `MODEL_INFERENCE_PROBLEM` (7/7 controlled attempts across 5 distinct
+  records all succeeded with correct, stable output). Most plausible
+  contributing factor: transient resource contention on a shared,
+  general-purpose machine (`Get-CimInstance Win32_OperatingSystem`
+  showed as little as ~2.6 GB of 16 GB physical memory free at points
+  during this investigation) colliding with the architecture's already-
+  thin timeout margin — this project's own prior measurement recorded
+  an 86.4s cold-load outlier once before, well within reach of a 90s
+  ceiling under any additional friction. Not proven with certainty:
+  nothing was monitoring system resources at the exact moment of the
+  original failure, so the specific contending cause cannot be
+  identified after the fact.
+- **No production code was changed.** Nothing here demonstrates a
+  repository-level reliability defect: the timeout fired correctly and
+  safely (the caller received a clear, honest `EmbeddingProviderError`,
+  never a hang, a crash, or fabricated output), and 7/7 controlled
+  reproduction attempts stayed comfortably within the existing 90s
+  budget (27–34s). A single ~0.5%-rate transient failure on a shared
+  machine is not, by itself, evidence that the timeout, the subprocess
+  architecture, or the model choice needs to change.
+
 ## Testing
 
 - `tests/test_real_ml_runtime.py` (new): capability-gated integration
