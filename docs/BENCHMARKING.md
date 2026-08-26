@@ -146,6 +146,55 @@ documented:
    acceptance thresholds (`identity.calibration`: 0.55/0.65/0.85) are a
    different use case (live accept/reject decisions) and are not applied
    as a pass/fail bar here.
+
+   **A second, independent baseline — `HELD_OUT_SPEAKER`.** The two runs
+   above both used `SAME_SPEAKER` (every speaker present in every
+   partition — measures recognition of already-known speakers). A
+   `HELD_OUT_SPEAKER` run measures the different, genuinely harder
+   question: generalization to speakers the split has never put in
+   train. Same real dataset, same seeds (split seed 42, pair seed 42),
+   `max_pairs_per_kind=40` — but the split's own real speaker
+   distribution (28 train / 6 validation / 6 test speakers) means only
+   12 distinct held-out speakers exist to draw same-speaker pairs from,
+   and this architecture forms at most one such pair per speaker — so
+   `SAME_SPEAKER_HELD_OUT` naturally capped at **12** pairs, not 40. This
+   is reported honestly rather than forcing an artificial pair category
+   to hit the target count.
+
+   | Category | Pairs | Coverage | Mean | Median | Stdev | Min | Max |
+   |---|---|---|---|---|---|---|---|
+   | Same-speaker held-out | 12 | 100% | 0.769 | 0.781 | 0.126 | 0.545 | 0.927 |
+   | Different-speaker | 40 | 100% | 0.040 | 0.014 | 0.106 | -0.188 | 0.242 |
+   | Train-reference→held-out | 0 | — | — | — | — | — | — |
+
+   `TRAIN_REFERENCE_TO_HELD_OUT` is correctly empty — a `HELD_OUT_SPEAKER`
+   split never puts a speaker's utterances in both train and a held-out
+   partition, so no such pair can exist. `KindStatistics` reports this
+   as genuine `None` fields, not fabricated zeros.
+
+   **Comparison with the `SAME_SPEAKER` expanded baseline** (120 pairs,
+   above): same-speaker similarity is close in both modes (0.769 vs.
+   0.751), but different-speaker similarity is noticeably lower under
+   `HELD_OUT_SPEAKER` (0.040 vs. 0.082) — a wider real separation between
+   the two distributions when the compared speakers were never seen
+   together in any partition. **This is not claimed as a statistically
+   significant effect** — this project has no established significance-
+   testing methodology, and the same-speaker sample here (n=12) is small
+   enough that a single unusual pair could shift the mean noticeably.
+   Both results are consistent with the same underlying claim already
+   established: the embedding space discriminates speakers rather than
+   returning noise, under both the "known speakers" and "unseen
+   speakers" framings.
+
+   Leakage-verified against the real output: 0 self-comparisons, 0
+   duplicate pairs, 97 distinct record ids for 52 pairs, 0 train/held-out
+   speaker overlap, every `SAME_SPEAKER_HELD_OUT` pair's speaker
+   confirmed inside the held-out partition and absent from train, every
+   `DIFFERENT_SPEAKER` pair confirmed to compare genuinely different
+   speakers. Reproducibility confirmed: recomputing pair selection from
+   the persisted configuration reproduces all 52 pairs exactly. Persisted
+   as its own `experiments/registry.jsonl` entry, distinct from (and
+   never overwriting) the `SAME_SPEAKER` experiment.
 2. **A fixed text set** per language, covering the code-switching case.
 3. **Subjective rating protocol** — who rates, blind or not, how many
    raters. Naturalness and prosody are human judgements; an unstated

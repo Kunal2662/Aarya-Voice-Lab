@@ -139,6 +139,51 @@ def test_train_reference_to_held_out_pairs_exist_under_same_speaker_strategy():
     assert any(p.kind is PairKind.TRAIN_REFERENCE_TO_HELD_OUT for p in pairs)
 
 
+def test_same_speaker_held_out_pairs_under_held_out_speaker_strategy_only_use_held_out_speakers():
+    """Under HELD_OUT_SPEAKER, a SAME_SPEAKER_HELD_OUT pair's speaker must
+    be one of the speakers the split actually assigned to validation/test
+    -- never a train-partition speaker, since that would defeat the
+    strategy's whole point (measuring generalization to unseen speakers)."""
+    records = _many_speaker_records(speaker_count=10, utterances_per_speaker=10)
+    config = SplitConfig(
+        strategy=SplitStrategy.HELD_OUT_SPEAKER, proportions=SplitProportions(0.6, 0.2, 0.2), seed=1
+    )
+    split = split_records("fixture-corpus", records, config)
+    records_by_id = {r.record_id: r for r in records}
+    pairs = select_pairs(split, records_by_id, seed=1, max_pairs_per_kind=10)
+
+    held_out_ids = set(split.validation_record_ids) | set(split.test_record_ids)
+    held_out_speakers = {records_by_id[i].speaker_id for i in held_out_ids}
+    train_speakers = {records_by_id[i].speaker_id for i in split.train_record_ids}
+    assert held_out_speakers.isdisjoint(train_speakers)
+
+    same_speaker_pairs = [p for p in pairs if p.kind is PairKind.SAME_SPEAKER_HELD_OUT]
+    assert same_speaker_pairs
+    for pair in same_speaker_pairs:
+        ref_speaker = records_by_id[pair.reference_record_id].speaker_id
+        cand_speaker = records_by_id[pair.candidate_record_id].speaker_id
+        assert ref_speaker == cand_speaker
+        assert ref_speaker in held_out_speakers
+        assert ref_speaker not in train_speakers
+
+
+def test_different_speaker_pairs_under_held_out_speaker_strategy_never_compare_a_speaker_with_itself():
+    records = _many_speaker_records(speaker_count=10, utterances_per_speaker=10)
+    config = SplitConfig(
+        strategy=SplitStrategy.HELD_OUT_SPEAKER, proportions=SplitProportions(0.6, 0.2, 0.2), seed=1
+    )
+    split = split_records("fixture-corpus", records, config)
+    records_by_id = {r.record_id: r for r in records}
+    pairs = select_pairs(split, records_by_id, seed=1, max_pairs_per_kind=10)
+
+    different_speaker_pairs = [p for p in pairs if p.kind is PairKind.DIFFERENT_SPEAKER]
+    assert different_speaker_pairs
+    for pair in different_speaker_pairs:
+        ref_speaker = records_by_id[pair.reference_record_id].speaker_id
+        cand_speaker = records_by_id[pair.candidate_record_id].speaker_id
+        assert ref_speaker != cand_speaker
+
+
 def test_different_speaker_pairs_are_actually_different_speakers():
     records = _many_speaker_records()
     config = SplitConfig(strategy=SplitStrategy.SAME_SPEAKER, proportions=SplitProportions(0.6, 0.2, 0.2), seed=1)

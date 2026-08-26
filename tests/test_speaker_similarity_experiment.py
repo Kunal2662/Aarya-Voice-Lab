@@ -133,6 +133,29 @@ def test_experiment_id_differs_for_a_different_pair_seed():
     assert record_a["experiment_id"] != record_b["experiment_id"]
 
 
+def test_experiment_id_differs_by_split_strategy():
+    """A SAME_SPEAKER run and a HELD_OUT_SPEAKER run over the identical
+    dataset/seed/pair-config must never collide -- they measure different
+    things (recognition of known speakers vs. generalization to unseen
+    ones) and must be independently persisted, never overwrite each
+    other."""
+    records = _many_speaker_records(speaker_count=10, utterances_per_speaker=10)
+    records_by_id, split_same, _, summary_same = _run_full_evaluation(
+        records, strategy=SplitStrategy.SAME_SPEAKER, max_pairs=5
+    )
+    _, split_held_out, _, summary_held_out = _run_full_evaluation(
+        records, strategy=SplitStrategy.HELD_OUT_SPEAKER, max_pairs=5
+    )
+    kwargs = dict(
+        dataset_id="fixture-corpus", dataset_version="v1", dataset_provenance="p", pair_seed=1,
+        max_pairs_per_kind=5, records_by_id=records_by_id, provider_name="local-neural-embedding",
+        model_name="titanet_large", model_version="1.0.0", embedding_dimension=192, software_versions={},
+    )
+    record_same = build_experiment_record(split=split_same, summary=summary_same, **kwargs)
+    record_held_out = build_experiment_record(split=split_held_out, summary=summary_held_out, **kwargs)
+    assert record_same["experiment_id"] != record_held_out["experiment_id"]
+
+
 def test_re_registering_the_identical_experiment_is_refused_like_every_other_registry(tmp_path):
     records = _many_speaker_records()
     records_by_id, split, _, summary = _run_full_evaluation(records)
