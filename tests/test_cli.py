@@ -86,13 +86,36 @@ def test_voice_engine_status_json_reports_all_three_provider_kinds(capsys):
     assert len(payload["embedding_providers"]) >= 2  # synthetic + local-neural-embedding
 
 
-def test_voice_engine_status_never_fabricates_available_on_this_checkout(capsys):
-    """This checkout has no torch/nemo_toolkit/transformers/soundfile
-    installed and no .envs/env-nemo built (confirmed empirically, not
-    assumed) -- the real, non-synthetic providers must honestly report
-    a non-AVAILABLE state, never a fabricated success. A synthetic
-    provider's SYNTHETIC_ONLY state is not a claim of real availability
-    and is excluded from this check."""
+def test_voice_engine_status_never_fabricates_generation_or_training_availability(capsys):
+    """Generation and training have no real implementation anywhere in
+    this project regardless of which machine this runs on -- unlike the
+    embedding provider, whose AVAILABLE/NOT_CONFIGURED state legitimately
+    varies by whether `.envs/env-nemo` happens to be built on this
+    checkout (real on some machines, real elsewhere too, per
+    docs/REAL_ML_RUNTIME_INTEGRATION.md), this assertion has no
+    environment-dependent escape hatch: `LocalNeuralVoiceGenerator` always
+    raises `GenerationBlockedError` and `LocalTrainingProvider` remains
+    NOT_CONFIGURED by explicit, unchanged project decision."""
+    import json
+
+    assert main(["voice-engine-status", "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+
+    assert payload["generation_provider"]["backend_state"] != "AVAILABLE"
+    assert payload["training_provider"]["state"] != "AVAILABLE"
+
+
+def test_voice_engine_status_embedding_state_is_never_available_without_a_missing_requirements_list_that_matches(
+    capsys,
+):
+    """The embedding provider's AVAILABLE/NOT_CONFIGURED state is real and
+    machine-dependent (this checkout may or may not have `.envs/env-nemo`
+    built) -- this test asserts the honest-reporting invariant that holds
+    either way: a NOT_CONFIGURED real (non-synthetic) provider must name
+    real missing requirements, and an AVAILABLE one must not claim any
+    requirement is still missing. Never asserts a fixed state for the
+    embedding provider itself, since that would encode this checkout's
+    current environment rather than a real project invariant."""
     import json
 
     assert main(["voice-engine-status", "--json"]) == 0
@@ -101,13 +124,12 @@ def test_voice_engine_status_never_fabricates_available_on_this_checkout(capsys)
     for report in payload["embedding_providers"]:
         if report["is_synthetic"]:
             continue
-        assert report["state"] != "AVAILABLE", (
-            f"provider {report['name']!r} reported AVAILABLE but no real embedding "
-            "runtime is installed on this checkout"
-        )
-
-    assert payload["generation_provider"]["backend_state"] != "AVAILABLE"
-    assert payload["training_provider"]["state"] != "AVAILABLE"
+        if report["state"] == "NOT_CONFIGURED":
+            assert report.get("missing_requirements") or report.get("detail"), (
+                f"provider {report['name']!r} reported NOT_CONFIGURED with no explanation"
+            )
+        elif report["state"] == "AVAILABLE":
+            assert not report.get("missing_requirements")
 
 
 def test_release_check_command_passes_on_the_real_checkout(capsys):
