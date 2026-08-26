@@ -49,6 +49,15 @@ const ICONS = {
   // "no random Unicode symbols as final icons" principle for the one
   // other spot in the app it still applied to.
   close: '<line x1="5" y1="5" x2="19" y2="19"/><line x1="19" y1="5" x2="5" y2="19"/>',
+  // Added when shell/index.html's own sidebar markup was found still
+  // passing raw Unicode characters ("▣", "✎") as icon="..." values --
+  // this catalogue's "no random Unicode symbols" principle was applied
+  // to the sidebar-nav.js *component* (FE-1.3) but the wireframe's own
+  // markup was never migrated off the pre-FE-1.3 glyphs, so every
+  // unmapped name silently fell through to this file's own "unknown
+  // icon" fallback ("?").
+  hardware: '<rect x="6" y="6" width="12" height="12" rx="1"/><line x1="9" y1="3" x2="9" y2="6"/><line x1="15" y1="3" x2="15" y2="6"/><line x1="9" y1="18" x2="9" y2="21"/><line x1="15" y1="18" x2="15" y2="21"/><line x1="3" y1="9" x2="6" y2="9"/><line x1="3" y1="15" x2="6" y2="15"/><line x1="18" y1="9" x2="21" y2="9"/><line x1="18" y1="15" x2="21" y2="15"/>',
+  accent: '<path d="M3 21l3.5-1 11-11-2.5-2.5-11 11-1 3.5z"/><path d="M14 5.5l2.5 2.5"/>',
 };
 
 export class AvlIcon extends AvlElement {
