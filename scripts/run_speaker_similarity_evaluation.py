@@ -33,6 +33,8 @@ from aarya_voice_lab.pipeline.dataset_adapter import LibriSpeechDatasetAdapter
 from aarya_voice_lab.pipeline.dataset_split import SplitConfig, SplitProportions, SplitStrategy, split_records
 from aarya_voice_lab.pipeline.normalization import NormalizationBlocked, NormalizationConfig, normalize_file
 from aarya_voice_lab.pipeline.speaker_similarity import evaluate_pairs, select_pairs
+from aarya_voice_lab.pipeline.speaker_similarity_experiment import build_experiment_record
+from aarya_voice_lab.registry.experiment_registry import ExperimentRegistry
 
 
 def _make_embed_record(records_by_id, scratch_dir: Path, data_root: DataRoot, provider):
@@ -75,6 +77,11 @@ def main() -> int:
     parser.add_argument("--pair-seed", type=int, default=42)
     parser.add_argument("--max-pairs-per-kind", type=int, default=10)
     parser.add_argument("--scratch-dir", type=Path, default=Path("data/working/similarity-eval"))
+    parser.add_argument(
+        "--persist", action="store_true", help="Register this run in experiments/registry.jsonl (git-ignored)."
+    )
+    parser.add_argument("--dataset-version", default="dev-clean")
+    parser.add_argument("--dataset-provenance", default="openslr.org/12, CC BY 4.0")
     args = parser.parse_args()
 
     provider = get_provider(LocalNeuralEmbeddingProvider.name)
@@ -115,6 +122,59 @@ def main() -> int:
         "target_review_threshold": 0.65,
         "target_acceptance_threshold": 0.85,
     }
+
+    if args.persist:
+        import dataclasses
+        import subprocess
+
+        from aarya_voice_lab import system_info
+        from aarya_voice_lab.pipeline.runner import EnvironmentId, default_environment_root
+
+        def _worker_software_versions() -> dict[str, str]:
+            """Real torch/nemo_toolkit versions come from the isolated
+            .envs/env-nemo interpreter that actually did the embedding work
+            -- the base interpreter deliberately has neither installed (see
+            identity.embeddings' module docstring), so querying it would
+            report "unknown" for values that are, in fact, known and real."""
+            env_python = default_environment_root(EnvironmentId.NEMO).python
+            versions = {"python": sys.version.split()[0]}
+            try:
+                result = subprocess.run(
+                    [str(env_python), "-m", "aarya_voice_lab.cli.main", "nemo-check", "--json"],
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                    check=False,
+                )
+                report = json.loads(result.stdout)
+                for capability in report.get("capabilities", []):
+                    if capability["name"] in ("torch", "nemo_toolkit") and capability.get("version"):
+                        versions[capability["name"]] = capability["version"]
+            except (OSError, subprocess.SubprocessError, json.JSONDecodeError):
+                pass
+            return versions
+
+        record = build_experiment_record(
+            dataset_id=args.dataset_id,
+            dataset_version=args.dataset_version,
+            dataset_provenance=args.dataset_provenance,
+            split=split,
+            pair_seed=args.pair_seed,
+            max_pairs_per_kind=args.max_pairs_per_kind,
+            records_by_id=records_by_id,
+            summary=summary,
+            provider_name=provider.name,
+            model_name="titanet_large",
+            model_version=provider.version,
+            embedding_dimension=192,
+            software_versions=_worker_software_versions(),
+            hardware=dataclasses.asdict(system_info.collect_system_report()),
+        )
+        registry = ExperimentRegistry()
+        registry.add(record)
+        output["persisted_experiment_id"] = record["experiment_id"]
+        print(f"Persisted as {record['experiment_id']}", file=sys.stderr)
+
     print(json.dumps(output, indent=2))
     return 0
 

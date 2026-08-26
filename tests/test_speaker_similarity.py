@@ -207,6 +207,28 @@ def test_evaluate_pairs_caches_embeddings_so_a_shared_record_is_embedded_once():
     assert calls.count("r1") == 1
 
 
+def test_kind_statistics_reports_the_full_percentile_and_extremes_breakdown():
+    # 10 pairs constructed so their cosine similarity is exactly i/9 for
+    # pair i (0.0, 1/9, 2/9, ..., 1.0) -- exact percentiles are easy to
+    # verify by hand against this fixture.
+    pairs = tuple(
+        EvaluationPair(f"p{i}", PairKind.SAME_SPEAKER_HELD_OUT, "ref", f"cand{i}") for i in range(10)
+    )
+    vectors = {"ref": (1.0, 0.0)}
+    for i in range(10):
+        angle_cos = i / 9.0
+        # A 2D vector whose cosine similarity with (1, 0) is exactly angle_cos.
+        vectors[f"cand{i}"] = (angle_cos, math.sqrt(max(0.0, 1 - angle_cos**2)))
+
+    summary = evaluate_pairs(pairs, lambda rid: vectors[rid])
+    stats = next(k for k in summary.by_kind if k.kind is PairKind.SAME_SPEAKER_HELD_OUT)
+    assert stats.count == 10
+    assert stats.minimum == pytest.approx(0.0, abs=1e-6)
+    assert stats.maximum == pytest.approx(1.0, abs=1e-6)
+    assert stats.p50 == pytest.approx(stats.median, abs=1e-6)
+    assert stats.p10 < stats.p25 < stats.p50 < stats.p75 < stats.p90
+
+
 def test_evaluate_pairs_reports_real_similarity_statistics():
     vectors = {"a": (1.0, 0.0), "b": (0.9, 0.1), "c": (-1.0, 0.0)}
     pairs = (

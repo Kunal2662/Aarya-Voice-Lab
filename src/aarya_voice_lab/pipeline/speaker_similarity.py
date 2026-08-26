@@ -177,7 +177,12 @@ class KindStatistics:
     mean: float | None = None
     median: float | None = None
     stdev: float | None = None
+    minimum: float | None = None
+    maximum: float | None = None
     p10: float | None = None
+    p25: float | None = None
+    p50: float | None = None
+    p75: float | None = None
     p90: float | None = None
 
     def to_dict(self) -> dict[str, Any]:
@@ -187,7 +192,12 @@ class KindStatistics:
             "mean": self.mean,
             "median": self.median,
             "stdev": self.stdev,
+            "minimum": self.minimum,
+            "maximum": self.maximum,
             "p10": self.p10,
+            "p25": self.p25,
+            "p50": self.p50,
+            "p75": self.p75,
             "p90": self.p90,
         }
 
@@ -213,7 +223,12 @@ def _kind_statistics(kind: PairKind, scores: list[float]) -> KindStatistics:
         mean=statistics.mean(scores),
         median=statistics.median(scores),
         stdev=statistics.stdev(scores) if len(scores) > 1 else 0.0,
+        minimum=ordered[0],
+        maximum=ordered[-1],
         p10=_percentile(ordered, 0.10),
+        p25=_percentile(ordered, 0.25),
+        p50=_percentile(ordered, 0.50),
+        p75=_percentile(ordered, 0.75),
         p90=_percentile(ordered, 0.90),
     )
 
