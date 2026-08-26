@@ -167,6 +167,102 @@ discipline, `get_capabilities()` continues to report `NOT_CONFIGURED`/
 `ERROR` and `generate_preview()` continues to unconditionally raise
 `GenerationBlockedError` — exactly as before this attempt.
 
+## Update — experimental local checkpoint loader, real generation succeeded, not yet integrated
+
+Following the finding above (the model's own published loading code
+never actually loads weights), a follow-up investigation asked a
+narrower question: is the checkpoint itself usable at all, loaded by
+different, correct code? This did **not** modify the downloaded
+`model.py`, did **not** touch `LocalNeuralVoiceGenerator`, and never set
+`trust_remote_code=True` again — it constructs the architecture directly
+from `f5_tts`'s own already-installed library classes
+(`f5_tts.model.CFM`, `f5_tts.model.DiT`, `f5_tts.model.utils.get_tokenizer`)
+using the exact configuration `model.py` itself passes to `load_model()`.
+The isolated script lives at
+[scripts/indicf5_local_loader_experiment.py](../scripts/indicf5_local_loader_experiment.py)
+and its own module docstring is the detailed technical record; this
+section is the summary.
+
+**Checkpoint inspection** (`model.safetensors`, snapshot
+`ba85abedf18dc479a447eaa0eccbd76ab78a47d5`, 1,402,789,408 bytes ≈ 1.31 GiB,
+read via `safetensors.safe_open` — header/shape metadata only, no full
+tensor load): 447 keys under exactly two top-level prefixes, `ema_model`
+(the trainable transformer weights) and `vocoder` (a bundled
+Vocos-architecture vocoder of unestablished provenance — see below).
+
+**The one real defect this works around:** the real parameter keys are
+`ema_model._orig_mod.<name>`, not the `ema_model.<name>` that
+`f5_tts.infer.utils_infer.load_checkpoint()`'s own EMA-handling code
+expects. The extra `_orig_mod.` segment is a `torch.compile()` wrapper
+artifact left over from how the original training run saved its state
+dict. Calling the upstream loader as-is would leave that prefix in
+place and every key would fail to match the (uncompiled) target model's
+parameter names. The loader strips the *combined* prefix
+`ema_model._orig_mod.` instead — the one concrete change from upstream,
+isolated entirely to key-name handling, changing nothing about the
+architecture, the checkpoint values, or any other loading behavior.
+`model.load_state_dict()` is called with its default `strict=True`, so a
+real architecture/checkpoint mismatch would raise, not silently
+partial-load.
+
+**Vocoder decision:** the checkpoint's bundled `vocoder.*` keys are left
+unused. Nothing in the model card, `model.py`, or the checkpoint itself
+establishes whether they are the vocoder IndicF5 was actually meant to
+ship with or an incidental training-time snapshot, and the official code
+path never reads them — it always downloads the public
+`charactr/vocos-mel-24khz` checkpoint. This investigation made the same
+choice `model.py` makes, rather than guessing that the bundled weights
+are the intended deployment vocoder.
+
+**Real generation, independently verified, not just trusted from the
+script's own output:**
+
+| Property | Value |
+|---|---|
+| Input text | `संगीत की तरह जीवन भी खूबसूरत होता है.` (Hindi) |
+| Reference audio / text | the model card's own documented usage example (Punjabi) |
+| Device | CPU |
+| Output | 24000 Hz, mono, 68,864 samples, 2.869 s |
+| Transformer load | 4.31 s |
+| Vocoder load | 2.12 s |
+| Reference audio preprocessing | 0.06 s |
+| Inference | 621.5 s (~10.4 min, CPU) |
+| Waveform sanity (`soundfile` + `numpy`) | peak 0.196, RMS 0.022, no NaN, not silent |
+
+Verified independently with `ffprobe` (container/stream metadata) and a
+separate `soundfile`/`numpy` read (actual sample values), not by trusting
+the script's printed JSON alone. This is the first real, non-fabricated
+TTS audio produced anywhere in this project's history.
+
+**Environment:** the same `.envs/env-tts-windows` built for the prior
+attempt (Python 3.13.14). Package versions actually exercised:
+`f5-tts==1.1.22`, `torch==2.13.0+cpu`, `torchaudio==2.11.0`,
+`transformers==4.49.0` (the version pinned to match IndicF5's own
+`config.json`, per the prior finding), `safetensors==0.8.0`,
+`soundfile==0.14.0`, `huggingface_hub==0.36.2`. One additional, unrelated
+environment defect hit and worked around: the installed `torchaudio`
+2.11.0 defaults `torchaudio.load()` to a `torchcodec` backend whose
+native DLLs failed to load on this machine (`torchcodec==0.16.0`,
+confirmed via a real, reproduced `RuntimeError`/`OSError` — an FFmpeg
+shared-library packaging mismatch, not anything specific to IndicF5).
+Worked around with a process-scoped monkey-patch of `torchaudio.load`
+backed by the already-proven-working `soundfile` library, matching its
+exact return contract; no installed package file was modified.
+
+**What this is and is not:** this is an experimental, standalone
+investigation script, not a change to any production capability.
+`LocalNeuralVoiceGenerator.get_capabilities()` still reports
+`NOT_CONFIGURED`/`ERROR` and `generate_preview()` still unconditionally
+raises `GenerationBlockedError`, unchanged. The official, gated
+`ai4bharat/IndicF5` cached model files were not modified. Per this
+milestone's own explicit instruction, this investigation **stops here
+and does not integrate the loader into `LocalNeuralVoiceGenerator`**
+pending a separate, explicit integration decision — open questions that
+decision would need to resolve include the ~10.4-minute CPU inference
+latency (no GPU was used or available for this test), the unresolved
+bundled-vocoder question above, and that this loader has been exercised
+on exactly one input pair so far.
+
 ## What is real now
 
 `identity.embeddings.LocalNeuralEmbeddingProvider`:
