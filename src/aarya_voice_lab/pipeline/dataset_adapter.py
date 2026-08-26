@@ -130,3 +130,63 @@ class FixtureDatasetAdapter(DatasetAdapter):
             provenance=raw.get("provenance"),
             metadata=raw.get("metadata"),
         )
+
+
+class LibriSpeechDatasetAdapter(DatasetAdapter):
+    """Adapter for the real LibriSpeech ASR corpus on-disk layout
+    (https://www.openslr.org/12/):
+    `<root>/<speaker_id>/<chapter_id>/<speaker_id>-<chapter_id>-<utterance>.flac`,
+    with transcripts in a sibling `<speaker_id>-<chapter_id>.trans.txt`
+    (one `<utterance_id> <TRANSCRIPT>` line per utterance).
+
+    Never infers a transcript, speaker id, sample rate, or duration this
+    dataset's own on-disk files do not literally contain -- an utterance
+    whose id is absent from its chapter's `.trans.txt` yields
+    `transcript=None` rather than a guess, and `speaker_id` is exactly the
+    reader directory name LibriSpeech itself assigned. Reads only; never
+    writes, converts, or deletes anything under `root`.
+    """
+
+    def __init__(self, root: Path, *, dataset_id: str, license: str = "CC BY 4.0", language: str = "en"):
+        self.root = root
+        self.dataset_id = dataset_id
+        self.license = license
+        self.language = language
+
+    def iter_records(self) -> Iterator[NormalizedRecord]:
+        if not self.root.is_dir():
+            raise DatasetAdapterError(f"LibriSpeech root not found: {self.root}")
+        for speaker_dir in sorted(p for p in self.root.iterdir() if p.is_dir()):
+            speaker_id = speaker_dir.name
+            for chapter_dir in sorted(p for p in speaker_dir.iterdir() if p.is_dir()):
+                chapter_id = chapter_dir.name
+                transcripts = self._read_transcripts(chapter_dir, speaker_id, chapter_id)
+                for flac_path in sorted(chapter_dir.glob("*.flac")):
+                    utterance_id = flac_path.stem
+                    yield NormalizedRecord(
+                        dataset_id=self.dataset_id,
+                        record_id=utterance_id,
+                        audio_ref=str(flac_path),
+                        language=self.language,
+                        license=self.license,
+                        transcript=transcripts.get(utterance_id),
+                        speaker_id=speaker_id,
+                        sample_rate=None,
+                        duration_seconds=None,
+                        provenance=f"LibriSpeech {self.dataset_id}, speaker={speaker_id}, chapter={chapter_id}",
+                        metadata={"chapter_id": chapter_id},
+                    )
+
+    def _read_transcripts(self, chapter_dir: Path, speaker_id: str, chapter_id: str) -> dict[str, str]:
+        trans_path = chapter_dir / f"{speaker_id}-{chapter_id}.trans.txt"
+        if not trans_path.is_file():
+            return {}
+        transcripts: dict[str, str] = {}
+        for line in trans_path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            utterance_id, _, text = line.partition(" ")
+            if utterance_id:
+                transcripts[utterance_id] = text
+        return transcripts

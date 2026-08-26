@@ -7,6 +7,7 @@ import pytest
 from aarya_voice_lab.pipeline.dataset_adapter import (
     DatasetAdapterError,
     FixtureDatasetAdapter,
+    LibriSpeechDatasetAdapter,
     NormalizedRecord,
 )
 
@@ -118,6 +119,75 @@ def test_record_count_matches_iter_records(tmp_path):
         ],
     )
     adapter = FixtureDatasetAdapter(manifest, dataset_id="fixture-corpus", license="CC0-1.0")
+    assert adapter.record_count() == 3
+
+
+def _write_librispeech_fixture(root):
+    """A tiny, synthetic on-disk tree shaped exactly like the real
+    LibriSpeech layout (speaker/chapter/utterance.flac + a sibling
+    .trans.txt) -- deliberately not the real ~350MB corpus, so this test
+    is portable and needs no download."""
+    chapter_dir = root / "1272" / "128104"
+    chapter_dir.mkdir(parents=True)
+    (chapter_dir / "1272-128104-0000.flac").write_bytes(b"fake flac bytes 0")
+    (chapter_dir / "1272-128104-0001.flac").write_bytes(b"fake flac bytes 1")
+    (chapter_dir / "1272-128104.trans.txt").write_text(
+        "1272-128104-0000 MISTER QUILTER IS THE APOSTLE\n"
+        "1272-128104-0001 NOR IS MISTER QUILTER'S MANNER LESS INTERESTING\n",
+        encoding="utf-8",
+    )
+    other_chapter = root / "1272" / "141231"
+    other_chapter.mkdir(parents=True)
+    (other_chapter / "1272-141231-0000.flac").write_bytes(b"fake flac bytes 2")
+    # No .trans.txt for this chapter -- exercises the missing-transcript path.
+    return root
+
+
+def test_librispeech_adapter_yields_real_records_from_the_real_layout(tmp_path):
+    root = _write_librispeech_fixture(tmp_path)
+    adapter = LibriSpeechDatasetAdapter(root, dataset_id="librispeech-dev-clean")
+    records = sorted(adapter.iter_records(), key=lambda r: r.record_id)
+
+    assert [r.record_id for r in records] == [
+        "1272-128104-0000",
+        "1272-128104-0001",
+        "1272-141231-0000",
+    ]
+    first = records[0]
+    assert first.transcript == "MISTER QUILTER IS THE APOSTLE"
+    assert first.speaker_id == "1272"
+    assert first.language == "en"
+    assert first.license == "CC BY 4.0"
+    assert first.audio_ref.endswith("1272-128104-0000.flac")
+    assert first.metadata == {"chapter_id": "128104"}
+
+
+def test_librispeech_adapter_never_fabricates_a_transcript_for_a_missing_trans_txt(tmp_path):
+    root = _write_librispeech_fixture(tmp_path)
+    adapter = LibriSpeechDatasetAdapter(root, dataset_id="librispeech-dev-clean")
+    records = {r.record_id: r for r in adapter.iter_records()}
+    assert records["1272-141231-0000"].transcript is None
+
+
+def test_librispeech_adapter_never_fabricates_sample_rate_or_duration(tmp_path):
+    """The adapter reads only dataset-native metadata -- it never probes
+    the audio itself, so these stay unset rather than guessed."""
+    root = _write_librispeech_fixture(tmp_path)
+    adapter = LibriSpeechDatasetAdapter(root, dataset_id="librispeech-dev-clean")
+    record = next(adapter.iter_records())
+    assert record.sample_rate is None
+    assert record.duration_seconds is None
+
+
+def test_librispeech_adapter_missing_root_raises(tmp_path):
+    adapter = LibriSpeechDatasetAdapter(tmp_path / "missing", dataset_id="librispeech-dev-clean")
+    with pytest.raises(DatasetAdapterError, match="not found"):
+        list(adapter.iter_records())
+
+
+def test_librispeech_adapter_record_count_matches_flac_file_count(tmp_path):
+    root = _write_librispeech_fixture(tmp_path)
+    adapter = LibriSpeechDatasetAdapter(root, dataset_id="librispeech-dev-clean")
     assert adapter.record_count() == 3
 
 
