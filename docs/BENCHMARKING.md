@@ -66,6 +66,24 @@ documented:
 
 1. **A held-out evaluation set** — never used in training, or
    `speaker_similarity` measures memorization rather than generalization.
+   **Infrastructure ready, evaluation itself not run**: see
+   [`pipeline.dataset_split`](../src/aarya_voice_lab/pipeline/dataset_split.py).
+   It distinguishes two different questions this project's evaluation
+   needs never conflate — `SAME_SPEAKER` (held-out utterances from a
+   known speaker; the relevant question for the Private Voice, which has
+   exactly one target speaker) and `HELD_OUT_SPEAKER` (entire speakers
+   set aside; the relevant question for a multi-speaker corpus like the
+   registered LibriSpeech dev-clean data). Both are deterministic,
+   seeded, and leakage-checked (`check_leakage()`) for duplicate record
+   ids, duplicate paths, duplicate content hashes where available, and
+   speaker leakage in `HELD_OUT_SPEAKER` mode. Verified against the real,
+   registered `librispeech-dev-clean` dataset (2,703 records, 40
+   speakers): `HELD_OUT_SPEAKER` split — 1,902/393/408 records across
+   28/6/6 speakers, zero leakage on every check; `SAME_SPEAKER` split —
+   1,890/407/406 records, all 40 speakers present in every partition,
+   zero leakage. This is **held-out evaluation infrastructure being
+   ready**, not a model evaluation having been run — no model has been
+   trained or scored against either split.
 2. **A fixed text set** per language, covering the code-switching case.
 3. **Subjective rating protocol** — who rates, blind or not, how many
    raters. Naturalness and prosody are human judgements; an unstated
