@@ -23,7 +23,7 @@ const NARROW_DESKTOP_BREAKPOINT = "75rem";
 
 export class AvlAppShell extends AvlElement {
   static get observedAttributes() {
-    return ["inspector-collapsed"];
+    return ["inspector-collapsed", "sidebar-collapsed"];
   }
 
   connectedCallback() {
@@ -36,6 +36,13 @@ export class AvlAppShell extends AvlElement {
 
   _render() {
     const inspectorCollapsed = this.hasAttribute("inspector-collapsed");
+    // FE-4 -- an explicit manual override (see state/sidebar-view-model.js
+    // and app/main.js's wiring of it), distinct from the narrow-desktop
+    // media query below: this can force the compact rail at any width,
+    // but never forces the wide column back open below the narrow-
+    // desktop threshold -- see the `.shell[data-sidebar-view="icon"]`
+    // rule's higher specificity over the plain `.shell` media-query rule.
+    const sidebarCollapsed = this.hasAttribute("sidebar-collapsed");
 
     this.shadowRoot.innerHTML = "";
     this._linkSharedStyles();
@@ -63,8 +70,20 @@ export class AvlAppShell extends AvlElement {
         grid-area: sidebar;
         background: var(--avl-color-glass-surface);
         border-right: 1px solid var(--avl-color-glass-border);
-        overflow: auto;
+        overflow-y: auto;
+        overflow-x: hidden;
+        /* FE-4 -- a handful of nav items plus the theme/view toggles can
+           exceed the sidebar's height by a few pixels in a real browser
+           chrome (not just in the narrow-desktop icon rail this was
+           first reported against), which made overflow:auto paint a
+           visible, permanent-looking scrollbar track for content that
+           barely overflows at all. Scrolling itself stays available for
+           a future sidebar with more items; only the always-visible
+           track is suppressed, cross-browser. */
+        scrollbar-width: none; /* Firefox */
+        -ms-overflow-style: none; /* legacy Edge */
       }
+      .sidebar::-webkit-scrollbar { width: 0; height: 0; } /* Chromium/WebKit */
       .workspace { grid-area: workspace; overflow: auto; padding: var(--avl-space-4); }
       .inspector {
         grid-area: inspector; width: var(--avl-layout-inspector-width);
@@ -82,11 +101,21 @@ export class AvlAppShell extends AvlElement {
       @media (max-width: ${NARROW_DESKTOP_BREAKPOINT}) {
         .shell { grid-template-columns: var(--avl-layout-sidebar-width-collapsed) 1fr auto; }
       }
+
+      /* FE-4 -- the manual icon-view override. Higher specificity than
+         the bare ".shell" media-query rule above (an attribute selector
+         adds a selector, not just a media condition), so this applies
+         at any width once set, including on top of the narrow-desktop
+         collapse it already agrees with. */
+      .shell[data-sidebar-view="icon"] {
+        grid-template-columns: var(--avl-layout-sidebar-width-collapsed) 1fr auto;
+      }
     `;
     this.shadowRoot.appendChild(style);
 
     const shell = document.createElement("div");
     shell.className = "shell";
+    shell.dataset.sidebarView = sidebarCollapsed ? "icon" : "full";
 
     const sidebar = document.createElement("div");
     sidebar.className = "sidebar";

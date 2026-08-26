@@ -9,6 +9,7 @@ import "../components/sidebar-nav.js";
 import "../components/activity-bar.js";
 import "../components/panel.js";
 import "../components/theme-toggle.js";
+import "../components/sidebar-view-toggle.js";
 import "../components/inspector-router.js";
 import "../components/workspace-command-center.js";
 import "../components/workspace-import.js";
@@ -65,6 +66,7 @@ import {
 } from "../state/evaluation-model.js";
 import { CalibrationProfileStore, exportCalibrationPlan } from "../state/calibration-engine-model.js";
 import { SessionPersistence, SessionNamespace, isPersistenceAvailable, clearAllSessionData } from "../state/session-persistence.js";
+import { SidebarViewModel } from "../state/sidebar-view-model.js";
 
 // FE-1.3 -- `icon` now names a real inline-SVG icon from
 // components/icon.js's catalogue (its keys are the same names as the
@@ -92,7 +94,7 @@ async function loadJson(relativePath) {
   return response.json();
 }
 
-function buildSidebar(router) {
+function buildSidebar(router, sidebarViewModel) {
   const nav = document.createElement("avl-sidebar-nav");
   nav.slot = "sidebar";
   for (const destination of DESTINATIONS) {
@@ -109,6 +111,18 @@ function buildSidebar(router) {
   themeToggle.style.marginTop = "1rem";
   themeToggle.style.padding = "0 0.5rem";
   nav.appendChild(themeToggle);
+
+  // FE-4 -- icon-view/full-view toggle, sharing the sidebar's slot area
+  // via the default <slot> sidebar-nav.js now renders (see that file's
+  // FE-4 comment). nav.collapsed itself is driven from main(), not here,
+  // since it also has to drive app-shell's sibling attribute in sync.
+  const viewToggle = document.createElement("avl-sidebar-view-toggle");
+  viewToggle.style.display = "block";
+  viewToggle.style.marginTop = "0.5rem";
+  viewToggle.style.padding = "0 0.5rem";
+  viewToggle.model = sidebarViewModel;
+  nav.appendChild(viewToggle);
+
   nav.addEventListener("avl-navigate", (event) => router.navigate(event.detail.destination));
   return nav;
 }
@@ -624,7 +638,19 @@ async function main() {
   const shell = document.createElement("avl-app-shell");
   shell.id = "shell";
 
-  const sidebar = buildSidebar(router);
+  // FE-4 -- one shared model drives both app-shell's grid-column width
+  // and sidebar-nav's label visibility, kept in sync here rather than
+  // via any direct reference between those two sibling components (see
+  // state/sidebar-view-model.js).
+  const sidebarViewModel = new SidebarViewModel();
+  const sidebar = buildSidebar(router, sidebarViewModel);
+  const applySidebarView = () => {
+    const collapsed = sidebarViewModel.get() === "icon";
+    shell.toggleAttribute("sidebar-collapsed", collapsed);
+    sidebar.toggleAttribute("collapsed", collapsed);
+  };
+  sidebarViewModel.addEventListener("change", applySidebarView);
+  applySidebarView();
   shell.appendChild(sidebar);
 
   const workspaceMount = document.createElement("div");

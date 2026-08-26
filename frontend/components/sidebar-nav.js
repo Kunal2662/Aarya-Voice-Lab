@@ -15,8 +15,16 @@ export class AvlSidebarItem extends HTMLElement {}
 defineComponent("avl-sidebar-item", AvlSidebarItem);
 
 export class AvlSidebarNav extends AvlElement {
+  static get observedAttributes() {
+    return ["collapsed"];
+  }
+
   connectedCallback() {
     this.refresh();
+  }
+
+  attributeChangedCallback() {
+    if (this.isConnected) this._render();
   }
 
   /** Re-read light-DOM <avl-sidebar-item> children and re-render — call
@@ -59,6 +67,13 @@ export class AvlSidebarNav extends AvlElement {
         .item { justify-content: center; }
         .label-text, .planned { display: none; }
       }
+
+      /* FE-4 -- manual icon-view override (see state/sidebar-view-model.js);
+         same rule shape as the media query above, kept in sync with
+         app-shell.js's own [data-sidebar-view="icon"] rule by hand, same
+         as the two components' narrow-desktop breakpoint already is. */
+      :host([collapsed]) .item { justify-content: center; }
+      :host([collapsed]) .label-text, :host([collapsed]) .planned { display: none; }
     `;
     this.shadowRoot.appendChild(style);
 
@@ -123,6 +138,17 @@ export class AvlSidebarNav extends AvlElement {
     }
 
     this.shadowRoot.appendChild(nav);
+
+    // FE-4 -- a default slot for light-DOM children that aren't
+    // <avl-sidebar-item> (e.g. main.js's <avl-theme-toggle> and the new
+    // <avl-sidebar-view-toggle> below). Discovered while adding the
+    // latter: without a slot here, any such child exists in the DOM but
+    // is never actually displayed (no box, not assigned anywhere) --
+    // real pre-existing dead UI, not something introduced by this
+    // change. <avl-sidebar-item> children still render only through the
+    // explicit button-building loop above, never through this slot, so
+    // this can't double-render an item.
+    this.shadowRoot.appendChild(document.createElement("slot"));
   }
 }
 
