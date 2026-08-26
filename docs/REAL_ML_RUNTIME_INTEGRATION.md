@@ -98,6 +98,75 @@ oversight. Building `env-tts` and picking a generation model remains
 future work, gated on either the user obtaining HuggingFace credentials
 for IndicF5 or a fresh decision to use a non-gated substitute.
 
+## Update — access granted, real generation attempted, model's own published code is broken
+
+The user later obtained HuggingFace credentials for `ai4bharat/IndicF5`
+and authorized continuing. Verified authentication without ever
+exposing the token: a `whoami` check confirmed a valid account, and the
+same weights-file request that previously returned `401 Unauthorized`
+now returned **`302 Found`** (a real redirect to a signed download URL —
+the normal shape of an authorized HuggingFace resolve request).
+
+A clean `.envs/env-tts-windows` was built (Python 3.13.14 — the
+repository's `configs/default.yaml` declares 3.12 for `env-tts`, and
+IndicF5's own model card recommends 3.10, but neither is installed on
+this machine; 3.13 was used instead, the same documented deviation
+`env-nemo` already made once for the identical reason, and no package
+in this dependency set turned out to require an exact Python version).
+Installed: `torch==2.13.0+cpu`, `transformers`, `soundfile`, `pydub`,
+`huggingface_hub`, `safetensors`, and `f5-tts` (IndicF5's own `model.py`
+imports directly from the `f5_tts` package, so it is a real runtime
+dependency despite not being one of `LocalNeuralVoiceGenerator`'s
+originally-listed three).
+
+**Security review of `model.py` (the file `trust_remote_code=True`
+actually executes, fetched and read in full before any execution):**
+no obfuscation, no network exfiltration, no shell execution — ordinary,
+readable ML loading/inference code. One dead-code observation: the
+file's `if __name__ == '__main__':` block uploads a rebuilt model
+directory to a third-party's personal HuggingFace repo (`svp19/INF5`)
+— clearly leftover development/testing code from the model's author,
+but it is **never executed** via `trust_remote_code=True`'s import
+mechanism (that guard only fires on direct script execution), so it is
+not a live risk. The one substantive finding: `INF5Model.__init__`'s
+call to `f5_tts.infer.utils_infer.load_model(...)` omits the function's
+required `ckpt_path` argument entirely, and the actual `safetensors`
+state-dict loading code three lines below it is commented out — meaning
+the real trained IndicF5 weights are never loaded into the model by the
+published code, regardless of environment. This is a defect in the
+model repository's own code, not something this project can or should
+patch — modifying gated third-party remote code to work around its own
+bugs would mean silently authoring an unreviewed variant of the model,
+exactly what `trust_remote_code=True` review exists to prevent.
+
+**Real generation attempts, both failing, confirming the finding
+empirically rather than relying on the code review alone:**
+
+| Attempt | `transformers` version | Result | Elapsed |
+|---|---|---|---|
+| 1 | 5.16.0 (latest at install time) | `RuntimeError: Tensor on device cpu is not on the expected device meta!` | 155.6s |
+| 2 | 4.49.0 (the exact version recorded in the model's own `config.json`) | `TypeError: load_model() missing 1 required positional argument: 'ckpt_path'` | 14.3s |
+
+The second attempt's error is the direct, literal confirmation of the
+code-review finding. The model repository's own **open, unresolved**
+community discussion ("Fix transformers 5.0.0 compatibility",
+`ai4bharat/IndicF5` discussion #33) corroborates that others have hit
+breakage in this same loading path — this project's finding is
+consistent with, not contradicted by, that report.
+
+~1.4 GB (model repo cache, including the real `model.safetensors` that
+`transformers`' own `from_pretrained()` resolved and downloaded before
+construction failed) + ~52 MB (the `charactr/vocos-mel-24khz` vocoder,
+a public, ungated dependency) were downloaded to the user's global
+HuggingFace cache (`~/.cache/huggingface/hub/`) — outside this
+repository entirely, nothing committed or copied into it.
+
+**`LocalNeuralVoiceGenerator` was not modified.** Real generation did
+not succeed, so per this project's own "never fabricate AVAILABLE"
+discipline, `get_capabilities()` continues to report `NOT_CONFIGURED`/
+`ERROR` and `generate_preview()` continues to unconditionally raise
+`GenerationBlockedError` — exactly as before this attempt.
+
 ## What is real now
 
 `identity.embeddings.LocalNeuralEmbeddingProvider`:
