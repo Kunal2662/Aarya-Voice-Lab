@@ -154,3 +154,29 @@ def test_check_repo_access_real_gated_vs_public(monkeypatch):
     assert public_status.gated is False
     assert public_status.accessible is True
     assert gated_status.gated is True
+
+
+def test_login_with_token_real_invalid_token_is_classified_as_rejected_not_network_failure():
+    """Capability-gated real integration test. Regression test for a real
+    bug found during the Windows-installer milestone's own real-machine
+    testing: hf_auth_worker.py's _run_login() used to catch every
+    exception generically as "token validation failed", so a genuinely
+    valid token that happened to hit this session's own documented
+    network flakiness (WinError 10054 against huggingface.co) was
+    misreported exactly like an actually-invalid token -- the "network
+    failure must not be falsely reported as invalid authentication" rule
+    this module's _run_check() already followed, but _run_login() did
+    not. Fixed to mirror _run_check()'s HfHubHTTPError/401 handling. This
+    test can only directly prove the "genuinely rejected" half (a real
+    invalid token, deterministic); the network-failure half already has
+    extensive real evidence recorded in docs/INDICF5_INSTALLER.md."""
+    if hf_auth_module._tts_python() is None:
+        pytest.skip("`.envs/env-tts` is not built in this environment -- see docs/INDICF5_INSTALLER.md")
+    with pytest.raises(HFAuthError) as exc_info:
+        login_with_token("hf_this_is_a_deliberately_invalid_garbage_token_00000")
+    message = str(exc_info.value).lower()
+    if "could not reach huggingface" in message or "connectionerror" in message:
+        pytest.skip(f"live network to huggingface.co unavailable: {exc_info.value}")
+    assert "rejected" in message or "401" in message, (
+        f"an invalid token must be classified as rejected, not a generic/network failure: {exc_info.value}"
+    )

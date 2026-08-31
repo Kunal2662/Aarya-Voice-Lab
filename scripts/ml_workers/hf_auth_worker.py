@@ -90,16 +90,41 @@ def _run_check() -> dict:
 
 
 def _run_login(token: str) -> dict:
+    import requests
     from huggingface_hub import HfApi, login
 
     if not token or not token.strip():
         return {"ok": False, "error": "token is empty"}
 
     # Validate FIRST, via a safe read-only call, before persisting anything.
+    # Bug found during the Windows-installer milestone's own real-machine
+    # testing, in two layers: (1) a genuinely valid token, entered while
+    # this session's already-documented network flakiness (WinError
+    # 10054 / ConnectionError against huggingface.co) happened to strike,
+    # was misreported as "token validation failed" -- indistinguishable
+    # from an actually rejected (401) token, exactly the "network failure
+    # must not be falsely reported as invalid authentication" rule the
+    # rest of this module already follows for _run_check(). (2) The first
+    # fix caught `HfHubHTTPError` specifically (mirroring _run_check()'s
+    # own except clause, which uses the module-level `whoami()`) -- but
+    # `HfApi(token=...).whoami()` (an explicit-token instance call, what
+    # this function actually needs) raises a plain
+    # `requests.exceptions.HTTPError` instead, confirmed empirically:
+    # `HfHubHTTPError` never fired here, silently falling through to the
+    # generic branch and reporting a genuine 401 as "could not reach
+    # HuggingFace" -- factually wrong, since an HTTP response WAS
+    # received. `HfHubHTTPError` is itself a subclass of
+    # `requests.exceptions.HTTPError` (confirmed via its MRO), so
+    # catching the broader base class is correct for both call shapes.
     try:
         info = HfApi(token=token).whoami()
-    except Exception as exc:  # noqa: BLE001 -- an invalid/expired token is a normal outcome, report it, don't crash
-        return {"ok": False, "error": f"token validation failed ({type(exc).__name__})"}
+    except requests.exceptions.HTTPError as exc:
+        status = getattr(exc.response, "status_code", None) if exc.response is not None else None
+        if status == 401:
+            return {"ok": False, "error": "the token was rejected (401) -- invalid or expired"}
+        return {"ok": False, "error": f"HTTP error validating the token (status={status}): {type(exc).__name__}"}
+    except Exception as exc:  # noqa: BLE001 -- a connection failure is not "the token is invalid"; report it as such
+        return {"ok": False, "error": f"could not reach HuggingFace to validate the token: {type(exc).__name__}"}
 
     # Only huggingface_hub's own credential store is touched -- never a
     # file in this repository, never an environment variable.

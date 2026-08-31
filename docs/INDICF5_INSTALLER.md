@@ -793,3 +793,244 @@ artifact exists yet or has been through its own install lifecycle —
 this audit hardened the provisioning *architecture* `scripts/
 install_env.sh` + the `aarya-voice` CLI already expose, not a
 double-clickable installer, which remains future work.
+
+## Windows installer artifact
+
+The deferred decision `docs/WINDOWS_RELEASE.md` named explicitly ("a
+fully relocatable... installation layout is a larger, separate
+architectural decision this task does not make on its own") — a real,
+packaged, double-clickable Windows installer built on top of the
+now-hardened provisioning architecture above.
+
+**Framework decision (stopped for and confirmed before implementation,
+per this milestone's own instruction not to improvise a major
+architectural choice): Inno Setup.** No installer framework existed in
+this repository or on the reference machine (checked: NSIS, Inno Setup,
+WiX/dotnet, Chocolatey — none present; `winget` and PowerShell were).
+Compared against the smallest-viable-options this milestone named (NSIS,
+WiX/MSI, MSIX, Tauri, Electron, a pure PowerShell bootstrapper): Inno
+Setup is free, a single ~3 MB compiler with no other toolchain
+dependency, produces a native wizard (progress pages, install-location
+picker, Add/Remove Programs entry, `/VERYSILENT` unattended mode) while
+still being simple enough to orchestrate the *existing* provisioning
+logic via `Exec()` rather than reimplementing it, and is by far the most
+common real-world choice for exactly this shape of problem (a Python
+application installer). WiX/MSI was rejected as disproportionate
+complexity (needs the .NET SDK, verbose XML authoring) for a
+single-user tool; MSIX and Tauri/Electron were rejected as the wrong
+shape of tool entirely (sandboxed app-container semantics for MSIX;
+whole new GUI-application frameworks, not installer tools, for
+Tauri/Electron). Installed via `winget install JRSoftware.InnoSetup`
+(6.7.3) — a real, hard-to-reverse system change, confirmed with the
+operator before running it.
+
+### Architecture
+
+`installer/AaryaVoiceLab.iss` copies the application source (`src/`,
+`scripts/`, `requirements/`, `configs/`, `schemas/`, `docs/`,
+`manifests/`, `pyproject.toml`, `README.md`, `LICENSE` — excludes
+`.git`, `.envs`, caches, generated data/audio, and the test suite) to a
+per-user, no-admin-required location (`%LocalAppData%\AARYA Voice
+Lab`), then its `[Code]` section orchestrates the same steps a human
+operator has run manually throughout Phases A–G and the audit above:
+
+1. **`scripts/install_env.ps1`** -- a new, native-Windows PowerShell
+   port of `install_env.sh`, added specifically because a fresh
+   end-user machine cannot be assumed to have Git Bash. Mirrors the
+   bash script's logic exactly (same env names, same requirements
+   files, same torch index URLs, same version pins) -- `requirements/
+   tts.txt` and `environment.specs` remain the single source of truth
+   for what gets installed; nothing is duplicated, only the shell.
+2. **`scripts/_installer_steps.py`** -- two small, installer-only
+   helpers (`login`, `provision`) that call the *existing*
+   `pipeline.hf_auth`/`pipeline.indicf5_provisioning` functions
+   directly. Needed because `aarya-voice hf-login`'s interactive
+   `getpass()` has no console to read from inside a hidden `Exec()`
+   child process, and because `indicf5-report` deliberately never
+   downloads anything (verify-only) -- provisioning needs an explicit
+   trigger on a machine with nothing cached yet. Both retry on a
+   classified *network* failure only (this session's own repeated,
+   documented flakiness against huggingface.co), never on a genuine
+   rejection.
+3. **`aarya-voice indicf5-report`** (unchanged) -- the real GPU smoke
+   test, run exactly as built in Phase F/G.
+
+`scripts/generate_installer_defines.py` reads `configs/release.yaml`
+(the release metadata `docs/WINDOWS_RELEASE.md` already established)
+and writes `installer/AaryaVoiceLabDefines.iss` (gitignored, generated,
+never a second source of truth) so the installer's product
+name/version/publisher/app-id are never hand-duplicated.
+
+**Build** (reproducible, two steps):
+```
+<env-tts-python> scripts/generate_installer_defines.py
+"<Inno Setup install dir>\ISCC.exe" installer/AaryaVoiceLab.iss
+```
+Output: `installer/dist/AaryaVoiceLab-Setup.exe` (gitignored build
+output, matching this project's existing `dist/` convention).
+
+**ONLINE installer, not offline**: downloads PyTorch/CUDA wheels
+(~2-3 GB) and the IndicF5 model (~1.4 GB) during setup; does not work
+without internet access, and the installer never claims otherwise.
+
+**Uninstall safety**: mirrors `aarya_voice_lab.release.
+is_safe_to_delete_without_confirmation()` and `configs/release.yaml`'s
+`uninstall_protected_directories` exactly -- `source/`, `data/`,
+`models/`, `public_datasets/` are never deleted by the uninstaller,
+confirmed live (see below) by seeding them with fake user-data files
+and observing they survive a full silent uninstall while the
+application files and `.envs` do not.
+
+### Five real defects found and fixed via real-machine Phase 8 testing
+
+Each confirmed with a live before/after run on the RTX 3050 machine, not
+inferred from code review:
+
+1. **GPU detection silently installed CPU-only wheels on a real GPU
+   machine**, in two layers. First, `Exec()` with a bare
+   `'nvidia-smi.exe'` failed to even launch (Inno Setup's `Exec()` does
+   not reliably search PATH/System32 for an unqualified filename).
+   Switching to the fully-qualified `{sys}\nvidia-smi.exe` *still*
+   failed: `Setup.exe` itself is a 32-bit process, so `{sys}`
+   (System32) is WOW64-redirected to `SysWOW64`, where the 64-bit-only
+   `nvidia-smi.exe` does not exist. Fixed with Inno Setup's documented
+   `{sysnative}` escape from that redirection. Confirmed live:
+   `nvidia-smi launched=False` before, `launched=True exit=0` after,
+   and the resulting `env-tts` correctly built with `torch==2.13.0+cu126`
+   (previously silently built CPU-only).
+2. **`install_env.ps1` aborted on pip's own normal retry-warning
+   output.** `$ErrorActionPreference = "Stop"` made Windows PowerShell
+   5.1 treat *any* stderr line from a native command (including pip's
+   own transient-network retry warnings -- not a real failure, pip
+   retries internally and often succeeds) as a fatal error, aborting the
+   whole environment build before pip's own retry logic could finish.
+   Confirmed live: a real, valid environment build failed after 49
+   seconds on exactly this pattern. Fixed to `"Continue"` -- every
+   external command already checks `$LASTEXITCODE` explicitly, which is
+   the sole correct source of truth here, not stderr chatter.
+3. **A real, valid HuggingFace token was misreported as rejected.**
+   `hf_auth_worker.py`'s `_run_login()` (added for the installer's own
+   non-interactive token path) caught every exception generically as
+   "token validation failed," so a valid token that happened to hit this
+   session's own documented network flakiness was indistinguishable
+   from an actually-invalid one -- reproduced live, then fixed in two
+   passes: first to mirror `_run_check()`'s `HfHubHTTPError`/401
+   handling, which *itself* turned out not to fire (`HfApi(token=...).
+   whoami()` raises a plain `requests.exceptions.HTTPError`, confirmed
+   empirically via its MRO to include `HfHubHTTPError` as a *subclass*,
+   not the type actually raised by this call shape) -- corrected to
+   catch the broader `requests.exceptions.HTTPError` base class, which
+   covers both. Verified live: an invalid token now reports "the token
+   was rejected (401) -- invalid or expired" instead of a misleading
+   generic message; a real, valid token authenticates correctly.
+   Regression test added (`tests/test_hf_auth.py`, real/capability-gated).
+4. **A genuinely silent (`/VERYSILENT /SUPPRESSMSGBOXES`) install hung
+   indefinitely**, waiting on a `MsgBox()` a human was never present to
+   click -- confirmed live (required a manual `taskkill` to unblock;
+   the operator saw this exact dialog appear during testing).
+   `/SUPPRESSMSGBOXES` only suppresses Inno Setup's own built-in
+   dialogs, never a script's own `MsgBox()` calls. Fixed with a
+   `SafeMsgBox` wrapper that checks `WizardSilent()` and logs instead
+   of blocking when true.
+5. **The fix for #4 then broke uninstall entirely.** `WizardSilent()`
+   is install-wizard-only; calling it from `CurUninstallStepChanged`
+   raised a *fatal* internal error ("Cannot call 'WizardSilent' function
+   during Uninstall"), which aborted the whole uninstall before a single
+   file was removed -- confirmed live: a real uninstall run left every
+   application file in place. Fixed with a second wrapper,
+   `SafeMsgBoxUninstall`, using `UninstallSilent()` (the correct,
+   context-specific equivalent) instead.
+
+**Security incident, found and closed during this same testing:** an
+earlier version of this script accepted the HuggingFace token as a
+`/HFTOKEN=...` command-line parameter, to support silent/unattended
+installs. Inno Setup itself -- before any of this script's own code
+runs -- unconditionally records its own full command line, including
+every `/PARAM=value`, into the `/LOG` setup log as a "Setup command
+line:" entry. A real, valid token was captured this way during testing
+and written in plaintext to a local log file. **Immediately on
+discovery**: the two affected log files were located precisely (by
+filename, without ever re-typing or re-displaying the secret value
+itself) and deleted; the real, standard HuggingFace credential cache
+(`~/.cache/huggingface/token`) was confirmed untouched and still valid;
+PowerShell's interactive command history was checked and confirmed to
+contain no trace (the automated tool invocations that touched the token
+never went through a logged interactive console). The exposure was
+local to this machine only, in files created and deleted within
+minutes, never transmitted anywhere. **Root-cause fixed, not just
+patched around**: silent-mode token entry now reads from an
+`AARYA_INSTALLER_HFTOKEN` *environment variable* set on the launching
+process, never a command-line parameter -- an environment variable is
+never part of a process's command line and is not subject to Inno
+Setup's own logging. Verified live, twice, that the corrected mechanism
+authenticates successfully with zero occurrences of the parameter name
+anywhere in the resulting setup log.
+
+**One minor, non-blocking limitation found and accepted rather than
+over-engineered a fix for**: some `__pycache__` directories (created at
+runtime when Python imports modules, never part of the `[Files]`
+manifest Inno Setup's uninstaller tracks) survive uninstall as harmless,
+empty-of-user-data debris under the removed application tree. The
+critical safety property -- `source/`, `data/`, `models/`,
+`public_datasets/` and their contents always survive -- was verified
+correct both before and after the uninstall fix above.
+
+### Real installer validation (RTX 3050 machine, the actual compiled
+### `.exe`, not the underlying CLI)
+
+Every item below is the *artifact* itself, run via `Start-Process` with
+`/VERYSILENT /SUPPRESSMSGBOXES`, polled via its own `/LOG` output --
+not a shortcut through the CLI directly:
+
+- **Fresh install** (no pre-existing `.envs/env-tts`, new directory):
+  full lifecycle, ~13 minutes end-to-end (CUDA wheel download dominates)
+  -- GPU detection → runtime install → auth (existing credential reuse)
+  → model download → real GPU smoke test → **READY**. Repeated after
+  each fix, most recently as the definitive final confirmation with
+  every fix combined.
+- **Existing environment / existing cache** (Phase 6.B/C): re-running
+  the installer over an already-built `env-tts` and already-cached
+  model skipped the ~11-minute environment build entirely (detected via
+  `.envs\env-tts\Scripts\python.exe` presence, matching `install_env.
+  ps1`'s own refuse-to-overwrite design) and reused the cached model
+  (`already_cached`, seconds not minutes) -- full run completed in
+  under 4 minutes, reaching READY.
+- **Reinstall over an existing installation** (Phase 6.G): identical to
+  the above -- confirmed non-destructive (existing `.envs/env-tts` and
+  cached model both reused, not rebuilt or re-downloaded).
+- **Uninstall**: confirmed twice (once exposing defect #5 above, once
+  confirming the fix) -- application files removed, `.envs` removed,
+  seeded fake user-data files in `source/`, `data/`, `models/`
+  untouched both times.
+- **Generated WAV**: mechanically re-validated after the fresh-install
+  run (24 kHz, mono, 1.909 s -- identical properties to every prior
+  verified generation this session); sent to the operator. Same
+  text/model/pipeline already human-confirmed intelligible earlier in
+  this project, so this proves the *installer* delivers the
+  already-verified runtime, not a new intelligibility check.
+- **Invalid HF token via the installer**: exercised indirectly and
+  fixed (see defect #3) -- an invalid token now correctly reports
+  "rejected (401)", never a generic or misleading failure.
+- **Network failure during authentication**: this session's own
+  repeated, organic `WinError 10054` flakiness struck the installer's
+  own auth/reuse checks multiple times during this exact testing;
+  `_installer_steps.py`'s retry logic (network-classified failures
+  only, up to 3 attempts) absorbed it correctly every time, matching
+  the same principle validated during the Phase G/audit work.
+
+**NOT LIVE-VALIDATED through the installer artifact specifically**
+(already covered via the underlying CLI in Phase G/the audit, not
+re-run through the compiled `.exe` for time reasons): corrupted model
+asset recovery, insufficient disk, unsupported GPU/VRAM. Application
+launch is honestly limited to opening a command prompt with a usage
+hint -- this project has no packaged GUI application yet to launch
+(the `frontend/` directory is a design-system prototype requiring
+Node.js, not a finished desktop app; launching it is out of scope for
+this CLI/backend-focused installer).
+
+**Signing**: **UNSIGNED DEVELOPMENT BUILD.** No code-signing certificate
+exists for this project. A production release would need one (and
+would need Windows SmartScreen reputation to build up, or an EV
+certificate to bypass that delay) before end users could run it without
+an "Unknown Publisher" warning -- not attempted here, and not claimed
+as done.
