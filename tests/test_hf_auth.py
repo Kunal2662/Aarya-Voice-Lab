@@ -59,6 +59,41 @@ def test_login_with_token_returns_status_from_worker_response(monkeypatch):
     assert status == HFAuthStatus(authenticated=True, username="test-user")
 
 
+def test_check_repo_access_reports_gated_repo_as_not_accessible(monkeypatch):
+    """Regression test for a real bug found during the Phase-2 installer
+    audit: the worker used to report EVERY repo whose metadata it could
+    read as accessible=True, gated=False -- including gated repos,
+    because HuggingFace serves a gated repo's metadata to any caller
+    regardless of approval (model_info() essentially never raises
+    GatedRepoError). Fixed to read ModelInfo.gated and, for a gated repo,
+    conservatively report accessible=False rather than assume approval
+    it cannot actually confirm without a real download."""
+    monkeypatch.setattr(
+        hf_auth_module,
+        "_run_worker",
+        lambda request, timeout=30.0: {
+            "ok": True,
+            "accessible": False,
+            "gated": True,
+            "detail": "repo is gated (model_info() reports metadata to any caller regardless of approval...)",
+        },
+    )
+    status = check_repo_access("some/gated-repo")
+    assert status.gated is True
+    assert status.accessible is False
+
+
+def test_check_repo_access_reports_public_repo_as_accessible(monkeypatch):
+    monkeypatch.setattr(
+        hf_auth_module,
+        "_run_worker",
+        lambda request, timeout=30.0: {"ok": True, "accessible": True, "gated": False},
+    )
+    status = check_repo_access("bert-base-uncased")
+    assert status.gated is False
+    assert status.accessible is True
+
+
 def test_check_existing_login_reports_not_authenticated_honestly(monkeypatch):
     monkeypatch.setattr(
         hf_auth_module,
@@ -97,3 +132,25 @@ def test_check_existing_login_real_when_env_tts_is_built():
         raise
     assert isinstance(status, HFAuthStatus)
     assert isinstance(status.authenticated, bool)
+
+
+def test_check_repo_access_real_gated_vs_public(monkeypatch):
+    """Capability-gated real integration test, same convention as
+    test_check_existing_login_real_when_env_tts_is_built. Confirms the
+    Phase-2-audit fix against real HuggingFace responses, not a mock:
+    a well-known public repo reports gated=False, and IndicF5's own
+    (gated) repo reports gated=True -- proving the worker now actually
+    reads ModelInfo.gated instead of unconditionally reporting False."""
+    if hf_auth_module._tts_python() is None:
+        pytest.skip("`.envs/env-tts` is not built in this environment -- see docs/INDICF5_INSTALLER.md")
+    network_error_markers = ("could not reach huggingface", "connectionerror", "timeout", "connecterror")
+    try:
+        public_status = check_repo_access("bert-base-uncased")
+        gated_status = check_repo_access("ai4bharat/IndicF5")
+    except HFAuthError as exc:
+        if any(marker in str(exc).lower() for marker in network_error_markers):
+            pytest.skip(f"live network to huggingface.co unavailable: {exc}")
+        raise
+    assert public_status.gated is False
+    assert public_status.accessible is True
+    assert gated_status.gated is True

@@ -175,14 +175,29 @@ def verify_environment(env_id: EnvironmentId | str) -> EnvironmentVerification:
 
     for requirement in spec.external_requirements:
         if requirement is ExternalRequirement.CREDENTIAL:
+            # This module is deliberately offline/read-only (see its own
+            # docstring) and never probes whether a credential is already
+            # configured -- that requires a live, subprocess-isolated
+            # check (pipeline.hf_auth.check_existing_login(), or `aarya-
+            # voice indicf5-report`), not this fast/local one. This line
+            # must not claim "none is configured": that is often false
+            # (e.g. once installer Phase C has run) and was reported
+            # verbatim even with a real, working login present -- fixed
+            # during the Phase-2 installer audit.
             result.blockers.append(
-                "REQUIRES CREDENTIAL: an operator-supplied access token is needed. "
-                "None is configured, and none will be configured automatically."
+                "REQUIRES CREDENTIAL: an operator-supplied access token is needed for this environment. "
+                "This check does not probe whether one is already configured -- run `aarya-voice "
+                "indicf5-report` (or pipeline.hf_auth.check_existing_login()) for the real, current state."
             )
         elif requirement is ExternalRequirement.GATED_MODEL_DOWNLOAD:
+            # Same reasoning: this check cannot know whether access has
+            # already been approved and weights already downloaded (both
+            # true on this project's own reference machine), so it must
+            # not issue an unconditional imperative "STOP".
             result.blockers.append(
-                "REQUIRES GATED MODEL: weights are behind an account and a terms "
-                "agreement. STOP and obtain approval before proceeding."
+                "REQUIRES GATED MODEL: weights are behind an account and a terms agreement. This check "
+                "does not probe whether access has already been approved or weights already downloaded -- "
+                "run `aarya-voice indicf5-report` for the real, current state before assuming this blocks you."
             )
         elif requirement is ExternalRequirement.EXTERNAL_SERVICE:
             result.blockers.append("REQUIRES EXTERNAL SERVICE: incompatible with local-first operation.")

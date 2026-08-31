@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from types import SimpleNamespace
 
 from aarya_voice_lab.core.capability import BLOCKING_STATES, Capability, CapabilityState
 from aarya_voice_lab.environment import audit as audit_module
@@ -13,6 +14,7 @@ from aarya_voice_lab.environment.audit import (
     EnvironmentAudit,
     check_accelerator,
     check_cuda_runtime,
+    check_disk,
     check_ffmpeg,
     check_gpu,
     check_indicf5_vram_tier,
@@ -157,6 +159,32 @@ def test_vram_tier_unreadable_vram_is_unknown_not_blocking(monkeypatch):
 def test_missing_ffmpeg_is_optional_for_base_environment():
     capability = check_ffmpeg()
     assert capability.state in (CapabilityState.AVAILABLE, CapabilityState.OPTIONAL)
+
+
+class _FakeDiskReport:
+    """Minimal stand-in for SystemReport -- check_disk() only ever reads
+    .disk.free_bytes off whatever collect_system_report() returns."""
+
+    def __init__(self, free_bytes: int) -> None:
+        self.disk = SimpleNamespace(free_bytes=free_bytes)
+
+
+def test_insufficient_disk_is_not_available(monkeypatch):
+    """Added during the Phase-2 installer audit, which found this path
+    (ML_ENVIRONMENT_DISK_BYTES's NOT_AVAILABLE branch) had no test
+    coverage at all -- not even mocked. Live-testing a real low-disk
+    condition is unsafe/impractical (see docs/INDICF5_INSTALLER.md's
+    audit record), so this is the actual verification for that path."""
+    monkeypatch.setattr(audit_module, "collect_system_report", lambda: _FakeDiskReport(free_bytes=1 * 1024**3))
+    capability = check_disk()
+    assert capability.state is CapabilityState.NOT_AVAILABLE
+    assert "1.0 GB free" in capability.detail
+
+
+def test_sufficient_disk_is_available(monkeypatch):
+    monkeypatch.setattr(audit_module, "collect_system_report", lambda: _FakeDiskReport(free_bytes=100 * 1024**3))
+    capability = check_disk()
+    assert capability.state is CapabilityState.AVAILABLE
 
 
 def test_unknown_is_not_blocking():

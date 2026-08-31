@@ -5,6 +5,9 @@ Environment & validation (Phase 0/1):
     validate-manifest, nemo-check, whisperx-check, tts-check,
     tts-candidates
 
+IndicF5 installer (Phases A-G, see docs/INDICF5_INSTALLER.md):
+    hf-login, indicf5-report
+
 Dataset pipeline (Phase 2):
     inventory, validate-audio, analyze-quality, segment,
     dataset-report, normalize-check, dataset-gate
@@ -251,6 +254,43 @@ def _cmd_indicf5_report(args: argparse.Namespace) -> int:
     return 0 if report.readiness is InstallerReadiness.READY else 1
 
 
+def _cmd_hf_login(args: argparse.Namespace) -> int:
+    """The installer-usable credential-entry step for gated models (e.g.
+    IndicF5) -- Phase C's `pipeline.hf_auth.prompt_and_login_interactive()`
+    already existed and was already tested, but had no CLI command
+    exposing it, so an operator had no way to authenticate except calling
+    it from a Python REPL. Added during the Phase-2 installer audit,
+    which found this gap: `indicf5-report`/`tts-check` can only report
+    whether a credential is configured, never let an operator configure
+    one. The token itself is never printed, logged, or returned by this
+    function -- getpass.getpass() reads it, huggingface_hub's own
+    credential store persists it (see pipeline.hf_auth's module
+    docstring)."""
+    from aarya_voice_lab.pipeline.hf_auth import HFAuthError, check_existing_login, prompt_and_login_interactive
+
+    try:
+        status = check_existing_login()
+    except HFAuthError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
+
+    if status.authenticated and not args.force:
+        print(f"Already authenticated as {status.username}. Use --force to enter a different token.")
+        return 0
+
+    try:
+        status = prompt_and_login_interactive()
+    except HFAuthError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
+
+    if not status.authenticated:
+        print("Authentication failed -- the token was rejected.", file=sys.stderr)
+        return 1
+    print(f"Authenticated as {status.username}.")
+    return 0
+
+
 def _cmd_tts_candidates(args: argparse.Namespace) -> int:
     if args.json:
         print(json.dumps([c.to_dict() for c in TTS_CANDIDATES], indent=2))
@@ -369,6 +409,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="Skip the real (tens-of-seconds) GPU generation test. Readiness can never be READY without it.",
     )
     p.set_defaults(func=_cmd_indicf5_report)
+
+    p = subparsers.add_parser(
+        "hf-login",
+        help="Authenticate with HuggingFace for gated model downloads (e.g. IndicF5). Token input is hidden.",
+    )
+    p.add_argument("--force", action="store_true", help="Re-enter a token even if one is already configured.")
+    p.set_defaults(func=_cmd_hf_login)
 
     p = subparsers.add_parser("tts-candidates", help="Show the TTS candidate matrix and license audit.")
     p.add_argument("--json", action="store_true")

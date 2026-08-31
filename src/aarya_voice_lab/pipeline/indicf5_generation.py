@@ -101,12 +101,17 @@ _WORKER_SCRIPT = PROJECT_ROOT / "scripts" / "ml_workers" / "indicf5_generation_w
 TTS_PYTHON_ENV_VAR = "AARYA_TTS_PYTHON"
 
 #: `.envs/<name>` folders tried in order when TTS_PYTHON_ENV_VAR is unset.
-#: "env-tts-windows-gpu" is this machine's actual, verified build (see
-#: test_indicf5_direct.py); "env-tts" is
-#: environment.specs.EnvironmentId.TTS's canonical name -- kept as a
-#: fallback for a future build that uses it. The mismatch between the two
-#: is a pre-existing repo characteristic, not something fixed here.
-CANDIDATE_ENV_NAMES = ("env-tts-windows-gpu", "env-tts")
+#: "env-tts" is environment.specs.EnvironmentId.TTS's canonical name --
+#: the one scripts/install_env.sh builds and the one the installer's own
+#: Phase E/G smoke tests verified end-to-end (real CUDA generation,
+#: human-confirmed intelligible speech; see docs/INDICF5_INSTALLER.md).
+#: Tried first so the installer-provisioned environment is what actually
+#: gets used by default. "env-tts-windows-gpu" was this project's
+#: original, ad hoc Milestone 1-4 development environment (see
+#: test_indicf5_direct.py) -- kept second, only as a legacy fallback for
+#: machines that still have it and no env-tts yet; the installer itself
+#: never creates a directory with that name.
+CANDIDATE_ENV_NAMES = ("env-tts", "env-tts-windows-gpu")
 
 DEFAULT_REPO_ID = "ai4bharat/IndicF5"
 #: The IndicF5 model card's own documented usage example -- the one

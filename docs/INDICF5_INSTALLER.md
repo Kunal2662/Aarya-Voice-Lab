@@ -644,3 +644,152 @@ pre-existing, unrelated failure present in every baseline run this
 entire session (a `bin/python`-vs-`Scripts/python.exe` fixture-shape
 issue in an unrelated synthetic-pipeline test, not touched by any
 Phase A–G work). No regressions.
+
+## Installer / release-readiness audit
+
+An audit-and-hardening pass over everything Phases A–G built, run after
+the human-validation gate closed, to determine whether the current
+installer architecture is robust enough to become the foundation for a
+final Windows installer. Not a redesign: every fix below is a small,
+evidence-backed correction to something already built, found either by
+reading the code against the checklist below or by exercising it live
+against real hardware and the real HuggingFace account.
+
+**Five real defects found and fixed, all with live before/after
+evidence:**
+
+1. **`check_repo_access()` never actually detected gating.**
+   `hf_auth_worker.py`'s `_run_check_repo_access()` called
+   `HfApi.model_info(repo_id)` and treated any non-exception result as
+   `{"accessible": True, "gated": False}`. Confirmed live: HuggingFace
+   serves a gated repo's metadata to *any* caller, approved or not,
+   anonymous or not (`model_info()` on `meta-llama/Llama-2-7b-hf`
+   succeeded with zero credentials) — `GatedRepoError` is raised by an
+   actual file-download call, essentially never by `model_info()`. This
+   function reported every reachable repo as ungated, including
+   IndicF5's own gated repo. Fixed to read `ModelInfo.gated` and, for a
+   gated repo, conservatively report `accessible=False` with an honest
+   explanation (this metadata-only check cannot confirm per-account
+   download approval — only a real download attempt, which
+   `indicf5_provisioning_worker.py`'s already-correct `GatedRepoError`
+   handling performs, can). Verified live against three repos before/
+   after the fix (`ai4bharat/IndicF5`, `meta-llama/Llama-2-7b-hf`,
+   `bert-base-uncased`); regression tests added
+   (`tests/test_hf_auth.py`, including one real, capability-gated
+   integration test).
+2. **No CLI command exposed HuggingFace authentication at all.**
+   `pipeline.hf_auth.prompt_and_login_interactive()` existed and was
+   already tested, but nothing in `cli/main.py` called it — every token
+   entered this entire session was via a Python REPL, not anything an
+   installer's end user could run. Directly violates this audit's own
+   requirement E ("Token/API-key entry must be possible during installer
+   setup"). Added `aarya-voice hf-login` (idempotent — reports "already
+   authenticated" and exits 0 without prompting if a valid credential
+   exists; `--force` to re-enter one; the token is never printed, matches
+   `pipeline.hf_auth`'s existing no-token-in-output guarantee). Verified
+   live against the real, already-authenticated account; 3 new tests in
+   `tests/test_cli.py`, including one asserting a secret token value
+   never appears in captured stdout/stderr.
+3. **`verify_environment()`'s STOP CONDITIONS asserted a state it never
+   checked.** For any TTS-spec check, the credential/gated-model blocker
+   text unconditionally claimed *"None is configured, and none will be
+   configured automatically"* and *"STOP and obtain approval before
+   proceeding"* — reproduced live on this machine's own `tts-check`,
+   which has a real, working HuggingFace login and a fully-downloaded,
+   verified model, and still printed both false claims verbatim. Root
+   cause: `environment.verify` is deliberately offline/read-only (its own
+   docstring) and structurally cannot know the live credential/download
+   state — but its blocker text asserted a specific state anyway. Fixed
+   to describe the *requirement* honestly without asserting a state this
+   module cannot observe, pointing to `aarya-voice indicf5-report` (which
+   *can* check) instead. Still correctly listed under STOP CONDITIONS
+   (this check genuinely cannot verify the state, so conservative
+   flagging is still right) — only the false claim was removed.
+4. **The canonical, installer-built environment was not what actually
+   ran by default.** `pipeline.indicf5_generation.CANDIDATE_ENV_NAMES`
+   tried `env-tts-windows-gpu` (this project's original, ad hoc
+   Milestone 1–4 dev environment) *before* `env-tts` (the canonical name
+   `scripts/install_env.sh` actually builds, and the one every Phase A–G
+   smoke test forced itself onto via an explicit override). On this
+   reference machine, where both exist, any caller that constructs
+   `IndicF5VoiceGenerator()` *without* an override — the realistic
+   default for anything outside this installer's own smoke test —
+   silently got the uninstalled, non-canonical environment instead.
+   Confirmed live before/after: `autodetect_tts_python()` returned
+   `.envs/env-tts-windows-gpu\Scripts\python.exe` before the fix,
+   `.envs/env-tts\Scripts\python.exe` after. Reordered so the
+   installer-provisioned environment is genuinely what gets used by
+   default; the old name is kept only as a fallback for machines that
+   still have it. Matching stale docstrings (`indicf5_generation.py`,
+   `indicf5_generation_worker.py`) that described the ad hoc environment
+   as primary were corrected to match.
+5. **No unit test existed for the insufficient-disk path at all** (not
+   "not live-tested" — genuinely zero coverage, mocked or otherwise) for
+   `check_disk()`'s `NOT_AVAILABLE` branch. This audit's own requirement
+   H asks explicitly what covers this; the honest answer had been
+   "nothing." Added two deterministic tests
+   (`tests/test_environment_audit.py`) mirroring the existing VRAM-tier
+   mocking pattern.
+
+**Live tests performed against real hardware and the real account,
+newly covering scenarios Phases A–G had not exercised this way:**
+
+- **Idempotent re-run against an existing, valid environment**:
+  `scripts/install_env.sh env-tts --cuda` against the real, already-built
+  `.envs/env-tts` cleanly refused (`ERROR: .envs/env-tts already exists.
+  Remove it deliberately before rebuilding.`, exit 1) without touching
+  it — confirmed the environment's torch install was untouched afterward.
+- **Re-provisioning against already-cached, valid model assets** (the
+  real HuggingFace cache, not Phase G's isolated one): `provision()`
+  completed in 5.8s with all five files reported `already_cached`,
+  reusing everything.
+- **Invalid credential**: `login_with_token()` with a deliberately
+  garbage token was cleanly rejected (`HFAuthError: token validation
+  failed (HTTPError)`); confirmed the real, working credential was
+  untouched afterward (validate-before-persist held under a real
+  failure, not just in code review).
+- **Gated access classification**: see defect 1 above — now verified
+  correct against a real gated-and-approved repo, a real
+  gated-and-unapproved repo, and a real public repo.
+
+**Cited from Phase G (not re-run — already real, already sufficient)**:
+missing credential (empty `HF_HOME`), network failure during
+authentication (a real, organic `WinError 10054` TLS reset — struck
+*again*, repeatedly, during this audit's own live testing, each time
+handled identically correctly: clean classification, no crash, no leaked
+token), interrupted/partial installation, corrupted model asset recovery.
+
+**NOT LIVE-VALIDATED, stated honestly, with what covers each instead:**
+GPU below the required VRAM threshold (`test_vram_tier_below_3gb_is_
+incompatible` and three sibling tests, mocked); unsupported/non-NVIDIA
+GPU (`test_missing_gpu_is_optional_not_an_error`,
+`test_check_gpu_stays_nvidia_specific_even_when_a_non_nvidia_gpu_is_
+present`, mocked); insufficient disk (the two new tests above, mocked —
+previously nothing). None of these three were reproduced on real
+hardware: doing so would mean damaging or reconfiguring this machine's
+actual GPU/disk state, which this audit's own instructions rule out.
+
+**CPU fallback**: unchanged from Phase B's own honest disclosure —
+code-supported (IndicF5's inference path falls back to CPU when CUDA is
+unavailable) but never measured for this model, and
+`TTS_SPEC.cpu_caveat` says so explicitly. This audit did not attempt a
+live CPU generation run; doing so was not among its live-testing
+priorities and risked a very long (untimed) blocking call for a
+capability already accurately marked experimental.
+
+**Security**: full diff and every new/changed file scanned for
+token/secret/password/API-key patterns — none found. Confirmed no
+`.wav`/`.safetensors`/`.bin`/`.envs` paths staged. No Windows security
+control (Smart App Control, Code Integrity, Defender) was touched or
+disabled by anything in this audit.
+
+**Verdict**: see the audit's own final report for the full 26-point
+readiness classification. In summary: the installer/provisioning
+architecture is sound and the fixes above close every concretely
+evidenced gap found; readiness is **CONDITIONAL** specifically because
+three hardware/resource-edge scenarios remain unit-tested only (stated
+above), and because no actual packaged/distributable Windows installer
+artifact exists yet or has been through its own install lifecycle —
+this audit hardened the provisioning *architecture* `scripts/
+install_env.sh` + the `aarya-voice` CLI already expose, not a
+double-clickable installer, which remains future work.

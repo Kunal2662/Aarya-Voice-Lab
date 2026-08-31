@@ -63,6 +63,63 @@ def test_unknown_command_exits_nonzero():
     assert exc.value.code != 0
 
 
+def test_hf_login_reports_already_authenticated_without_prompting(capsys, monkeypatch):
+    """Added during the Phase-2 installer audit, which found that
+    `pipeline.hf_auth.prompt_and_login_interactive()` had no CLI command
+    exposing it at all -- an operator had no installer-usable way to
+    enter a HuggingFace token. Mocks `pipeline.hf_auth` (this test runs
+    in the base interpreter, which never imports huggingface_hub)."""
+    from aarya_voice_lab.pipeline import hf_auth as hf_auth_module
+
+    monkeypatch.setattr(
+        hf_auth_module, "check_existing_login", lambda: hf_auth_module.HFAuthStatus(authenticated=True, username="x")
+    )
+
+    def _fail_if_prompted():
+        raise AssertionError("must not prompt for a new token when already authenticated")
+
+    monkeypatch.setattr(hf_auth_module, "prompt_and_login_interactive", _fail_if_prompted)
+
+    assert main(["hf-login"]) == 0
+    assert "Already authenticated as x" in capsys.readouterr().out
+
+
+def test_hf_login_reports_clean_failure_when_token_rejected(capsys, monkeypatch):
+    from aarya_voice_lab.pipeline import hf_auth as hf_auth_module
+
+    monkeypatch.setattr(
+        hf_auth_module, "check_existing_login", lambda: hf_auth_module.HFAuthStatus(authenticated=False)
+    )
+    monkeypatch.setattr(
+        hf_auth_module, "prompt_and_login_interactive", lambda: hf_auth_module.HFAuthStatus(authenticated=False)
+    )
+
+    assert main(["hf-login"]) == 1
+    assert "rejected" in capsys.readouterr().err
+
+
+def test_hf_login_never_prints_a_token_value(capsys, monkeypatch):
+    """Security property: even a successful login must never echo the
+    token itself -- only the non-secret username."""
+    from aarya_voice_lab.pipeline import hf_auth as hf_auth_module
+
+    secret_token = "hf_totally_secret_value_should_never_be_printed"
+    monkeypatch.setattr(
+        hf_auth_module, "check_existing_login", lambda: hf_auth_module.HFAuthStatus(authenticated=False)
+    )
+    monkeypatch.setattr(
+        hf_auth_module,
+        "prompt_and_login_interactive",
+        lambda: hf_auth_module.HFAuthStatus(authenticated=True, username="test-user"),
+    )
+
+    assert main(["hf-login"]) == 0
+    captured = capsys.readouterr()
+    assert secret_token not in captured.out
+    assert secret_token not in captured.err
+    assert "Authenticated as test-user" in captured.out
+
+
 def test_voice_engine_status_command(capsys):
     """Phase 1 of the 8-phase release plan -- this command had zero
     test coverage despite being 'the one honest place to see every

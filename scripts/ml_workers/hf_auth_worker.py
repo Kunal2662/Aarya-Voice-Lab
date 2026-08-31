@@ -117,9 +117,11 @@ def _run_check_repo_access(repo_id: str) -> dict:
 
     api = HfApi()
     try:
-        api.model_info(repo_id)
-        return {"ok": True, "accessible": True, "gated": False}
+        info = api.model_info(repo_id)
     except GatedRepoError:
+        # Kept for defense-in-depth, but empirically model_info() does not
+        # raise this for a gated repo (see the `gated` field handling
+        # below, which is the real signal this function relies on).
         return {
             "ok": True,
             "accessible": False,
@@ -130,6 +132,29 @@ def _run_check_repo_access(repo_id: str) -> dict:
         return {"ok": False, "error": f"repository not found: {repo_id}"}
     except Exception as exc:  # noqa: BLE001 -- always report via the response, never a bare traceback
         return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+
+    # Confirmed empirically (see docs/INDICF5_INSTALLER.md): HuggingFace
+    # serves a gated repo's metadata via model_info() to ANY caller,
+    # approved or not, anonymous or not -- info.gated only says the repo
+    # IS gated, never whether this account's request was approved. Only
+    # an actual file download (GatedRepoError from hf_hub_download, which
+    # is what indicf5_provisioning_worker.py's real download path already
+    # checks) can prove approval. So a gated repo is always reported as
+    # not accessible here -- conservative, not a guess -- with a detail
+    # explaining why, rather than silently claiming a download would
+    # succeed.
+    gated = bool(getattr(info, "gated", False))
+    if not gated:
+        return {"ok": True, "accessible": True, "gated": False}
+    return {
+        "ok": True,
+        "accessible": False,
+        "gated": True,
+        "detail": (
+            "repo is gated (model_info() reports metadata to any caller regardless of approval, so this "
+            "cannot by itself confirm accessibility -- a real download attempt is the only authoritative check)"
+        ),
+    }
 
 
 def main() -> int:

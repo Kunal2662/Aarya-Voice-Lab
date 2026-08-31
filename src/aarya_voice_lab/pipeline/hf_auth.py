@@ -142,9 +142,16 @@ def prompt_and_login_interactive(*, prompt: str = "HuggingFace access token (inp
 
 
 def check_repo_access(repo_id: str) -> RepoAccessStatus:
-    """Whether `repo_id` is reachable with whatever credential (if any)
-    is currently active -- distinguishes "public, no credential needed"
-    from "gated and not yet approved for this account"."""
+    """Whether `repo_id` is public or gated, using only metadata (no
+    download). A public repo reports `accessible=True`. A gated repo
+    always reports `accessible=False`, `gated=True`, even if the current
+    credential is actually approved for it: HuggingFace serves a gated
+    repo's metadata to any caller regardless of approval, so metadata
+    alone cannot confirm this account's access -- only a real download
+    attempt can (see `pipeline.indicf5_provisioning`, which performs
+    exactly that and classifies `GatedRepoError` correctly). Use this
+    function to detect "this repo is gated at all", not "am I approved
+    for it"."""
     response = _run_worker({"mode": "check_repo_access", "repo_id": repo_id})
     return RepoAccessStatus(
         accessible=bool(response.get("accessible")),

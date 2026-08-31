@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Runs INSIDE the isolated `.envs/env-tts-windows-gpu` interpreter. Never
+"""Runs INSIDE the isolated `.envs/env-tts` interpreter (the canonical,
+installer-built environment -- see docs/INDICF5_INSTALLER.md; the
+ad hoc `.envs/env-tts-windows-gpu` this project originally used in
+Milestones 1-4 is now only a legacy fallback, tried second). Never
 imported by the base interpreter, and never imports anything from
 `aarya_voice_lab` -- the same filesystem/subprocess-contract boundary
 `identity.embeddings.EmbeddingProvider`'s docstring describes, applied to
