@@ -1034,3 +1034,148 @@ would need Windows SmartScreen reputation to build up, or an EV
 certificate to bypass that delay) before end users could run it without
 an "Unknown Publisher" warning -- not attempted here, and not claimed
 as done.
+
+## Release hardening -- edge-case validation
+
+A follow-up pass testing scenarios the initial installer build didn't
+exercise: interrupted installs, corrupted/missing model assets, and
+GPU capability-gate honesty. All against the actual compiled
+`AaryaVoiceLab-Setup.exe`, not the underlying CLI, except where stated.
+
+### Interrupted / incomplete installation
+
+A real install was killed mid-`install_env.ps1` (during the torch
+`pip install`) to simulate a crash or power loss, then the installer was
+re-run against the same directory. **Found a real defect**: the reuse
+check was `FileExists(env-tts\Scripts\python.exe)` alone -- true even
+for the broken environment (`venv` creates `python.exe` in seconds,
+long before `pip` finishes installing anything), so the retry silently
+"reused" a `torch`-less, `jsonschema`-less environment, then failed deep
+inside `_installer_steps.py` with a raw `ModuleNotFoundError` traceback
+and a **misleading** MsgBox blaming HuggingFace authentication -- the
+real problem had nothing to do with HuggingFace at all. Fixed with
+`EnvTtsIsFunctional()`: an actual `import torch` probe before deciding
+to reuse. Confirmed live, before and after: a broken environment now
+produces an accurate message ("appears incomplete... delete this folder
+and run this installer again") and never attempts auth at all; deleting
+the folder and re-running reaches a genuine, complete READY. Objective
+interruption evidence: the killed run's log has no `Log closed.` line
+(every clean exit does) -- direct, unambiguous proof of a real kill, not
+inferred from partial output. Verified: no partial/corrupt state gets
+marked READY; uninstall metadata and file-copy from the interrupted
+attempt are unaffected by the fix; zero token/credential exposure across
+every log from this test (checked for the token pattern, the `/HFTOKEN`
+parameter name, and the `AARYA_INSTALLER_HFTOKEN` variable name -- all
+absent, and every line containing the literal word "token" was read
+manually).
+
+**Also found**: a forcefully-killed installer leaves small (~4 MB)
+`is-*.tmp` self-extraction directories in `%TEMP%` -- Inno Setup's own
+cleanup only runs on a normal exit. Not the multi-GB wheel/model
+downloads (those live in pip's cache / the target `.envs`, unaffected).
+Noted, not fixed -- standard behavior for any forcefully-terminated
+installer, not unique to this one.
+
+### Missing model asset (through the compiled installer)
+
+Deleted the cached `vocab.txt` blob from the real HuggingFace cache
+(backed up first) and ran the installer against an existing, working
+`env-tts`. `DOWNLOADING MODEL` correctly detected the gap
+(`hf_hub_download(..., local_files_only=True)` → `LocalEntryNotFoundError`
+for exactly that file) and re-downloaded it automatically -- confirmed
+via filesystem evidence, not exit-code inference: the blob was verified
+absent, then present again, then byte-identical (`diff`) to the
+pre-deletion backup. Reached a genuine READY with a real generated WAV.
+**PASS.**
+
+### Corrupted model asset (through the compiled installer)
+
+Truncated the cached `model.safetensors` blob to 10 MB (backed up
+first). `DOWNLOADING MODEL` correctly failed and `TESTING VOICE RUNTIME`
+never ran -- no false READY. **Found a real accuracy gap**: the
+underlying script already produces a precise diagnosis
+(`"model.safetensors is only 10485760 bytes -- expected >= 1000000000
+bytes; the cached file is truncated or corrupt"`), but the installer's
+`[Code]` layer only ever checked a boolean exit code, discarding that
+text -- the operator only ever saw a generic three-way message ("network
+interruption, a corrupted download, or gated access"). Fixed with
+`RunProvisionStepCapture()`, scoped deliberately to the provisioning
+step only (never the login step, to keep the existing token-security
+boundary exactly as narrow as it already was -- `provision()`'s output
+structurally cannot contain a token). First implementation hand-built a
+nested-quoted `cmd.exe /C "..."` redirection string, which broke
+argument parsing outright (the child exited 2, its own usage error, not
+even a real provisioning attempt -- direct evidence the first attempt
+was unsafe to ship). Replaced with a disposable temp `.bat` file, which
+`Exec()` only ever has to quote as one simple path. Confirmed after the
+fix: the MsgBox now shows the exact specific reason. Restoring the good
+checkpoint (verified byte-identical to the pre-truncation backup) let
+`provision()` re-validate it successfully, confirmed directly and twice
+through the full installer's own `DOWNLOADING MODEL` step. **A full
+installer-level READY was not re-confirmed after restoration**: across
+several further attempts, this session's own extensively-documented
+HuggingFace network flakiness (`WinError 10054`/`ConnectionError`)
+struck either `indicf5-report`'s own auth check or the provisioning
+retry loop every time -- correctly and cleanly classified as
+`hf_network_failure` each time, never a false READY, never a traceback,
+but never a clean full run either during that specific window.
+**Classified INCONCLUSIVE for the full-READY recovery re-confirmation
+specifically** (real, external network conditions during this test
+window, not a defect -- the recovery mechanism itself was independently
+proven via a direct `provision()` call, which returned `ok: True` with
+the checkpoint re-verified). Zero token exposure across all logs from
+this test.
+
+### GPU capability-gate honesty (unsupported GPU / insufficient VRAM)
+
+**Not live-tested through the compiled installer, and this is stated
+honestly rather than inferred as a pass.** The reference machine has a
+real, working RTX 3050 (4 GB VRAM) -- the one and only GPU
+configuration this project has ever run on. Searched the codebase for
+an existing safe test seam (an environment-variable override, a
+production-facing mock switch) before concluding none exists:
+`check_gpu()`, `check_cuda_runtime()`, and `check_indicf5_vram_tier()`
+(`environment/audit.py`) all read `system_info.collect_system_report()`
+directly, which has zero `os.environ` reads anywhere -- confirmed by
+grep, not assumed. The *only* existing mechanism able to simulate a
+different VRAM value or GPU vendor is `monkeypatch.setattr(audit_module,
+"collect_system_report", ...)` inside pytest -- a pure Python
+unit-test technique, not reachable by literally running the compiled
+`.exe` or even a real `aarya-voice indicf5-report` invocation, both of
+which read real, unmocked hardware.
+
+Per this milestone's own instruction, no production bypass was
+invented and the production capability detector was not modified to
+manufacture a test condition: disabling the real GPU (explicitly
+prohibited), spoofing `nvidia-smi`'s output, or physically swapping
+hardware were all out of scope. **Live/compiled-installer validation of
+unsupported-GPU and insufficient-VRAM handling could not safely be
+performed on this machine.**
+
+**Supplemental evidence only** (explicitly labeled as such, not a
+substitute for live validation): the existing, currently-passing unit
+tests directly exercise the classification logic these installer paths
+depend on --
+`test_vram_tier_below_3gb_is_incompatible`/`test_vram_tier_3_to_4gb_is_
+constrained_but_not_blocking`/`test_missing_gpu_is_optional_not_an_
+error` (`tests/test_environment_audit.py`, mocked `collect_system_
+report()`) confirm the tier boundaries and hardware-absence handling in
+isolation; `test_insufficient_vram_short_circuits_before_smoke_test`
+(`tests/test_indicf5_install_report.py`) specifically proves that when
+`check_indicf5_vram_tier()` reports `INCOMPATIBLE`, `build_installer_
+report()` sets `NOT_READY`, records `INSUFFICIENT_VRAM`, sets
+`smoke_test_ran=False`, and -- verified via an assertion that fails
+loudly if violated -- **never calls the smoke-test function at all**.
+This is real evidence the classification and short-circuit logic is
+correct; it is not evidence the compiled installer behaves correctly on
+an actual unsupported GPU, which remains genuinely untested.
+
+Capability-honesty architecture was reviewed, not modified, and remains
+layered exactly as built in Phases A-G: hardware-detected
+(`check_gpu()`) is distinct from runtime-available (`check_cuda_
+runtime()`) is distinct from the workload-specific capability tier
+(`check_indicf5_vram_tier()`, itself never claiming "universally
+guaranteed") is distinct from generation-ready (only the real smoke
+test in `indicf5-report` can set `READY`). No code change was required
+or made for this section -- the architecture already satisfied every
+requirement checked.

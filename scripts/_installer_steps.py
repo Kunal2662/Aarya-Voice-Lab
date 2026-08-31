@@ -146,9 +146,16 @@ def main() -> int:
     if len(sys.argv) != 2 or sys.argv[1] not in ("login", "provision"):
         print("usage: _installer_steps.py <login|provision>", file=sys.stderr)
         return 2
-    if sys.argv[1] == "login":
-        return _run_login()
-    return _run_provision()
+    try:
+        if sys.argv[1] == "login":
+            return _run_login()
+        return _run_provision()
+    except Exception as exc:  # noqa: BLE001 -- this runs hidden under Exec(); an uncaught
+        # exception's traceback has nowhere to go the operator (or even the setup log) can
+        # see, matching the installer's own "no unnecessary Python tracebacks" requirement.
+        # A one-line message is not a diagnosis, but it is visible and non-crashing.
+        print(f"ERROR: unexpected failure ({type(exc).__name__}): {exc}")
+        return 1
 
 
 if __name__ == "__main__":

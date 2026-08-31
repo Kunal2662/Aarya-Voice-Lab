@@ -22,6 +22,12 @@ AppId={{B4E6C9E1-5A3D-4F2B-9C8E-7D1A2F3B4C5D}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
+; Windows file-version metadata needs a strict 4-part numeric form and is
+; NOT auto-derived from AppVersion (confirmed via Phase 6 artifact
+; validation: FileVersion was empty in the compiled .exe without this).
+; AppVersion's 3-part semver (configs/release.yaml's "version") gets a
+; trailing .0.
+VersionInfoVersion={#MyAppVersion}.0
 DefaultDirName={localappdata}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
@@ -161,6 +167,50 @@ begin
   Result := RunLoggedStepEx(Description, Exe, Params, ResultCode) and (ResultCode = 0);
 end;
 
+// Bug found during Phase-2 corrupted/missing-model testing: _installer_
+// steps.py's `provision` mode already prints a precise, specific reason
+// on failure (e.g. "model.safetensors is only 10485760 bytes -- expected
+// >= 1000000000 bytes; the cached file is truncated or corrupt") -- but
+// plain Exec() only returns an exit code, discarding that text, so the
+// operator only ever saw a generic three-way "network interruption, a
+// corrupted download, or gated access" message. Fixed for the
+// provisioning step ONLY (never the login step -- that one's stdout
+// must never be captured, to keep the existing token-security boundary
+// exactly as narrow as it already is) by redirecting the child's
+// stdout+stderr to a private, installer-owned {tmp} file via cmd.exe,
+// then surfacing its content. `provision()`'s output structurally
+// cannot contain the token (it never receives one).
+function RunProvisionStepCapture(const Exe, Params: String; var ResultCode: Integer; var CapturedOutput: String): Boolean;
+var
+  TempFile, BatchFile: String;
+  RawOutput: AnsiString;
+begin
+  UpdateStatus('DOWNLOADING MODEL');
+  TempFile := ExpandConstant('{tmp}\aarya_provision_output.txt');
+  BatchFile := ExpandConstant('{tmp}\aarya_provision_run.bat');
+  // A tiny disposable .bat file, not one hand-built nested-quoted cmd.exe
+  // command line -- cmd.exe's quote-stripping rules for `/C "..."` are
+  // notoriously fragile once an exe path, its arguments, AND a
+  // redirection all need quoting together in one string (confirmed the
+  // hard way: an earlier version of this function silently mismatched
+  // the child's own argv, exit code 2, "usage: ..." -- not even a real
+  // provisioning attempt). A batch file's own internal line needs no
+  // such nesting; Exec() only ever has to quote the single, simple
+  // BatchFile path.
+  SaveStringToFile(BatchFile, AnsiString('@echo off' + #13#10 +
+    '"' + Exe + '" ' + Params + ' > "' + TempFile + '" 2>&1' + #13#10 +
+    'exit /b %ERRORLEVEL%' + #13#10), False);
+  Result := Exec(ExpandConstant('{cmd}'), '/C "' + BatchFile + '"', ExpandConstant('{app}'),
+    SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0);
+  if LoadStringFromFile(TempFile, RawOutput) then
+    CapturedOutput := String(RawOutput)
+  else
+    CapturedOutput := '';
+  DeleteFile(TempFile);
+  DeleteFile(BatchFile);
+  Log('DOWNLOADING MODEL: exit code ' + IntToStr(ResultCode) + ' -- output: ' + CapturedOutput);
+end;
+
 function DetectGpuAccel(): String;
 var
   ResultCode: Integer;
@@ -190,14 +240,42 @@ begin
     Log('nvidia-smi launched=False path=' + NvidiaSmiPath);
   if Launched and (ResultCode = 0) then
   begin
-    Log('nvidia-smi found -- installing CUDA wheels');
+    UpdateStatus('DETECTING GPU -- NVIDIA GPU found, installing CUDA runtime');
     Result := 'cuda';
   end
   else
   begin
-    Log('nvidia-smi not found or failed -- installing CPU-only wheels');
+    // Visible in the wizard/log, not just the log -- Phase 2's own
+    // "does not silently fall back to CPU" requirement. This covers
+    // both "no NVIDIA GPU at all" and "nvidia-smi present but failed"
+    // (e.g. a broken driver) identically, since a bare exit code alone
+    // cannot reliably tell those apart -- but the operator is told
+    // either way, rather than the choice being visible only in the log.
+    UpdateStatus('DETECTING GPU -- no working NVIDIA GPU found, installing CPU-only runtime (slower, experimental)');
     Result := 'cpu';
   end;
+end;
+
+// Bug found during the release-hardening milestone's own interrupted-
+// install test: killing the installer mid-build (simulating a real
+// power loss / manual cancel / crash) leaves a real venv skeleton with
+// a working python.exe but NO packages installed (pip was interrupted
+// before finishing). The reuse check used to be `FileExists(python.exe)`
+// alone, which is true for this broken environment too -- so a re-run
+// silently "reused" it, then failed deep inside _installer_steps.py
+// with a raw Python ModuleNotFoundError traceback and a MISLEADING
+// "HuggingFace authentication failed" message (the real problem has
+// nothing to do with HuggingFace at all). Confirmed live both ways.
+// A real functional check -- can this interpreter actually import
+// torch -- is the fix; python.exe existing is necessary but not
+// sufficient evidence the environment is usable.
+function EnvTtsIsFunctional(const EnvTtsPython: String): Boolean;
+var
+  ResultCode: Integer;
+begin
+  Result := Exec(EnvTtsPython, '-c "import torch"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode)
+    and (ResultCode = 0);
+  Log('env-tts functional check (import torch): ' + IntToStr(ResultCode));
 end;
 
 procedure EnsureDataDirectories();
@@ -221,6 +299,8 @@ var
   Token: String;
   LoginResult: Boolean;
   LoginExitCode: Integer;
+  ProvisionExitCode: Integer;
+  ProvisionOutput: String;
 begin
   if CurStep <> ssPostInstall then
     Exit;
@@ -231,9 +311,26 @@ begin
 
   EnvTtsPython := ExpandConstant('{app}\.envs\env-tts\Scripts\python.exe');
 
-  if FileExists(EnvTtsPython) then
+  if FileExists(EnvTtsPython) and EnvTtsIsFunctional(EnvTtsPython) then
   begin
-    Log('env-tts already exists -- reusing it (matches install_env.ps1''s own refuse-to-overwrite behavior)');
+    Log('env-tts already exists and is functional -- reusing it (matches install_env.ps1''s own refuse-to-overwrite behavior)');
+  end
+  else if FileExists(EnvTtsPython) then
+  begin
+    // python.exe exists but a real package (torch) is not importable --
+    // an incomplete environment from an interrupted/failed previous
+    // attempt, not a usable one. Do NOT silently proceed (see the bug
+    // this fixes, above the EnvTtsIsFunctional() function) and do NOT
+    // delete it automatically -- install_env.ps1's own "remove it
+    // deliberately" contract applies here too.
+    SetupSucceeded := False;
+    SafeMsgBox('An existing AARYA Voice Lab environment was found, but it appears incomplete -- ' +
+      'likely left over from an interrupted or failed previous install (a required package could ' +
+      'not be imported).' + #13#10 + #13#10 +
+      'Delete this folder, then run this installer again to rebuild it cleanly:' + #13#10 +
+      ExpandConstant('{app}\.envs\env-tts'),
+      mbError, MB_OK);
+    Exit;
   end
   else
   begin
@@ -296,13 +393,13 @@ begin
     Exit;
   end;
 
-  if not RunLoggedStep('DOWNLOADING MODEL', EnvTtsPython, ExpandConstant('"{app}\scripts\_installer_steps.py" provision')) then
+  if not RunProvisionStepCapture(EnvTtsPython, ExpandConstant('"{app}\scripts\_installer_steps.py" provision'),
+       ProvisionExitCode, ProvisionOutput) then
   begin
-    SafeMsgBox('Downloading or verifying the IndicF5 model failed.' + #13#10 + #13#10 +
-      'This can happen from a network interruption, a corrupted partial download, or the ' +
-      'HuggingFace account not yet having access to ai4bharat/IndicF5 approved. See the setup log ' +
-      'for the specific reason, then re-run "aarya-voice indicf5-report" from an installed shortcut ' +
-      'to retry -- already-downloaded files are reused, not re-fetched.',
+    SafeMsgBox('Downloading or verifying the IndicF5 model failed:' + #13#10 + #13#10 +
+      ProvisionOutput + #13#10 + #13#10 +
+      'Re-run "aarya-voice indicf5-report" from an installed shortcut to retry -- already-downloaded ' +
+      'files are reused, not re-fetched.',
       mbError, MB_OK);
     Exit;
   end;
