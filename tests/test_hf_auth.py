@@ -1,0 +1,99 @@
+"""Tests for `pipeline.hf_auth` -- secure, subprocess-isolated HuggingFace
+authentication for the IndicF5 installer (Phase C).
+
+Base-interpreter-safe: nothing here imports `huggingface_hub` (this
+module doesn't either -- see its own docstring). The "not configured"
+tests are deterministic everywhere; the "real" test is capability-gated
+on `.envs/env-tts` actually being built, following the exact convention
+`test_voice_model_engine.py`'s embedding-provider tests already use.
+"""
+
+from __future__ import annotations
+
+import pytest
+
+from aarya_voice_lab.pipeline import hf_auth as hf_auth_module
+from aarya_voice_lab.pipeline.hf_auth import (
+    HFAuthError,
+    HFAuthStatus,
+    check_existing_login,
+    check_repo_access,
+    login_with_token,
+)
+
+
+def test_check_existing_login_raises_when_env_tts_not_built(tmp_path, monkeypatch):
+    monkeypatch.setattr(hf_auth_module, "_tts_python", lambda: None)
+    with pytest.raises(HFAuthError, match="not built"):
+        check_existing_login()
+
+
+def test_check_repo_access_raises_when_env_tts_not_built(monkeypatch):
+    monkeypatch.setattr(hf_auth_module, "_tts_python", lambda: None)
+    with pytest.raises(HFAuthError, match="not built"):
+        check_repo_access("ai4bharat/IndicF5")
+
+
+def test_login_with_token_never_leaks_the_token_value_in_an_error(monkeypatch):
+    """Security property: even when the worker call itself fails (e.g. a
+    subprocess error unrelated to the token), the token value must never
+    appear anywhere in the resulting exception message."""
+    secret_token = "hf_totally_secret_value_should_never_appear_ANYWHERE"
+
+    def _fake_run_worker(request, *, timeout=30.0):
+        raise HFAuthError("worker exited 1 with no response file -- stderr: some unrelated failure")
+
+    monkeypatch.setattr(hf_auth_module, "_run_worker", _fake_run_worker)
+    with pytest.raises(HFAuthError) as exc_info:
+        login_with_token(secret_token)
+    assert secret_token not in str(exc_info.value)
+
+
+def test_login_with_token_returns_status_from_worker_response(monkeypatch):
+    monkeypatch.setattr(
+        hf_auth_module,
+        "_run_worker",
+        lambda request, timeout=30.0: {"ok": True, "authenticated": True, "username": "test-user"},
+    )
+    status = login_with_token("irrelevant-in-this-mocked-test")
+    assert status == HFAuthStatus(authenticated=True, username="test-user")
+
+
+def test_check_existing_login_reports_not_authenticated_honestly(monkeypatch):
+    monkeypatch.setattr(
+        hf_auth_module,
+        "_run_worker",
+        lambda request, timeout=30.0: {"ok": True, "authenticated": False, "detail": "no token cached locally"},
+    )
+    status = check_existing_login()
+    assert status.authenticated is False
+    assert "no token cached" in status.detail
+
+
+def test_check_existing_login_real_when_env_tts_is_built():
+    """Capability-gated real integration test (mirrors
+    test_local_neural_embedding_provider_real_inference_when_configured's
+    own convention exactly, skip included): if `.envs/env-tts` is
+    actually built in this environment (it is, as of the installer
+    Phase B milestone -- see docs/INDICF5_INSTALLER.md), this proves the
+    real subprocess bridge works end to end -- not a mock. If it is not
+    built (a fresh clone or CI without the ML environment), this skips
+    with an honest reason rather than failing on an environment
+    difference this test cannot control."""
+    if hf_auth_module._tts_python() is None:
+        pytest.skip("`.envs/env-tts` is not built in this environment -- see docs/INDICF5_INSTALLER.md")
+    try:
+        status = check_existing_login()
+    except HFAuthError as exc:
+        # This call needs live network reachability to huggingface.co,
+        # unlike the embedding provider's real-inference precedent (local
+        # computation only) -- a transient connection failure here is an
+        # environment condition, not a code defect. huggingface_hub
+        # itself already retries internally (confirmed: up to 5 attempts
+        # with backoff) before this surfaces at all, so this is a real,
+        # sustained network issue, not a one-off worth retrying again here.
+        if "could not reach huggingface" in str(exc).lower():
+            pytest.skip(f"live network to huggingface.co unavailable: {exc}")
+        raise
+    assert isinstance(status, HFAuthStatus)
+    assert isinstance(status.authenticated, bool)

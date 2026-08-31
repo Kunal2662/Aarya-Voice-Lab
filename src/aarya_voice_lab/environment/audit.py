@@ -162,6 +162,90 @@ def check_accelerator() -> Capability:
     )
 
 
+#: IndicF5 VRAM capability tiers -- measured, not guessed. Real GPU-memory
+#: instrumentation (torch.cuda.max_memory_allocated()/max_memory_reserved())
+#: was added to scripts/ml_workers/indicf5_generation_worker.py and run
+#: through the actual verified production path on the reference machine:
+#: RTX 3050 Laptop GPU, 4096 MiB total VRAM. Peak reserved (the honest
+#: "how much VRAM this needs and won't give back mid-session" figure):
+#: model+vocoder load ~2642 MiB, a short (1.9s output, 32 NFE) generation
+#: ~2648 MiB, a longer (~19.1s output) generation ~2708 MiB;
+#: nvidia-smi's own system-wide peak was ~2809 MiB, leaving ~1154 MiB
+#: free at that peak. Full record: docs/INDICF5_INSTALLER.md.
+#:
+#: These are tier BOUNDARIES informed by that one reference measurement,
+#: not a claim that every GPU in the >= 4 GB tier has been tested --
+#: see check_indicf5_vram_tier()'s AVAILABLE detail text, which says so
+#: explicitly every time.
+INDICF5_VRAM_INSUFFICIENT_BELOW_MIB = 3072
+INDICF5_VRAM_SUPPORTED_AT_OR_ABOVE_MIB = 4096
+
+
+def check_indicf5_vram_tier() -> Capability:
+    """IndicF5-specific GPU-memory capability tier -- deliberately NOT
+    part of CAPABILITY_CHECKS (that tuple is environment-agnostic machine
+    state; this is one workload's measured policy). Wired into
+    `environment.verify.verify_environment()` for EnvironmentId.TTS only.
+
+    Three tiers, per the measured evidence above:
+    - < 3 GB: INCOMPATIBLE -- insufficient, do not attempt IndicF5 on GPU.
+    - 3 GB to < 4 GB: OPTIONAL -- constrained/unverified; not officially
+      supported yet, exposed (if at all) as an explicit warned/advanced
+      path only, never silently treated as equivalent to the verified tier.
+    - >= 4 GB: AVAILABLE -- supported, based on the verified 4 GB
+      reference configuration. This is NOT a claim that every >= 4 GB
+      GPU has been tested; the detail text says so every time, on
+      purpose, so nothing downstream can quietly read AVAILABLE as
+      "universally guaranteed"."""
+    report = collect_system_report()
+    if not report.gpu.available or report.gpu.vendor != "NVIDIA":
+        return Capability(
+            "IndicF5 VRAM tier",
+            CapabilityState.OPTIONAL,
+            "no NVIDIA GPU detected -- IndicF5 falls back to CPU when CUDA is unavailable, but CPU timing "
+            "for this model has not been measured; treat CPU execution as experimental/very slow, not "
+            "verified production support (see docs/INDICF5_INSTALLER.md)",
+        )
+
+    vram_values: list[int] = []
+    for device in report.gpu.devices:
+        raw = device.get("vram_mib")
+        if raw is None:
+            continue
+        try:
+            vram_values.append(int(float(raw)))
+        except (TypeError, ValueError):
+            continue
+    if not vram_values:
+        return Capability(
+            "IndicF5 VRAM tier",
+            CapabilityState.UNKNOWN,
+            "NVIDIA GPU detected but VRAM could not be read from nvidia-smi -- tier cannot be determined",
+        )
+
+    vram_mib = max(vram_values)
+    if vram_mib < INDICF5_VRAM_INSUFFICIENT_BELOW_MIB:
+        return Capability(
+            "IndicF5 VRAM tier",
+            CapabilityState.INCOMPATIBLE,
+            f"{vram_mib} MiB detected -- below {INDICF5_VRAM_INSUFFICIENT_BELOW_MIB} MiB, INSUFFICIENT; "
+            "do not attempt IndicF5 GPU generation on this device",
+        )
+    if vram_mib < INDICF5_VRAM_SUPPORTED_AT_OR_ABOVE_MIB:
+        return Capability(
+            "IndicF5 VRAM tier",
+            CapabilityState.OPTIONAL,
+            f"{vram_mib} MiB detected -- CONSTRAINED/UNVERIFIED tier (3-4 GB); not officially supported yet, "
+            "advanced/explicit-warning path only",
+        )
+    return Capability(
+        "IndicF5 VRAM tier",
+        CapabilityState.AVAILABLE,
+        f"{vram_mib} MiB detected -- supported based on the verified 4 GB reference configuration "
+        "(RTX 3050 Laptop GPU; see docs/INDICF5_INSTALLER.md), not a universal guarantee for every >= 4 GB GPU",
+    )
+
+
 def check_cuda_runtime() -> Capability:
     report = collect_system_report()
     if report.cuda.available:

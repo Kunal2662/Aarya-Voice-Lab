@@ -20,6 +20,7 @@ from aarya_voice_lab.environment.audit import (
     check_cuda_runtime,
     check_ffmpeg,
     check_gpu,
+    check_indicf5_vram_tier,
     check_pytorch,
 )
 from aarya_voice_lab.environment.specs import (
@@ -158,6 +159,9 @@ def verify_environment(env_id: EnvironmentId | str) -> EnvironmentVerification:
                 "REQUIRED by whisperx for audio decoding",
             )
         result.capabilities.append(ffmpeg)
+
+    if spec.env_id is EnvironmentId.TTS:
+        result.capabilities.append(check_indicf5_vram_tier())
 
     gpu = next((c for c in result.capabilities if c.name == "NVIDIA GPU"), None)
     if gpu is not None and gpu.state is not CapabilityState.AVAILABLE:

@@ -122,23 +122,50 @@ WHISPERX_SPEC = EnvironmentSpec(
 
 TTS_SPEC = EnvironmentSpec(
     env_id=EnvironmentId.TTS,
-    purpose="Voice model experimentation. NO MODEL SELECTED — candidates only.",
+    purpose=(
+        "AI4Bharat IndicF5 text-to-speech — selected and verified end-to-end "
+        "(real CUDA generation, human-confirmed intelligible speech). "
+        "See docs/INDICF5_INSTALLER.md."
+    ),
     python_version="3.12",
     requirements_file="requirements/tts.txt",
-    expected_packages={},
+    # The two version-sensitive pins verified end-to-end together; the
+    # full exact-pinned dependency set lives in requirements/tts.txt.
+    expected_packages={"torch": "2.13.0", "torchaudio": "2.11.0", "transformers": "4.49.0"},
     torch_index_cpu="https://download.pytorch.org/whl/cpu",
-    torch_index_cuda="https://download.pytorch.org/whl/cu130",
+    # cu126, not cu130 (PyTorch 2.13's own default index) — this is the
+    # exact index the verified reference install actually used. cu130 has
+    # never been tested against this model and is not assumed equivalent.
+    torch_index_cuda="https://download.pytorch.org/whl/cu126",
     cpu_supported=True,
-    cpu_caveat="Inference is feasible on CPU for small models; training is not.",
-    external_requirements=(ExternalRequirement.OPEN_MODEL_DOWNLOAD,),
-    requires_approval=(
-        "No TTS model has been selected. Candidate evaluation is in "
-        "docs/TTS_MODELS.md; selection is deferred beyond Phase 1."
+    cpu_caveat=(
+        "CPU execution is code-supported (IndicF5's own inference path falls back to CPU when CUDA is "
+        "unavailable) but UNVERIFIED for this model and NOT advertised as production-viable — treat as "
+        "experimental/very slow until a real CPU timing measurement is performed. See docs/INDICF5_INSTALLER.md."
     ),
+    # Confirmed empirically, not assumed: anonymous hf_hub_download against
+    # ai4bharat/IndicF5 returns a 401 GatedRepoError. A HuggingFace account
+    # with the model's access request approved, and a valid token, are
+    # required before the checkpoint can be downloaded.
+    external_requirements=(ExternalRequirement.GATED_MODEL_DOWNLOAD, ExternalRequirement.CREDENTIAL),
+    # Retired for this environment specifically: the reason this gate
+    # existed ("no TTS model has been selected") is no longer true —
+    # IndicF5 is selected and verified. Approval semantics are preserved
+    # for env-whisperx (WHISPERX_SPEC.requires_approval), which still
+    # carries a real, unresolved gate (a third-party account + a gated,
+    # contact-sharing-agreement model).
+    requires_approval=None,
     notes=(
-        "requirements/tts.txt intentionally installs nothing.",
-        "Some candidates require trust_remote_code=True (arbitrary code "
-        "execution on load) — review before running near private material.",
+        "Do NOT `pip install f5-tts` — IndicF5's checkpoint was trained against an older F5-TTS than "
+        "PyPI ships today; loading succeeds but generation produces unintelligible audio. The verified "
+        "implementation is vendored at scripts/ml_workers/vendor/indicf5_f5tts/ (AI4Bharat's own bundled "
+        "source, not the PyPI package) — requirements/tts.txt installs only its underlying dependencies.",
+        "trust_remote_code=True is NOT used anywhere in this project's IndicF5 path — the model is built "
+        "directly from the vendored library code and loads only tensor weights via safetensors.",
+        "ai4bharat/IndicF5 is a GATED HuggingFace repository — see external_requirements above and "
+        "docs/INDICF5_INSTALLER.md for the credential flow.",
+        "GPU VRAM capability tiers (measured, not guessed) are checked separately — see "
+        "environment.audit.check_indicf5_vram_tier() and docs/INDICF5_INSTALLER.md.",
     ),
 )
 

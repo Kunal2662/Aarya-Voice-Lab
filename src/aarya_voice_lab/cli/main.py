@@ -236,6 +236,21 @@ def _cmd_env_check(env_id: EnvironmentId):
     return handler
 
 
+def _cmd_indicf5_report(args: argparse.Namespace) -> int:
+    from aarya_voice_lab.pipeline.indicf5_install_report import (
+        InstallerReadiness,
+        build_installer_report,
+        format_installer_report,
+    )
+
+    report = build_installer_report(run_smoke_test=not args.skip_smoke_test)
+    if args.json:
+        print(json.dumps(report.to_dict(), indent=2))
+    else:
+        print(format_installer_report(report))
+    return 0 if report.readiness is InstallerReadiness.READY else 1
+
+
 def _cmd_tts_candidates(args: argparse.Namespace) -> int:
     if args.json:
         print(json.dumps([c.to_dict() for c in TTS_CANDIDATES], indent=2))
@@ -342,6 +357,18 @@ def build_parser() -> argparse.ArgumentParser:
     p = subparsers.add_parser("tts-check", help="Verify the env-tts environment against its spec.")
     p.add_argument("--json", action="store_true")
     p.set_defaults(func=_cmd_env_check(EnvironmentId.TTS))
+
+    p = subparsers.add_parser(
+        "indicf5-report",
+        help="Full IndicF5 installer status report -- runs the real GPU smoke test unless --skip-smoke-test.",
+    )
+    p.add_argument("--json", action="store_true", help="Emit JSON instead of text.")
+    p.add_argument(
+        "--skip-smoke-test",
+        action="store_true",
+        help="Skip the real (tens-of-seconds) GPU generation test. Readiness can never be READY without it.",
+    )
+    p.set_defaults(func=_cmd_indicf5_report)
 
     p = subparsers.add_parser("tts-candidates", help="Show the TTS candidate matrix and license audit.")
     p.add_argument("--json", action="store_true")

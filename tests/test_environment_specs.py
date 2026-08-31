@@ -75,14 +75,21 @@ def test_every_environment_supports_cpu():
             assert spec.cpu_caveat, f"{spec.env_id} claims CPU support with no caveat documented"
 
 
-def test_specs_requiring_credentials_is_exactly_whisperx():
-    assert [s.env_id for s in specs_requiring_credentials()] == [EnvironmentId.WHISPERX]
+def test_specs_requiring_credentials_is_exactly_whisperx_and_tts():
+    """IndicF5 (env-tts) is a GATED HuggingFace repo — confirmed empirically
+    (anonymous download returns 401 GatedRepoError), not assumed. It joined
+    WhisperX as the second environment genuinely requiring a credential."""
+    assert {s.env_id for s in specs_requiring_credentials()} == {EnvironmentId.WHISPERX, EnvironmentId.TTS}
 
 
 def test_approval_required_environments_are_flagged():
+    """env-tts's approval gate was retired once IndicF5 was selected and
+    verified — the reason it existed ("no model selected") no longer
+    holds. env-whisperx keeps its gate: a real, unresolved third-party
+    credential + gated-model decision."""
     flagged = {s.env_id for s in specs_requiring_approval()}
     assert EnvironmentId.WHISPERX in flagged
-    assert EnvironmentId.TTS in flagged
+    assert EnvironmentId.TTS not in flagged
     assert EnvironmentId.BASE not in flagged
 
 

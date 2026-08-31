@@ -1,46 +1,78 @@
-# Voice generation / TTS — Environment D.
-# PLANNED, NOT INSTALLED IN PHASE 0. NO MODEL HAS BEEN SELECTED.
+# Voice generation / TTS — Environment D (env-tts).
 #
 # ############################################################
-# Nothing is uncommented here on purpose. The TTS model is an OPEN
-# ARCHITECTURAL DECISION -- see docs/MODEL_STRATEGY.md for the candidate
-# evaluation. Do not install a model merely because it is listed.
-#
-# LICENSING IS A HARD FILTER. Several popular voice-cloning models are
-# non-commercial or research-only, and at least one (XTTS-v2) has no
-# remaining licensor who could grant different terms.
+# A MODEL HAS BEEN SELECTED AND VERIFIED: AI4Bharat IndicF5.
+# See docs/TTS_MODELS.md for the candidate evaluation and
+# docs/INDICF5_INSTALLER.md for the verification/installer record.
+# This file previously installed nothing deliberately, pending that
+# decision -- the decision has since been made.
 # ############################################################
 #
-# Keep this environment separate from A and B: TTS stacks drag their own
-# torch and transformers versions.
+# Keep this environment separate from A and B (requirements/diarization.txt,
+# requirements/transcription.txt): TTS stacks bring their own torch/
+# transformers pins. See docs/ENVIRONMENT.md.
 #
-# --- Leading candidate -------------------------------------------------
-# AI4Bharat IndicF5 — MIT weights, supports Marathi, supports reference-
-# audio voice cloning. Loaded from HuggingFace.
-#   Caveats: the HF repo is gated (contact-info agreement), and loading
-#   uses trust_remote_code=True, which EXECUTES ARBITRARY CODE from the
-#   repo. Review that code before running it against private material.
-# transformers
-# torch
-# soundfile
+# Target: Python 3.12.
 #
-# --- No-cloning alternative -------------------------------------------
-# AI4Bharat Indic Parler-TTS — Apache-2.0 code AND weights (cleanest
-# license), 21 Indic languages. Cannot clone a voice; steered by a text
-# description. Viable for the DEFAULT voice, not the Private Voice.
-# Not on PyPI: pip install git+https://github.com/huggingface/parler-tts.git
+# Install torch FIRST from the wheel index matching your driver -- this is
+# the EXACT combination verified end-to-end (real CUDA generation, real
+# intelligible speech, see docs/INDICF5_INSTALLER.md):
+#   pip install torch==2.13.0 torchaudio==2.11.0 --index-url https://download.pytorch.org/whl/cu126
+#   pip install torch==2.13.0 torchaudio==2.11.0 --index-url https://download.pytorch.org/whl/cpu
+# then install this file.
 #
-# --- CPU-friendly baseline --------------------------------------------
-# Piper — ONNX, CPU-only, no torch at inference, near-zero dependency
-# conflict risk, mr_IN voices exist. Cannot clone; needs finetuning.
-# NOTE: the current piper1-gpl package is GPL-3.0-or-later.
-# piper-tts>=1.7.0
+# Do NOT `pip install f5-tts`. IndicF5's checkpoint was trained against an
+# older F5-TTS than what PyPI's f5-tts package ships today -- confirmed
+# this project's own real diagnostic session: loading succeeds against the
+# PyPI package (parameter shapes match), but generation produces
+# unintelligible audio (a newer default, DiT.text_mask_padding=True, added
+# after this checkpoint existed, among other accumulated differences).
+# The working implementation is vendored directly in this repository at
+# scripts/ml_workers/vendor/indicf5_f5tts/ (AI4Bharat's own bundled F5-TTS
+# source, not the PyPI package) -- it needs f5-tts's underlying
+# dependencies below, but never f5-tts itself. See that package's module
+# docstrings and docs/INDICF5_INSTALLER.md for the full provenance.
 #
-# --- Rejected ----------------------------------------------------------
-# Coqui XTTS-v2  : weights are CPML NON-COMMERCIAL, and Coqui Inc. is
-#                  defunct so no other terms can be obtained. Also does
-#                  NOT support Marathi (Hindi only). Disqualified.
-# F5-TTS (base)  : MIT code but CC-BY-NC-4.0 base weights; English/Chinese
-#                  only. IndicF5 is the MIT-licensed Indic finetune.
-# Fish Speech    : research-only license covering code AND weights; no
-#                  Marathi. Disqualified.
+# Model access: ai4bharat/IndicF5 is a GATED HuggingFace repository --
+# confirmed empirically (anonymous download returns 401 GatedRepoError).
+# A HuggingFace account with the model's access request approved, and a
+# valid token, are required before the checkpoint can be downloaded. No
+# credential is stored by this project outside huggingface_hub's own
+# token cache. See docs/INDICF5_INSTALLER.md.
+#
+# trust_remote_code: NOT used anywhere in this project's IndicF5 path.
+# The model is built directly from the vendored library code above and
+# loads only tensor weights via safetensors (incapable of executing
+# code) -- a deliberately different, safer path than the
+# transformers.AutoModel.from_pretrained(trust_remote_code=True) route
+# IndicF5's own published model card documents.
+#
+# Every version below is pinned EXACTLY to what was verified end-to-end
+# (checkpoint loads, real CUDA generation, human-confirmed intelligible
+# speech) -- silent version drift is the failure mode this project's own
+# compatibility audit (docs/COMPATIBILITY.md) warns against repeatedly.
+
+-r base.txt
+
+transformers==4.49.0
+huggingface_hub==0.36.2
+safetensors==0.8.0
+soundfile==0.14.0
+x-transformers==2.27.4
+torchdiffeq==0.2.5
+librosa==1.0.0
+pypinyin==0.55.0
+rjieba==0.2.1
+pydub==0.25.1
+vocos==0.1.0
+matplotlib==3.11.1
+tqdm==4.70.0
+numpy==2.5.2
+
+# NOTE: torchaudio 2.11.0's default `torchcodec` playback backend fails to
+# load its native DLLs on the verified reference machine (an FFmpeg
+# shared-library packaging mismatch, confirmed independently of IndicF5
+# itself). The vendored worker already works around this with a
+# soundfile-backed torchaudio.load() replacement, scoped to its own
+# subprocess only -- torchcodec is deliberately NOT listed here, since
+# nothing in the verified path imports or needs it.
