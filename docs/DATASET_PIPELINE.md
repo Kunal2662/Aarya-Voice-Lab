@@ -220,6 +220,47 @@ Everything except the README is git-ignored.
 - Source hashes are re-verified after processing; a change halts that file.
 - FFmpeg is invoked with `-n` (never `-y`), so it cannot overwrite.
 
+### Recordings do not have to live under `data/source/`
+
+Every stage command below takes a `<dir>` argument, and it is not
+special-cased to `data/source/` — it accepts **any directory on disk**.
+`data/source/` is one *optional* convention for a user who wants their
+recordings tracked alongside the project's own directory layout; it is
+not a requirement. A user who keeps the recordings on their own drive,
+in their own folder, under their own control (which real, private
+recordings usually should be) can point every command directly at that
+folder instead, and the pipeline reads it in place — nothing is copied
+into the repository, and nothing is ever written back into it (every
+stage's derived output — manifests, quality reports, segment audio —
+lands under `data/`, never under the source directory, regardless of
+where that directory is).
+
+`--approved` is required only to read the two specifically-protected
+roots this project's own tree defines (`source/` at the repo root and
+`data/source/`) — confirmed in code
+([`pipeline/inventory.py`](../src/aarya_voice_lab/pipeline/inventory.py)'s
+`require_synthetic_or_approved()`), and live-tested against an arbitrary
+external directory during the Dataset Software Readiness audit
+(`docs/DATASET_31_RECORDING_AUDIT.md`). Pointing at a directory outside
+those two roots needs no flag for the read itself to be permitted — but
+`--approved` is still what marks the resulting records `is_synthetic:
+false` (real data, not a test fixture), which matters regardless of
+where the files live, so pass it whenever processing real recordings:
+
+```bash
+aarya-voice inventory       "D:\MyRecordings" --approved
+aarya-voice validate-audio  "D:\MyRecordings" --approved
+aarya-voice analyze-quality "D:\MyRecordings" --approved
+aarya-voice segment         "D:\MyRecordings" --approved --dry-run   # inspect first
+aarya-voice segment         "D:\MyRecordings" --approved             # then for real
+aarya-voice dataset-report  "D:\MyRecordings" --approved
+```
+
+Run `aarya-voice dataset-gate` first regardless of which location is
+used — it is a deliberate, separate human checklist
+(`pipeline/dataset_gate.py`), not something any of the commands above
+enforce automatically for you.
+
 ### Batches
 
 `batch-001`, `batch-002`, … Nothing is designed around a fixed number of

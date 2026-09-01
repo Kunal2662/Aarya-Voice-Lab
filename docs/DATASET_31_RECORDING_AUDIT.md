@@ -8,6 +8,20 @@ audit (and, much later, an actual training run) becomes possible. No
 recordings were accessed, read, copied, or modified, because none could
 be located.
 
+> **Correction (Dataset Software Readiness audit, later the same
+> session)**: the "minimum required action" section below was written
+> under the assumption that the recordings needed to be *placed* at
+> `data/source/`. That assumption was incomplete. The recordings are
+> not expected to be on this development machine at all — they belong
+> on the user's own machine, under the user's own control — and the
+> pipeline commands already accept **any** directory, not only
+> `data/source/`, confirmed live with a synthetic test file processed
+> from an arbitrary external directory with zero copying. See
+> `docs/DATASET_PIPELINE.md`'s "Recordings do not have to live under
+> `data/source/`" section for the corrected, accurate workflow. The
+> access-gate findings below (9 of 15 conditions unsatisfied) remain
+> accurate and unaffected by this correction.
+
 See also: [`docs/DATASET_PIPELINE.md`](DATASET_PIPELINE.md) (the
 canonical ingestion path this audit would have used),
 [`docs/PRIVACY.md`](PRIVACY.md) (the ethical/legal framing this dataset
